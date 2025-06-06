@@ -1,0 +1,8 @@
+services:
+  task:
+    build: .
+    image: cirrus-task-example:latest
+    #env_file: .env
+    volumes:
+      - ./:/task
+    entrypoint: /bin/bash
