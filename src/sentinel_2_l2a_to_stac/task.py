@@ -3,13 +3,22 @@ from typing import Any
 
 import pystac
 from stactask import Task
+from stactask.exceptions import InvalidInput
 
 
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
 
-    def validate(self) -> None:
+    def validate(self) -> bool:
+        # The task is driven entirely by a `metadata_href` pointing at the
+        # Sentinel-2 source metadata on RODA/S3; without it there is nothing to
+        # process, so reject the payload as the input's fault (InvalidInput),
+        # not an internal error. Ported from the legacy classmethod validate,
+        # rewritten for stactask 0.6.1's instance-method signature (reads
+        # self._payload instead of a `payload` arg).
+        if "metadata_href" not in self._payload:
+            raise InvalidInput("metadata_href required")
         return True
 
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
@@ -50,7 +59,9 @@ class Sentinel2ToStac(Task):
         return [item.to_dict()]
 
 
-def lambda_handler(event: dict, context: dict = {}):
+def lambda_handler(
+    event: dict[str, Any], context: dict[str, Any] = {}
+) -> dict[str, Any]:
     return Sentinel2ToStac.handler(payload=event)
 
 

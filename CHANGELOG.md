@@ -18,6 +18,9 @@ used by this project.
 - Renamed the template package `cirrus_task_example` to `sentinel_2_l2a_to_stac`
   and the task class `CirrusTaskExample` to `Sentinel2ToStac`, updating the
   project/CLI name, Dockerfile paths, and tests to match. No behavior change.
+- `validate()` now requires a top-level `metadata_href` in the payload, raising
+  `InvalidInput` when absent (ported from the legacy task; rewritten for
+  stactask 0.6.1's instance-method `validate(self)` signature).
 
 ## [v2025.03.12]
 
