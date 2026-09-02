@@ -30,6 +30,19 @@ used by this project.
   tileInfo.json` handling, and the `NoSuchKey`→`InvalidInput` translation.
 - `src/sentinel_2_l2a_to_stac/py.typed` marker so the strictly-typed package
   type-checks correctly when imported from the test suite.
+- STAC Item creation wired into `process()` via
+  `stactools.sentinel2.stac.create_item`, with the legacy exception translation
+  (`ValueError`/`AssertionError` and the "older metadata format" message →
+  `InvalidInput`; anything else → `Exception`). Later stages (`update_item`,
+  COGs, thumbnail, upload) are not wired yet, so `process()` returns the raw
+  `create_item` output. Added `stactools~=0.5.3` and `stactools-sentinel2==0.8.0`.
+- `tests/fixtures/source-metadata/tiles-19-T-DJ-2023-4-19-0/` (the three real
+  source metadata files) and `tests/test_create_item.py`, which pre-seeds a
+  workdir with them so the download block is a no-op and `create_item` runs
+  fully locally. Asserts narrow properties (id / geometry / processing baseline
+  / `stac_version`) rather than a full output diff.
+- `tests/fixtures/payloads/success/create-item-baseline/in.json` (payload only;
+  no `out.json` yet — the full pipeline output isn't meaningful until PR 8/9).
 
 ### Changed
 

@@ -15,6 +15,7 @@ import stac_asset.blocking
 from botocore.exceptions import ClientError
 from stactask.exceptions import InvalidInput
 
+import sentinel_2_l2a_to_stac.task as task_module
 from sentinel_2_l2a_to_stac.task import Sentinel2ToStac
 
 S3_DIR = "s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0"
@@ -59,6 +60,23 @@ def fake_read_href_factory(calls: list[str]) -> Any:
     return _fake
 
 
+class _StubItem:
+    """Minimal stand-in for the pystac Item create_item returns."""
+
+    def to_dict(self) -> dict[str, str]:
+        return {"id": "stub-item"}
+
+
+def stub_create_item(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize create_item so these tests exercise only the download block.
+
+    The fake bytes served above are not real Sentinel-2 metadata, so the real
+    create_item would fail on them; create_item itself is covered by
+    test_create_item.py against genuine local metadata.
+    """
+    monkeypatch.setattr(task_module, "create_item", lambda _workdir: _StubItem())
+
+
 def test_download_fetches_all_three_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -66,12 +84,11 @@ def test_download_fetches_all_three_files(
     monkeypatch.setattr(
         Sentinel2ToStac, "read_href", fake_read_href_factory(calls)
     )
+    stub_create_item(monkeypatch)
     task = make_task(tmp_path)
 
-    result = task.process()
+    task.process()
 
-    # Stub return until create_item lands (PR 3).
-    assert result == []
     # All three files landed in the workdir with the expected bytes.
     assert task.tileinfo_path.read_bytes() == TILEINFO_BYTES
     assert task.granule_metadata_xml_path.read_bytes() == GRANULE_BYTES
@@ -94,6 +111,7 @@ def test_existing_files_are_not_refetched(
     monkeypatch.setattr(
         Sentinel2ToStac, "read_href", fake_read_href_factory(calls)
     )
+    stub_create_item(monkeypatch)
     task = make_task(tmp_path)
 
     task.process()

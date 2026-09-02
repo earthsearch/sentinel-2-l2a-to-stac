@@ -9,6 +9,7 @@ from botocore.exceptions import ClientError
 from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
+from stactools.sentinel2.stac import create_item
 
 # RODA hosts the raw Sentinel-2 tiles in a public bucket with no STAC catalog,
 # only the source metadata files. We reconstruct the product-level metadata
@@ -102,10 +103,32 @@ class Sentinel2ToStac(Task):
                 self.read_href(f"{s3_path}/metadata.xml")
             )
 
-        # PR 2 proves only the download + workdir plumbing. create_item,
-        # update_item, COGs, thumbnail, and upload are ported in later PRs, so
-        # process() returns a stub (no Item exists yet).
-        return []
+        # Build the STAC Item from the downloaded metadata. stactools-sentinel2
+        # reads all three files out of the workdir. The exception translation is
+        # ported verbatim and preserves the InvalidInput-vs-Exception convention:
+        # a ValueError/AssertionError (and the specific "older metadata format"
+        # message) is the input's fault; anything else is an internal failure.
+        try:
+            item = create_item(str(self._workdir))
+        except ValueError as ex:
+            self.logger.error(ex)
+            raise InvalidInput(f"Invalid input metadata: {ex}")
+        except AssertionError as ex:
+            self.logger.error(ex)
+            raise InvalidInput(
+                f"Assertion failed, likely because of an invalid geometry: {ex}"
+            )
+        except Exception as ex:
+            self.logger.error(ex)
+            if "Cannot find granule tile_id granule metadata" in str(ex):
+                raise InvalidInput("Unable to parse older metadata file format")
+            else:
+                raise Exception(f"Unable to create item: {ex}") from ex
+
+        # update_item (Earth Search overrides), is_newer_than_existing, COGs,
+        # thumbnail, and upload are ported in later PRs. PR 3 returns the raw
+        # create_item output.
+        return [item.to_dict()]
 
 
 def lambda_handler(

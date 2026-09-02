@@ -17,6 +17,8 @@ classifiers = [
 dependencies = [
     "boto3-utils>=0.4.2",
     "stactask>=0.7.0",
+    "stactools~=0.5.3",
+    "stactools-sentinel2==0.8.0",
 ]
 
 [project.scripts]
@@ -32,7 +34,7 @@ warn_unused_ignores = true
 # typing info, so under --strict mypy would emit import-untyped; scope the
 # suppression to just these modules rather than weakening strictness globally.
 [[tool.mypy.overrides]]
-module = ["boto3utils.*", "botocore.*"]
+module = ["boto3utils.*", "botocore.*", "stactools.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
