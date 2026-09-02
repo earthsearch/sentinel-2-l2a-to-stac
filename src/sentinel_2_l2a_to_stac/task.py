@@ -6,9 +6,12 @@ from typing import Any
 import stac_asset.blocking
 from boto3utils import s3
 from botocore.exceptions import ClientError
+from pystac import Item, Link, MediaType, RelType
+from pystac.extensions.storage import StorageExtension, StorageScheme
 from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
+from stactask.utils import stac_jsonpath_match
 from stactools.sentinel2.stac import create_item
 
 # RODA hosts the raw Sentinel-2 tiles in a public bucket with no STAC catalog,
@@ -16,6 +19,13 @@ from stactools.sentinel2.stac import create_item
 # href from tileInfo.json's `productPath`, which requires recovering the bucket
 # from the granule href — that's the only use of this client.
 s3_client = s3(requester_pays=False)
+
+# Storage extension (pystac 1.15.2, schemes/refs model). One aws-s3 scheme,
+# referenced from every asset. In v2 `platform` is the access-endpoint URI/
+# template (provider identity moved to `type`), unlike v1's literal "AWS".
+STORAGE_SCHEME_KEY = "aws"
+STORAGE_PLATFORM = "https://{bucket}.s3.{region}.amazonaws.com"
+STORAGE_REGION = "us-west-2"
 
 
 class Sentinel2ToStac(Task):
@@ -46,6 +56,96 @@ class Sentinel2ToStac(Task):
     @property
     def product_metadata_xml_path(self) -> Path:
         return Path(self._workdir.joinpath("product_metadata.xml"))
+
+    def update_item(self, item: Item, s3_path: str) -> Item:
+        """Update metadata from stactools-sentinel2 with Earth Search specifics."""
+        # Assign the collection by matching the item against each configured
+        # JSONPath expression, first match wins. Fail-fast if none match. (The
+        # base Task.handler also runs assign_collections() after process(), but
+        # we keep this manual assignment for its fail-fast behavior — the two
+        # overlap intentionally; see MIGRATION_PLAN.md PR 4.)
+        item_dict = item.to_dict()
+        if not (
+            collection := next(
+                (
+                    c
+                    for c, expr in self.upload_options.get("collections", {}).items()
+                    if stac_jsonpath_match(item_dict, expr)
+                ),
+                None,
+            )
+        ):
+            raise Exception("No collection defined for item")
+
+        item.collection_id = collection
+
+        item.properties["earthsearch:payload_id"] = self._payload["id"]
+
+        if item.datetime is None:
+            raise ValueError("Item datetime property cannot be None")
+
+        # ESA-provided providers/license don't apply to the Earth Search
+        # republish; drop them.
+        item.properties.pop("providers", None)
+        item.remove_links("license")
+
+        # Link back to the source granule metadata on RODA.
+        item.add_link(
+            Link(
+                rel=RelType.VIA,
+                target=f"{s3_path}/metadata.xml",
+                media_type=MediaType.XML,
+                title="Granule Metadata in Sinergize RODA Archive",
+            )
+        )
+
+        # Storage extension, rewritten for pystac 1.15.2's schemes/refs model
+        # (legacy's CloudPlatform + .apply(platform=,region=,requester_pays=) API
+        # was removed). Define one aws-s3 scheme here; each asset references it
+        # via storage:refs in the loop below.
+        storage = StorageExtension.ext(item, add_if_missing=True)
+        storage.add_scheme(
+            STORAGE_SCHEME_KEY,
+            StorageScheme.create(
+                type="aws-s3",
+                platform=STORAGE_PLATFORM,
+                region=STORAGE_REGION,
+                requester_pays=False,
+            ),
+        )
+
+        ########################################
+        # scrub extra metadata added after v0.7.1
+        del item.assets["scl"].extra_fields["raster:bands"][0]["classification:classes"]
+        del item.properties["eo:snow_cover"]
+        item.stac_extensions = [
+            ext for ext in item.stac_extensions if "classification" not in ext
+        ]
+        # end_scrub
+        ########################################
+
+        # Rewrite asset URLs to reference the RODA S3 bucket instead of the local
+        # workdir, except for the metadata assets, which point to the local files
+        # already downloaded for create_item(). Also strip proj:bbox and attach
+        # the storage ref to every asset.
+        for asset_name, asset in item.assets.items():
+            if asset_name == "tileinfo_metadata":
+                asset.href = str(self.tileinfo_path)
+            elif asset_name == "granule_metadata":
+                asset.href = str(self.granule_metadata_xml_path)
+            elif asset_name == "product_metadata":
+                asset.href = str(self.product_metadata_xml_path)
+            else:
+                asset.href = f"{s3_path}{asset.href.removeprefix(str(self._workdir))}"
+
+            # Remove unnecessary fields
+            asset.extra_fields.pop("proj:bbox", None)
+
+            StorageExtension.ext(asset, add_if_missing=True).add_ref(
+                STORAGE_SCHEME_KEY
+            )
+
+        return item
 
     def read_href(self, href: str) -> bytes:
         # Fetch a single href's bytes. A missing object (NoSuchKey) is the
@@ -125,9 +225,16 @@ class Sentinel2ToStac(Task):
             else:
                 raise Exception(f"Unable to create item: {ex}") from ex
 
-        # update_item (Earth Search overrides), is_newer_than_existing, COGs,
-        # thumbnail, and upload are ported in later PRs. PR 3 returns the raw
-        # create_item output.
+        # Apply Earth Search-specific overrides (collection, storage, scrub,
+        # asset href rewriting, ...). Wrap failures as internal Exceptions.
+        try:
+            item = self.update_item(item, s3_path)
+        except Exception as ex:
+            self.logger.error(ex)
+            raise Exception(f"Unable to update item: {ex}")
+
+        # is_newer_than_existing, COGs, thumbnail, and upload are ported in
+        # later PRs. PR 4 returns the item after update_item.
         return [item.to_dict()]
 
 

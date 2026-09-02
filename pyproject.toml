@@ -38,7 +38,18 @@ module = ["boto3utils.*", "botocore.*", "stactools.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = [
+    # Silence DeprecationWarnings from third-party libraries (already present).
+    "ignore::DeprecationWarning",
+    # Rasterio internally uses the `*` operator for Affine matrix multiplication;
+    # suppress the PendingDeprecationWarning it emits until rasterio fixes this.
+    "ignore::PendingDeprecationWarning:rasterio.*",
+    # antimeridian.FixWindingWarning fires when stactools-sentinel2 passes a
+    # clockwise exterior ring; it auto-fixes the winding, but the warning is
+    # noise from a third-party call we don't control.  Matched by message text
+    # + module so our own code can still raise warnings freely.
+    "ignore:The exterior ring::antimeridian.*",
+]
 
 [tool.ruff]
 lint.select = ["F", "E", "W", "I", "ERA", "RUF"]

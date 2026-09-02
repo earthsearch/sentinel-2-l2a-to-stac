@@ -40,7 +40,14 @@ credentials (a future opt-in integration test that hits live services) is
 respected rather than overridden; a plain ``pytest`` run remains hermetic.
 """
 
+import json
 import os
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import pytest
 
 # Set before any test module is collected/imported, because the import-time S3
 # client construction described above happens during collection. Module-level
@@ -57,3 +64,34 @@ _HERMETIC_AWS_ENV = {
 
 for _key, _value in _HERMETIC_AWS_ENV.items():
     os.environ.setdefault(_key, _value)
+
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+_BASELINE_TILE = "tiles-19-T-DJ-2023-4-19-0"
+_SOURCE_FILES = ("tileInfo.json", "metadata.xml", "product_metadata.xml")
+
+
+@pytest.fixture(scope="session")
+def baseline_item_dict() -> dict[str, Any]:
+    """Run the full local process() over the baseline fixture, once.
+
+    Seeds a workdir with the checked-in source metadata so the PR 2 download
+    block is a no-op (fully local, no S3), then returns the single item dict
+    produced by create_item + update_item. Session-scoped because create_item
+    parsing the ~600 KB granule metadata is the slow part; tests treat the
+    result as read-only.
+    """
+    from sentinel_2_l2a_to_stac.task import Sentinel2ToStac
+
+    source = _FIXTURES / "source-metadata" / _BASELINE_TILE
+    workdir = Path(tempfile.mkdtemp())
+    for name in _SOURCE_FILES:
+        shutil.copy(source / name, workdir / name)
+
+    payload = json.loads(
+        (_FIXTURES / "payloads" / "success" / "create-item-baseline" / "in.json")
+        .read_text()
+    )
+    result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
+    assert len(result) == 1
+    return result[0]

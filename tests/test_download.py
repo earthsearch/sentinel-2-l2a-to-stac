@@ -67,14 +67,18 @@ class _StubItem:
         return {"id": "stub-item"}
 
 
-def stub_create_item(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Neutralize create_item so these tests exercise only the download block.
+def stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize create_item + update_item so these tests exercise only the
+    download block.
 
     The fake bytes served above are not real Sentinel-2 metadata, so the real
-    create_item would fail on them; create_item itself is covered by
-    test_create_item.py against genuine local metadata.
+    create_item/update_item would fail on them; those stages are covered by
+    test_create_item.py / test_update_item.py against genuine local metadata.
     """
     monkeypatch.setattr(task_module, "create_item", lambda _workdir: _StubItem())
+    monkeypatch.setattr(
+        Sentinel2ToStac, "update_item", lambda self, item, s3_path: item
+    )
 
 
 def test_download_fetches_all_three_files(
@@ -84,7 +88,7 @@ def test_download_fetches_all_three_files(
     monkeypatch.setattr(
         Sentinel2ToStac, "read_href", fake_read_href_factory(calls)
     )
-    stub_create_item(monkeypatch)
+    stub_pipeline(monkeypatch)
     task = make_task(tmp_path)
 
     task.process()
@@ -111,7 +115,7 @@ def test_existing_files_are_not_refetched(
     monkeypatch.setattr(
         Sentinel2ToStac, "read_href", fake_read_href_factory(calls)
     )
-    stub_create_item(monkeypatch)
+    stub_pipeline(monkeypatch)
     task = make_task(tmp_path)
 
     task.process()

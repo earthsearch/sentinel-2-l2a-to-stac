@@ -43,6 +43,37 @@ used by this project.
   / `stac_version`) rather than a full output diff.
 - `tests/fixtures/payloads/success/create-item-baseline/in.json` (payload only;
   no `out.json` yet — the full pipeline output isn't meaningful until PR 8/9).
+- `update_item()` (Earth Search overrides) wired into `process()` after
+  `create_item`: collection assignment via `stac_jsonpath_match` (fail-fast if
+  none match), `earthsearch:payload_id`, item-datetime presence check, dropping
+  `providers` and the `license` link, a `via` link back to the RODA granule
+  metadata, the storage extension, the "scrub extra metadata" block
+  (`raster:bands[0].classification:classes` on `scl`, `eo:snow_cover`, and the
+  classification extension), asset href rewriting (imagery → RODA S3, metadata →
+  local files), and `proj:bbox` stripping.
+- The storage extension is written against pystac 1.15.2's **storage v2
+  schemes/refs model**, not the removed v1 `CloudPlatform`/`.apply()` API. One
+  `aws-s3` scheme (`storage:schemes`, keyed `"aws"`, `platform` = the templated
+  endpoint `https://{bucket}.s3.{region}.amazonaws.com`, `region` `us-west-2`,
+  `requester_pays` false), referenced from every asset via `storage:refs`.
+  Output shape is `storage:schemes`/`storage:refs`, **not** flat
+  `storage:platform`/`storage:region`/`storage:requester_pays`.
+- `tests/test_update_item.py` and a session-scoped `baseline_item_dict` fixture
+  in `conftest.py` (runs the full local `process()` once). `test_create_item.py`
+  refactored to consume the shared fixture.
+- Scoped `filterwarnings` entries in `pyproject.toml` so `uv run pytest` reports
+  0 warnings without hiding warnings from our own code:
+  - `ignore::PendingDeprecationWarning:rasterio.*` — rasterio's `from_bounds`
+    (`transform.py`) multiplies two `affine.Affine` transforms with `*`; the
+    `affine` package now nudges callers toward the `@` matmul operator via a
+    `PendingDeprecationWarning`. `create_item` triggers it ~40× per run through
+    stactools-sentinel2. It's third-party internal (none of our code multiplies
+    `Affine` objects) and resolves when rasterio switches `*`→`@`.
+  - `ignore:The exterior ring::antimeridian.*` — `antimeridian.FixWindingWarning`
+    fires when stactools-sentinel2 hands it a clockwise exterior ring; it
+    auto-corrects the winding, so the warning is advisory noise from a
+    third-party call we don't control. Matched by message + module so unrelated
+    warnings stay visible.
 
 ### Changed
 
