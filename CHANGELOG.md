@@ -13,6 +13,12 @@ used by this project.
 
 - Versioning section to README.md, and switched to using dot-delimited CalVer.
 
+### Changed
+
+- Renamed the template package `cirrus_task_example` to `sentinel_2_l2a_to_stac`
+  and the task class `CirrusTaskExample` to `Sentinel2ToStac`, updating the
+  project/CLI name, Dockerfile paths, and tests to match. No behavior change.
+
 ## [v2025.03.12]
 
 ### Changed

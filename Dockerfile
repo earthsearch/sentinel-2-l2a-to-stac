@@ -51,15 +51,15 @@ FROM public.ecr.aws/lambda/python:3.11
 # Copy the runtime dependencies from the builder stage.
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
-COPY src/cirrus_task_example/ ${LAMBDA_TASK_ROOT}/cirrus_task_example/
+COPY src/sentinel_2_l2a_to_stac/ ${LAMBDA_TASK_ROOT}/sentinel_2_l2a_to_stac/
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Uncomment one of the following:
 
 # 1. for lambda task, use CMD
-CMD [ "cirrus_task_example.task.lambda_handler" ]
+CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
 
 # 2. for batch task, use ENTRYPOINT
 #ENV PYTHONPATH="/var/task"
-#ENTRYPOINT [ "./bin/cirrus-task-example" ]
+#ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]

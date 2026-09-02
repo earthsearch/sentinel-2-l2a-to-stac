@@ -1,8 +1,8 @@
 [project]
-name = "cirrus-task-example"
+name = "sentinel-2-l2a-to-stac"
 version = "0.1.0"
 authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
-description = "An example Cirrus task that can be used as a template"
+description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["stac", "workflow", "cirrus"]
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cirrus-task-example = "cirrus_task_example.task:CirrusTaskExample.cli"
+sentinel-2-l2a-to-stac = "sentinel_2_l2a_to_stac.task:Sentinel2ToStac.cli"
 
 
 [tool.mypy]

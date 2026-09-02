@@ -5,9 +5,9 @@ import pystac
 from stactask import Task
 
 
-class CirrusTaskExample(Task):
-    name = "cirrus-task-example"
-    description = "An example Cirrus Task"
+class Sentinel2ToStac(Task):
+    name = "sentinel-2-l2a-to-stac"
+    description = "Sentinel-2 L2A to STAC Cirrus task"
 
     def validate(self) -> None:
         return True
@@ -51,8 +51,8 @@ class CirrusTaskExample(Task):
 
 
 def lambda_handler(event: dict, context: dict = {}):
-    return CirrusTaskExample.handler(payload=event)
+    return Sentinel2ToStac.handler(payload=event)
 
 
 if __name__ == "__main__":
-    CirrusTaskExample.cli()
+    Sentinel2ToStac.cli()

@@ -1,6 +1,6 @@
-# Cirrus Task Example
+# Sentinel-2 L2A to STAC
 
-*This repository is an example of a Cirrus task that can be used as a template. See the [DEVELOPMENT.md](DEVELOPMENT.md) file for instructions on developing a task.*
+*A Cirrus task that builds STAC Items from Sentinel-2 L2A products. See the [DEVELOPMENT.md](DEVELOPMENT.md) file for instructions on developing a task.*
 
 **Insert Task Desription here**
 
@@ -26,7 +26,7 @@ Configuration parameters are available available to the task through the Cirrus 
 Tasks can be run locally with the built-in CLI.
 
 ```
-$ uv run cirrus-task-example
+$ uv run sentinel-2-l2a-to-stac
 
 usage: task.py run [-h] [--logging LOGGING] [--output OUTPUT] [--workdir WORKDIR] [--save-workdir] [--skip-upload] [--skip-validation] [--upload] [--no-upload] [--validate]
                    [--no-validate] [--local]

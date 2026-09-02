@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 import os
 
-from cirrus_task_example.task import CirrusTaskExample
+from sentinel_2_l2a_to_stac.task import Sentinel2ToStac
 
 # Helper function to get test data
 def get_test_cases():
@@ -36,11 +36,11 @@ def test_task(input_file: Path, expected_output_file: Path, expect_exception: bo
         with open(expected_output_file, 'r') as exception_file:
             expected_exception = exception_file.read().strip()
         with pytest.raises(Exception, match=expected_exception):
-            CirrusTaskExample.handler(payload=input_payload, upload=False)
+            Sentinel2ToStac.handler(payload=input_payload, upload=False)
     else:
         # If we expect a successful result, compare the actual and expected output
         expected_output = json.loads(expected_output_file.read_text())
-        actual_output = CirrusTaskExample.handler(payload=input_payload, upload=False)
+        actual_output = Sentinel2ToStac.handler(payload=input_payload, upload=False)
         #assert json.dumps(expected_output, sort_keys=True) == json.dumps(actual_output, sort_keys=True), "JSON objects do not match"
         #print(expected_output)
         #print(actual_output)
