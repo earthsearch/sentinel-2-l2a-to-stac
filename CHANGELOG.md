@@ -91,9 +91,32 @@ used by this project.
   request). Session-scoped and depended on by `baseline_item_dict` so the stub
   is active before that session-scoped fixture runs `process()` through the
   gate. Added `requests-mock` and `types-requests` dev dependencies.
+- COG generation ported from the legacy task and wired into `process()` inside
+  the `if create_cogs:` block (after the `is_newer_than_existing` gate):
+  `make_cogs_for_item()` (processing-baseline floor `>= 04.00` with the
+  Europe-MGRS `04.xx` carve-out — `EUROPE_MGRS_IDS`, ~640 entries, preserved
+  verbatim as data), the module-level `cogify()`/`write_cog()`, and the
+  `get_band_scales_offsets_nodatas_resolutions()`,
+  `asset_name_to_resample_algorithm()`, `gsd_to_blocksize()`, `is_local_asset()`,
+  and `get_local_asset_keys()` helpers. `AssetRasterExtension.bands` is read in
+  its pre-1.1.0 `raster:bands` shape by design; PR 9 consolidates it. Added
+  `rasterio~=1.4`, `numpy`, and `multiformats~=0.3.1` dependencies.
+- `tests/test_make_cogs.py`: network-free tests for the make_cogs branching
+  (baseline floor, Europe carve-out, `>= 05.xx` skip — driven off the shared
+  `baseline_item_dict` with overridden `s2:processing_baseline`/`grid:code`, and
+  `download_item`/`cogify` stubbed) plus a `cogify`/`write_cog` unit test over a
+  synthetic GeoTIFF asserting the COG output (`.tif` href, COG media type,
+  `file:checksum`/`file:size`, readable band count).
 
 ### Changed
 
+- The shared `baseline_item_dict` fixture now forces `create_cogs=False` so it
+  stays the *pre-COG* baseline the PR 3/4/5 tests assert against. With COGs wired
+  into `process()`, the baseline tile (processing baseline `05.09`) would
+  otherwise pass the gate and download real JP2s from live S3, both rewriting the
+  asset hrefs those tests check and violating the no-network constraint. The full
+  COG end-to-end path is exercised in PR 8; the make_cogs branching is covered
+  directly in `tests/test_make_cogs.py`.
 - Raised `requires-python` from `>=3.10` to `>=3.11` (aligns with the legacy
   task's `~=3.11` and the Python 3.11 Lambda runtime). Forced by `returns 0.29`,
   which requires Python 3.11+; the bump also prunes Python-<3.11 backport shims

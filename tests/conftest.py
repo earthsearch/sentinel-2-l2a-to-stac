@@ -97,6 +97,15 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     produced by create_item + update_item. Session-scoped because create_item
     parsing the ~600 KB granule metadata is the slow part; tests treat the
     result as read-only.
+
+    ``create_cogs`` is forced off. This fixture is the *pre-COG* baseline that
+    PR 3/4/5 tests assert against (asset hrefs still pointing at RODA, no
+    file:checksum, etc.). With PR 6, process() runs make_cogs_for_item inside
+    the ``if create_cogs:`` block; the baseline tile's processing_baseline
+    (05.09) passes the gate, so leaving COGs on would (a) rewrite those hrefs to
+    local ``.tif`` paths and (b) download the real JP2s from live S3 — violating
+    the no-network constraint. The make_cogs branching is exercised directly in
+    test_make_cogs.py; the full COG e2e path lands in PR 8.
     """
     from sentinel_2_l2a_to_stac.task import Sentinel2ToStac
 
@@ -109,6 +118,7 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
         (_FIXTURES / "payloads" / "success" / "create-item-baseline" / "in.json")
         .read_text()
     )
+    payload["create_cogs"] = False
     result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
     assert len(result) == 1
     return result[0]

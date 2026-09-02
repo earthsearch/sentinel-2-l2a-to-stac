@@ -38,6 +38,11 @@ def make_task(tmp_path: Path, metadata_href: str = METADATA_HREF) -> Sentinel2To
     """Construct a task against a real tmp workdir, no upload, no network."""
     payload = {
         "metadata_href": metadata_href,
+        # These tests exercise only the download block; create_item/update_item
+        # are stubbed. Disable COGs so process() doesn't run make_cogs_for_item
+        # against the bare _StubItem (which has no .properties) — the COG stage
+        # is covered by test_make_cogs.py.
+        "create_cogs": False,
         "process": [
             {
                 "id": "collection-0/workflow-workflow-1/item-1",
