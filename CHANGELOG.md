@@ -107,9 +107,22 @@ used by this project.
   `download_item`/`cogify` stubbed) plus a `cogify`/`write_cog` unit test over a
   synthetic GeoTIFF asserting the COG output (`.tif` href, COG media type,
   `file:checksum`/`file:size`, readable band count).
+- Thumbnail + checksum steps ported verbatim from the legacy task and wired into
+  `process()`: `make_thumbnail()` (re-encodes the `preview` asset to a JPEG
+  registered under the `thumbnail` key; runs inside `if create_cogs:`),
+  `add_fileinfo_to_local_assets()` (stamps `file:checksum`/`file:size` on
+  workdir-local assets; runs unconditionally), and the module-level
+  `sha256sum_multihash()` helper. `op.getsize` → `os.path.getsize` (the
+  `os.path as op` alias was dropped in PR 6). Added `pillow~=12.0` dependency
+  (`Image.open`/`Image.save`). Upload wiring remains deferred to PR 8.
 
 ### Changed
 
+- With `add_fileinfo_to_local_assets` now wired unconditionally into
+  `process()`, the pre-COG `baseline_item_dict` fixture (`create_cogs=False`)
+  carries `file:checksum`/`file:size` on its three local metadata assets
+  (imagery assets are `s3://`, so skipped). `_StubItem` in `test_download.py`
+  gained an empty `assets` dict so that unconditional step is a no-op there.
 - The shared `baseline_item_dict` fixture now forces `create_cogs=False` so it
   stays the *pre-COG* baseline the PR 3/4/5 tests assert against. With COGs wired
   into `process()`, the baseline tile (processing baseline `05.09`) would

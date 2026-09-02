@@ -71,11 +71,13 @@ class _StubItem:
     Carries id/collection_id so process()'s is_newer_than_existing gate (PR 5)
     can build its lookup URL; the session-wide autouse requests_mock stub
     answers that GET with 404 (item not yet ingested → proceed), keeping these
-    tests focused on the download block with no network.
+    tests focused on the download block with no network. An empty `assets` lets
+    add_fileinfo_to_local_assets (PR 7, runs unconditionally) iterate to a no-op.
     """
 
     id = "stub-item"
     collection_id = "stub-collection"
+    assets: dict[str, Any] = {}
 
     def to_dict(self) -> dict[str, str]:
         return {"id": "stub-item"}

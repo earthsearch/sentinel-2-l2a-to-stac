@@ -11,6 +11,7 @@ import stac_asset.blocking
 from boto3utils import s3
 from botocore.exceptions import ClientError
 from multiformats import multihash
+from PIL import Image
 from pystac import Asset, Item, Link, MediaType, RelType
 from pystac.extensions.file import FileExtension
 from pystac.extensions.grid import GridExtension
@@ -38,6 +39,11 @@ s3_client = s3(requester_pays=False)
 STORAGE_SCHEME_KEY = "aws"
 STORAGE_PLATFORM = "https://{bucket}.s3.{region}.amazonaws.com"
 STORAGE_REGION = "us-west-2"
+
+# make_thumbnail re-encodes the `preview` asset into a JPEG registered under the
+# `thumbnail` asset key.
+THUMBNAIL_ASSET_NAME = "thumbnail"
+THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 
 # After processing_baseline check passes for 04.xx tiles, the tile must
 # additionally intersect Europe. This carve-out was introduced for the Tapir
@@ -286,6 +292,28 @@ class Sentinel2ToStac(Task):
     def get_local_asset_keys(self, item: Item) -> list[str]:
         return [key for key, asset in item.assets.items() if self.is_local_asset(asset)]
 
+    def add_fileinfo_to_local_assets(self, item: Item) -> Item:
+        # Stamp file:checksum (multihash-wrapped sha256) and file:size on every
+        # asset still living in the workdir. Runs unconditionally (even when COGs
+        # are off) so the local metadata assets get file info too; s3:// assets
+        # are skipped. `op.getsize` in legacy → `os.path.getsize` here (the
+        # `os.path as op` alias was dropped in PR 6).
+        for asset in item.assets.values():
+            if not self.is_local_asset(asset):
+                continue
+            fext = FileExtension.ext(
+                asset,
+                add_if_missing=True,
+            )
+
+            if fext.checksum is None:
+                fext.checksum = sha256sum_multihash(asset.href)
+
+            if fext.size is None:
+                fext.size = os.path.getsize(asset.href)
+
+        return item
+
     def read_href(self, href: str) -> bytes:
         # Fetch a single href's bytes. A missing object (NoSuchKey) is the
         # input payload's fault (a bad/removed source tile), so translate it to
@@ -389,7 +417,17 @@ class Sentinel2ToStac(Task):
             self.logger.info("Making COGs for item assets")
             item = self.make_cogs_for_item(item)
 
-        # Thumbnail and upload are ported in later PRs.
+            self.logger.info("Making preview thumbnail")
+            try:
+                item = make_thumbnail(item)
+            except Exception:
+                self.logger.exception("Cannot create JPEG thumbnail")
+                raise
+
+        self.logger.info("Adding fileinfo to assets")
+        item = self.add_fileinfo_to_local_assets(item)
+
+        # Upload is ported in PR 8.
         return [item.to_dict()]
 
 
@@ -479,6 +517,37 @@ def cogify(asset_name: str, asset: Asset) -> None:
 
     asset.href = str(cogfile)
     asset.media_type = MediaType.COG
+
+
+def sha256sum_multihash(filename: str) -> str:
+    # Wrap a streamed sha256 digest in a multihash envelope (sha2-256 code +
+    # length prefix), hex-encoded — the checksum format the file extension wants.
+    with open(filename, "rb") as f:
+        return str(
+            multihash.wrap(hashlib.file_digest(f, "sha256").digest(), "sha2-256").hex()
+        )
+
+
+def make_thumbnail(item: Item) -> Item:
+    asset = item.assets[THUMBNAIL_SOURCE_ASSET_NAME]
+
+    # remove existing thumbnail asset linking to preview.jpg/jp2
+    if THUMBNAIL_ASSET_NAME in item.assets:
+        item.delete_asset(THUMBNAIL_ASSET_NAME)
+
+    tn_asset = Asset(
+        href=os.path.splitext(asset.href)[0] + ".jpg",
+        media_type=MediaType.JPEG,
+        roles=["thumbnail"],
+        title="Thumbnail of preview image",
+    )
+    item.add_asset(THUMBNAIL_ASSET_NAME, tn_asset)
+
+    if not Path(tn_asset.href).exists():
+        with Image.open(asset.href) as im:
+            im.save(tn_asset.href, "JPEG", quality=75)
+
+    return item
 
 
 def write_cog(
