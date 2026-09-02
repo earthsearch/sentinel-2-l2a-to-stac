@@ -74,8 +74,30 @@ used by this project.
     auto-corrects the winding, so the warning is advisory noise from a
     third-party call we don't control. Matched by message + module so unrelated
     warnings stay visible.
+- `is_newer_than_existing()` wired into `process()` after `update_item`: it GETs
+  the item from the live STAC API (`STAC_API_URL`, default
+  `https://earth-search.aws.element84.com/v1`) and, comparing
+  `s2:generation_time`, skips the ingest (`process()` returns `[]`) when an
+  equal-or-newer item is already published — the guard against regressing an
+  already-ingested item. 404 → proceed; non-200/404 → internal failure. Added
+  `requests` and `returns~=0.29` dependencies.
+- `tests/test_is_newer.py`: regression tests for the gate (404 / 500 / older /
+  same / newer), ported from the legacy suite. Each builds an Item from the
+  shared `baseline_item_dict` and calls `is_newer_than_existing` under a
+  per-test `requests_mock` override.
+- Session-scoped autouse `_stub_stac_api` fixture in `conftest.py` that stubs
+  every `GET .../collections/*/items/*` to 404 by default, so no test can reach
+  the live STAC API (`requests_mock` raises `NoMockAddress` on any un-stubbed
+  request). Session-scoped and depended on by `baseline_item_dict` so the stub
+  is active before that session-scoped fixture runs `process()` through the
+  gate. Added `requests-mock` and `types-requests` dev dependencies.
 
 ### Changed
+
+- Raised `requires-python` from `>=3.10` to `>=3.11` (aligns with the legacy
+  task's `~=3.11` and the Python 3.11 Lambda runtime). Forced by `returns 0.29`,
+  which requires Python 3.11+; the bump also prunes Python-<3.11 backport shims
+  (`exceptiongroup`, `tomli`, `async-timeout`) from `uv.lock`.
 
 - Upgraded dependencies to latest stable: pystac 1.12.2 → 1.15.2, stactask
   0.6.1 → 0.7.0, stac-asset 0.4.6 → 0.4.7, boto3/botocore 1.37.1 → 1.43.56, and

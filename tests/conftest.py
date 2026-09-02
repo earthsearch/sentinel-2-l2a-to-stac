@@ -42,12 +42,14 @@ respected rather than overridden; a plain ``pytest`` run remains hermetic.
 
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import pytest
+import requests_mock as requests_mock_module
 
 # Set before any test module is collected/imported, because the import-time S3
 # client construction described above happens during collection. Module-level
@@ -71,8 +73,23 @@ _BASELINE_TILE = "tiles-19-T-DJ-2023-4-19-0"
 _SOURCE_FILES = ("tileInfo.json", "metadata.xml", "product_metadata.xml")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _stub_stac_api() -> Any:
+    """Session-wide STAC API stub — prevents any test from hitting the live API.
+
+    Returns 404 for all GET .../collections/.../items/... requests, which the
+    is_newer_than_existing gate treats as "item not yet ingested, proceed".
+    requests_mock raises NoMockAddress for any un-stubbed request, so a test
+    that forgets to stub its own URL will fail loudly rather than quietly
+    hitting the network.
+    """
+    with requests_mock_module.Mocker() as m:
+        m.get(re.compile(r"/collections/.+/items/.+"), status_code=404)
+        yield m
+
+
 @pytest.fixture(scope="session")
-def baseline_item_dict() -> dict[str, Any]:
+def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     """Run the full local process() over the baseline fixture, once.
 
     Seeds a workdir with the checked-in source metadata so the PR 2 download

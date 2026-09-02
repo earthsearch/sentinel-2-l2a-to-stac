@@ -3,11 +3,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+import requests
 import stac_asset.blocking
 from boto3utils import s3
 from botocore.exceptions import ClientError
 from pystac import Item, Link, MediaType, RelType
 from pystac.extensions.storage import StorageExtension, StorageScheme
+from returns.result import Failure, ResultE, Success
 from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
@@ -147,6 +149,38 @@ class Sentinel2ToStac(Task):
 
         return item
 
+    def is_newer_than_existing(self, item: Item) -> ResultE[bool]:
+        stac_api_url = os.getenv(
+            "STAC_API_URL", "https://earth-search.aws.element84.com/v1"
+        )
+        existing_item_r = requests.get(
+            f"{stac_api_url}/collections/{item.collection_id}/items/{item.id}",
+            timeout=30,
+        )
+
+        if existing_item_r.status_code == 404:
+            return Success(True)
+        elif existing_item_r.status_code == 200:
+            if (
+                existing_item_pg := existing_item_r.json()
+                .get("properties", {})
+                .get("s2:generation_time", "")
+            ) <= (created_item_pg := item.properties.get("s2:generation_time", "")):
+                return Success(True)
+            else:
+                self.logger.info(
+                    f"Item {item.id} exists with s2:generation_time "
+                    f"'{existing_item_pg}', ignoring ingest with '{created_item_pg}'"
+                )
+                return Success(False)
+        else:
+            return Failure(
+                Exception(
+                    f"Failure attempting to check for existing item: "
+                    f"{existing_item_r.status_code} {existing_item_r.text}"
+                )
+            )
+
     def read_href(self, href: str) -> bytes:
         # Fetch a single href's bytes. A missing object (NoSuchKey) is the
         # input payload's fault (a bad/removed source tile), so translate it to
@@ -233,8 +267,19 @@ class Sentinel2ToStac(Task):
             self.logger.error(ex)
             raise Exception(f"Unable to update item: {ex}")
 
-        # is_newer_than_existing, COGs, thumbnail, and upload are ported in
-        # later PRs. PR 4 returns the item after update_item.
+        # id and collection are set, so look up in the live STAC API to avoid
+        # regressing an already-ingested item.
+        # (Legacy needed `# type: ignore` on these cases for returns ~0.22;
+        # returns 0.29 + mypy 2.3.1 type the pattern matching cleanly.)
+        match self.is_newer_than_existing(item):
+            case Failure(e):
+                raise e
+            case Success(False):
+                return []
+            case _:
+                pass
+
+        # COGs, thumbnail, and upload are ported in later PRs.
         return [item.to_dict()]
 
 

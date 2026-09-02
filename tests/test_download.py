@@ -61,7 +61,16 @@ def fake_read_href_factory(calls: list[str]) -> Any:
 
 
 class _StubItem:
-    """Minimal stand-in for the pystac Item create_item returns."""
+    """Minimal stand-in for the pystac Item create_item returns.
+
+    Carries id/collection_id so process()'s is_newer_than_existing gate (PR 5)
+    can build its lookup URL; the session-wide autouse requests_mock stub
+    answers that GET with 404 (item not yet ingested → proceed), keeping these
+    tests focused on the download block with no network.
+    """
+
+    id = "stub-item"
+    collection_id = "stub-collection"
 
     def to_dict(self) -> dict[str, str]:
         return {"id": "stub-item"}
