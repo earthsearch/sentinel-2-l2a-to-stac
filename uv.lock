@@ -1953,6 +1953,7 @@ name = "sentinel-2-l2a-to-stac"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "boto3-utils" },
     { name = "stactask" },
 ]
 
@@ -1965,7 +1966,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "stactask", specifier = ">=0.7.0" }]
+requires-dist = [
+    { name = "boto3-utils", specifier = ">=0.4.2" },
+    { name = "stactask", specifier = ">=0.7.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

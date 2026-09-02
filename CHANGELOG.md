@@ -18,6 +18,18 @@ used by this project.
   Identity Center credential provider (requiring `botocore[crt]`) that otherwise
   crashes at import time when an SSO profile is configured. Uses `setdefault`,
   so explicitly-exported real credentials are still respected.
+- Source-metadata download plumbing ported from the legacy task: `read_href()`,
+  the `tileinfo_path`/`granule_metadata_xml_path`/`product_metadata_xml_path`
+  properties, and the download block in `process()` that fetches `tileInfo.json`,
+  product-level `metadata.xml` (located via tileInfo's `productPath`), and
+  granule `metadata.xml` into the workdir. `create_item` and later stages are not
+  wired yet, so `process()` still returns a stub. Added `boto3-utils` dependency
+  (used to recover the bucket for the product-metadata href).
+- `tests/test_download.py`: local-only unit tests for the download plumbing (no
+  network / live S3) — happy path, `.exists()` idempotency, `Corrupted
+  tileInfo.json` handling, and the `NoSuchKey`→`InvalidInput` translation.
+- `src/sentinel_2_l2a_to_stac/py.typed` marker so the strictly-typed package
+  type-checks correctly when imported from the test suite.
 
 ### Changed
 
@@ -35,6 +47,12 @@ used by this project.
 - `validate()` now requires a top-level `metadata_href` in the payload, raising
   `InvalidInput` when absent (ported from the legacy task; rewritten for
   stactask 0.6.1's instance-method `validate(self)` signature).
+- Retired the two inherited template `payload1` fixtures
+  (`tests/fixtures/payloads/{success,failure}/payload1`); their placeholder
+  `metadata_href` pointed at a real public AWS bucket, which the now-inline
+  download in `process()` would fetch during the fixture walk. The download
+  plumbing is covered by the network-free `tests/test_download.py` instead;
+  `failure/missing-metadata-href` remains until PR 3 adds a real success fixture.
 
 ## [v2025.03.12]
 

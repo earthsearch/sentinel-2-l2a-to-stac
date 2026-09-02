@@ -15,6 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
+    "boto3-utils>=0.4.2",
     "stactask>=0.7.0",
 ]
 
@@ -26,6 +27,13 @@ sentinel-2-l2a-to-stac = "sentinel_2_l2a_to_stac.task:Sentinel2ToStac.cli"
 show_error_codes = true
 strict = true
 warn_unused_ignores = true
+
+# Third-party libraries without type stubs or a py.typed marker. Ships no
+# typing info, so under --strict mypy would emit import-untyped; scope the
+# suppression to just these modules rather than weakening strictness globally.
+[[tool.mypy.overrides]]
+module = ["boto3utils.*", "botocore.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::DeprecationWarning"]

@@ -1,9 +1,20 @@
-from datetime import datetime
+import json
+import os
+from pathlib import Path
 from typing import Any
 
-import pystac
+import stac_asset.blocking
+from boto3utils import s3
+from botocore.exceptions import ClientError
+from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
+
+# RODA hosts the raw Sentinel-2 tiles in a public bucket with no STAC catalog,
+# only the source metadata files. We reconstruct the product-level metadata
+# href from tileInfo.json's `productPath`, which requires recovering the bucket
+# from the granule href — that's the only use of this client.
+s3_client = s3(requester_pays=False)
 
 
 class Sentinel2ToStac(Task):
@@ -21,42 +32,80 @@ class Sentinel2ToStac(Task):
             raise InvalidInput("metadata_href required")
         return True
 
+    # The three source files stactools' create_item reads, all under the
+    # workdir. Path() re-wraps because mypy infers Any from Path.joinpath here.
+    @property
+    def tileinfo_path(self) -> Path:
+        return Path(self._workdir.joinpath("tileInfo.json"))
+
+    @property
+    def granule_metadata_xml_path(self) -> Path:
+        return Path(self._workdir.joinpath("metadata.xml"))
+
+    @property
+    def product_metadata_xml_path(self) -> Path:
+        return Path(self._workdir.joinpath("product_metadata.xml"))
+
+    def read_href(self, href: str) -> bytes:
+        # Fetch a single href's bytes. A missing object (NoSuchKey) is the
+        # input payload's fault (a bad/removed source tile), so translate it to
+        # InvalidInput per the project's InvalidInput-vs-Exception convention;
+        # any other ClientError is an internal/transient failure and re-raises.
+        try:
+            return bytes(
+                stac_asset.blocking.read_href(
+                    href, config=Config(s3_requester_pays=False)
+                )
+            )
+        except ClientError as err:
+            if err.response["Error"]["Code"] == "NoSuchKey":
+                msg = f"Failed fetching href '{href}' ({err})"
+                self.logger.error(msg, exc_info=True)
+                raise InvalidInput(msg)
+            else:
+                raise
+
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
-        if "invalid" in self.process_definition.get("id", ""):
-            raise Exception("invalid")
+        metadata_href = self._payload["metadata_href"]
+        s3_path = os.path.dirname(metadata_href)
 
-        # create an item
-        item = pystac.Item(
-            id="example-item",
-            geometry={
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [-71.4667693618289, 43.3262376051166],
-                        [-71.4278035338514, 42.3392708844627],
-                        [-70.6447744862405, 42.3532726633038],
-                        [-70.2637344878527, 43.3458642540582],
-                        [-71.4667693618289, 43.3262376051166],
-                    ]
-                ],
-            },
-            bbox=[-71.466769, 42.339271, -70.263734, 43.345864],
-            datetime=datetime(2025, 3, 4, 15, 41, 14),
-            properties={"example-property": "value"},
-        )
+        # Download the three source metadata files into the workdir, where
+        # create_item (PR 3) will read them. Each download is guarded by
+        # .exists() so a saved workdir is reused without re-fetching.
 
-        # add an asset
-        item.add_asset(
-            "example_asset",
-            pystac.Asset(
-                title="Example",
-                href="http://example.com/example_asset.tif",
-                media_type="image/tiff",
-            ),
-        )
+        # tileInfo metadata, e.g.
+        # s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0/tileInfo.json
+        if not self.tileinfo_path.exists():
+            self.tileinfo_path.write_bytes(
+                self.read_href(f"{s3_path}/tileInfo.json")
+            )
 
-        # return a list of Items
-        return [item.to_dict()]
+        try:
+            l2a_tileinfo = json.loads(self.tileinfo_path.read_text())
+        except json.JSONDecodeError:
+            raise InvalidInput("Corrupted tileInfo.json")
+
+        # Product-level metadata lives under `productPath` (from tileInfo.json),
+        # not next to the granule metadata, so recover the bucket from the
+        # granule path and rebuild the product metadata href.
+        if not self.product_metadata_xml_path.exists():
+            parts = s3_client.urlparse(s3_path)
+            self.product_metadata_xml_path.write_bytes(
+                self.read_href(
+                    f"s3://{parts['bucket']}/{l2a_tileinfo['productPath']}/metadata.xml"
+                )
+            )
+
+        # granule metadata.xml (the metadata_href itself)
+        if not self.granule_metadata_xml_path.exists():
+            self.granule_metadata_xml_path.write_bytes(
+                self.read_href(f"{s3_path}/metadata.xml")
+            )
+
+        # PR 2 proves only the download + workdir plumbing. create_item,
+        # update_item, COGs, thumbnail, and upload are ported in later PRs, so
+        # process() returns a stub (no Item exists yet).
+        return []
 
 
 def lambda_handler(
