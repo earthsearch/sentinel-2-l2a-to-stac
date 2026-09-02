@@ -12,8 +12,22 @@ used by this project.
 ### Added
 
 - Versioning section to README.md, and switched to using dot-delimited CalVer.
+- `tests/conftest.py` sets a hermetic, fully-local AWS environment (static dummy
+  credentials + region) so `pytest` never touches live AWS services or the
+  developer's ambient identity. Needed because botocore >= 1.43 adds an IAM
+  Identity Center credential provider (requiring `botocore[crt]`) that otherwise
+  crashes at import time when an SSO profile is configured. Uses `setdefault`,
+  so explicitly-exported real credentials are still respected.
 
 ### Changed
+
+- Upgraded dependencies to latest stable: pystac 1.12.2 → 1.15.2, stactask
+  0.6.1 → 0.7.0, stac-asset 0.4.6 → 0.4.7, boto3/botocore 1.37.1 → 1.43.56, and
+  dev tools (mypy 2.3.1, pytest 9.1.1, ruff 0.16.5, pre-commit 4.6.2). Note:
+  stable pystac 1.15.x is now a meta-package over `pystac-core` +
+  separately-versioned `pystac-ext-*` packages; the storage extension moved to
+  the new `schemes`/`refs` API (`CloudPlatform` and `StorageExtension.apply()`
+  are removed) — see MIGRATION_PLAN.md.
 
 - Renamed the template package `cirrus_task_example` to `sentinel_2_l2a_to_stac`
   and the task class `CirrusTaskExample` to `Sentinel2ToStac`, updating the

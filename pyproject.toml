@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "stactask>=0.6.1",
+    "stactask>=0.7.0",
 ]
 
 [project.scripts]
@@ -33,12 +33,12 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 lint.select = ["F", "E", "W", "I", "ERA", "RUF"]
 
-[tool.uv]
-dev-dependencies = [
-    "mypy>=1.15.0",
-    "pre-commit>=4.1.0",
-    "pytest>=8.3.5",
-    "ruff>=0.9.9",
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.16.5",
 ]
 
 [build-system]
