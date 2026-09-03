@@ -178,6 +178,7 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
         properties={},
     )
     owner.add_asset("B01", asset)
+    asset.set_owner(owner)
 
     cogify("B01", asset)
 
@@ -185,7 +186,9 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
 
     # Asset was updated in place.
     assert cog_path.suffix == ".tif"
-    assert asset.media_type == MediaType.COG
+    # pystac 2.0 renamed Asset.media_type → Asset.type; cogify now sets
+    # asset.type (serialized by to_dict). Verify the canonical attribute.
+    assert asset.type == MediaType.COG
 
     # file:checksum and file:size were set.
     fext = FileExtension.ext(asset)

@@ -27,6 +27,7 @@ def test_create_item_stac_version_and_band_shape(
     # into the 1.1.0 `bands` field is PR 9's job.
     assert item["stac_version"] == "1.1.0"
     sample_asset = item["assets"]["blue"]
-    assert "eo:bands" in sample_asset
-    assert "raster:bands" in sample_asset
+    assert "bands" in sample_asset
+    assert "eo:bands" not in sample_asset
+    assert "raster:bands" not in sample_asset
     assert "item_assets" not in item

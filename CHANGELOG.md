@@ -147,6 +147,17 @@ used by this project.
   semantic STAC differences surface. Used during the migration to confirm that all
   output deltas vs legacy trace to the dependency-baseline bump, not the port.
 
+- STAC 1.1.0 band upgrade: `upgrade_item_to_stac_1_1()` runs as the final
+  normalization step in `process()` (after COGs/thumbnail/fileinfo, before upload).
+  Merges each asset's `eo:bands` + `raster:bands` arrays into the core 1.1.0 `bands`
+  field (via pystac 2.0's `Band`), and bumps the `eo`/`raster` extensions to v2.0.0
+  (both kept — `eo:cloud_cover` stays an item property and the merged bands still
+  carry `eo:`/`raster:` fields). `stactools-sentinel2` doesn't emit 1.1.0 natively, so
+  this task owns the upgrade; the consolidation self-disables (`if asset.bands:`) once
+  upstream emits native bands. Restores `processing:software` (task name → CalVer
+  `version`) via `add_software_version_to_item`, which stactask 0.7.0 no longer applies
+  automatically.
+
 ### Changed
 
 - With `add_fileinfo_to_local_assets` now wired unconditionally into
@@ -186,6 +197,20 @@ used by this project.
   download in `process()` would fetch during the fixture walk. The download
   plumbing is covered by the network-free `tests/test_download.py` instead;
   `failure/missing-metadata-href` remains until PR 3 adds a real success fixture.
+
+- Adopted **pystac 2.0** (unreleased; git-SHA pinned via `[tool.uv.sources]`) as the
+  baseline, replacing stable 1.15.2 — it provides the native `Band`/`Asset.bands` API
+  the STAC 1.1.0 band upgrade targets, so the eventual switch to upstream-native bands
+  is zero-touch. Consequences: `requires-python` raised `>=3.11` → `>=3.12` (pystac 2.0
+  requires 3.12); an HREF compat shim (`pystac.link.HREF = pystac.utils.HREF`) is needed
+  before importing `stactools`; and several 2.0 API changes were ported —
+  `item.collection_id =` → `set_collection()`, explicit asset-owner re-parenting
+  (`create_item`/`download_item`/`add_asset` no longer set `owner`), and
+  `Asset.media_type` → `Asset.type`. `stactools-sentinel2` 0.8.0 is not yet
+  2.0-compatible: it strands asset media types in `extra_fields["media_type"]`, so a
+  normalization shim (`_normalize_asset_media_types`) restores them to `asset.type` (the
+  cogify jp2 detection and valid `type` serialization both depend on it). All shims are
+  idempotent and self-disable once upstream is 2.0-ready. See MIGRATION_PLAN.md PR 9.
 
 ## [v2025.03.12]
 

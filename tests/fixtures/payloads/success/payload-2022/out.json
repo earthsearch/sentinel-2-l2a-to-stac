@@ -23,12 +23,13 @@
       "type": "Feature",
       "stac_version": "1.1.0",
       "stac_extensions": [
-        "https://stac-extensions.github.io/eo/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
         "https://stac-extensions.github.io/file/v2.1.0/schema.json",
         "https://stac-extensions.github.io/grid/v1.1.0/schema.json",
         "https://stac-extensions.github.io/mgrs/v1.0.0/schema.json",
+        "https://stac-extensions.github.io/processing/v1.1.0/schema.json",
         "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
-        "https://stac-extensions.github.io/raster/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
         "https://stac-extensions.github.io/sentinel-2/v1.0.0/schema.json",
         "https://stac-extensions.github.io/storage/v2.0.0/schema.json",
         "https://stac-extensions.github.io/view/v1.0.0/schema.json"
@@ -68,6 +69,7 @@
         -44.222679
       ],
       "properties": {
+        "datetime": "2022-12-31T23:59:05.733000Z",
         "platform": "sentinel-2a",
         "constellation": "sentinel-2",
         "instruments": [
@@ -109,7 +111,6 @@
         "s2:datatake_type": "INS-NOBS",
         "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20230101T025803_S20221231T235852_N05.09",
         "s2:reflectance_conversion_factor": 1.03409825213211,
-        "datetime": "2022-12-31T23:59:05.733000Z",
         "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87",
         "storage:schemes": {
           "aws": {
@@ -118,12 +119,15 @@
             "region": "us-west-2",
             "requester_pays": false
           }
+        },
+        "processing:software": {
+          "sentinel-2-l2a-to-stac": "v2026.09.03"
         }
       },
       "links": [
         {
-          "rel": "via",
           "href": "s3://sentinel-s2-l2a/tiles/55/G/FL/2022/12/31/0/metadata.xml",
+          "rel": "via",
           "type": "application/xml",
           "title": "Granule Metadata in Sinergize RODA Archive"
         }
@@ -131,16 +135,6 @@
       "assets": {
         "red": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B04.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Red - 10m",
-          "eo:bands": [
-            {
-              "name": "B04",
-              "common_name": "red",
-              "center_wavelength": 0.665,
-              "full_width_half_max": 0.038
-            }
-          ],
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -153,38 +147,34 @@
             0.0,
             -10.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 10,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220cf805788874959ed2a9b14a659c963373589f5b582e16b19f8b6130d394d2ca8",
           "file:size": 28101665,
+          "title": "Red - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 10,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B04"
+            }
           ]
         },
         "green": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B03.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Green - 10m",
-          "eo:bands": [
-            {
-              "name": "B03",
-              "common_name": "green",
-              "center_wavelength": 0.56,
-              "full_width_half_max": 0.045
-            }
-          ],
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -197,38 +187,34 @@
             0.0,
             -10.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 10,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12200c21b36a4cd8437024ebb3a06dc0a6eb012202813518b8d52b6f20b0c06d5b9b",
           "file:size": 28087121,
+          "title": "Green - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 10,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B03"
+            }
           ]
         },
         "blue": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B02.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Blue - 10m",
-          "eo:bands": [
-            {
-              "name": "B02",
-              "common_name": "blue",
-              "center_wavelength": 0.49,
-              "full_width_half_max": 0.098
-            }
-          ],
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -242,66 +228,33 @@
             -10.0,
             5100040.0
           ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 10,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220859a31abb70ed161ef5aa2a04f4d0b081209bbbaf5c5cd6493dae08710ec3d87",
           "file:size": 27982870,
+          "title": "Blue - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 10,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B02"
+            }
           ]
         },
         "visual": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/TCI.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "True color image",
-          "eo:bands": [
-            {
-              "name": "B04",
-              "common_name": "red",
-              "center_wavelength": 0.665,
-              "full_width_half_max": 0.038
-            },
-            {
-              "name": "B03",
-              "common_name": "green",
-              "center_wavelength": 0.56,
-              "full_width_half_max": 0.045
-            },
-            {
-              "name": "B02",
-              "common_name": "blue",
-              "center_wavelength": 0.49,
-              "full_width_half_max": 0.098
-            }
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 10
-            },
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 10
-            },
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 10
-            }
-          ],
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -320,22 +273,43 @@
           ],
           "file:checksum": "1220d64b4b92275dfb7ce7eb68d0d995c4faf0843dfa81bf8c9a64a65452aeb4ef98",
           "file:size": 38654297,
+          "title": "True color image",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "visual"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 10,
+              "name": "B04"
+            },
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 10,
+              "name": "B03"
+            },
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 10,
+              "name": "B02"
+            }
           ]
         },
         "nir": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B08.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "NIR 1 - 10m",
-          "eo:bands": [
-            {
-              "name": "B08",
-              "common_name": "nir",
-              "center_wavelength": 0.842,
-              "full_width_half_max": 0.145
-            }
-          ],
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -349,37 +323,33 @@
             -10.0,
             5100040.0
           ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 10,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12201d837c5a1e30f0c9d6dd5efe741fee44a9ca3298009a6094ed92f4c59a028d40",
           "file:size": 27849406,
+          "title": "NIR 1 - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "nir",
+              "eo:center_wavelength": 0.842,
+              "eo:full_width_half_max": 0.145,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 10,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B08"
+            }
           ]
         },
         "swir22": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B12.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "SWIR 2.2\u03bcm - 20m",
-          "eo:bands": [
-            {
-              "name": "B12",
-              "common_name": "swir22",
-              "center_wavelength": 2.19,
-              "full_width_half_max": 0.242
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -392,38 +362,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220f42b6b3781eae81a145e4fd70487f0c5996d6faea6bb2e4a8a7bf7de223b4bc6",
           "file:size": 6678734,
+          "title": "SWIR 2.2\u03bcm - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "swir22",
+              "eo:center_wavelength": 2.19,
+              "eo:full_width_half_max": 0.242,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B12"
+            }
           ]
         },
         "rededge2": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B06.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Red Edge 2 - 20m",
-          "eo:bands": [
-            {
-              "name": "B06",
-              "common_name": "rededge",
-              "center_wavelength": 0.74,
-              "full_width_half_max": 0.018
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -436,38 +402,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220bab016fc5330da9ae1dba433f2ff4f7eca89367c9b87de27d9f4196a73242ccd",
           "file:size": 7111926,
+          "title": "Red Edge 2 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "rededge",
+              "eo:center_wavelength": 0.74,
+              "eo:full_width_half_max": 0.018,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B06"
+            }
           ]
         },
         "rededge3": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B07.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Red Edge 3 - 20m",
-          "eo:bands": [
-            {
-              "name": "B07",
-              "common_name": "rededge",
-              "center_wavelength": 0.783,
-              "full_width_half_max": 0.028
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -480,38 +442,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220cd35fdc8c12a8a9a49c89001f671b773f24644e7a4061fd668f20e07a149b605",
           "file:size": 7097882,
+          "title": "Red Edge 3 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "rededge",
+              "eo:center_wavelength": 0.783,
+              "eo:full_width_half_max": 0.028,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B07"
+            }
           ]
         },
         "rededge1": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B05.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Red Edge 1 - 20m",
-          "eo:bands": [
-            {
-              "name": "B05",
-              "common_name": "rededge",
-              "center_wavelength": 0.704,
-              "full_width_half_max": 0.019
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -524,38 +482,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12203c7b83b7cd513c9e74fa68b7750f512183b06a77a81a24bf22a1f34ce8019877",
           "file:size": 7145713,
+          "title": "Red Edge 1 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "rededge",
+              "eo:center_wavelength": 0.704,
+              "eo:full_width_half_max": 0.019,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B05"
+            }
           ]
         },
         "swir16": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B11.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "SWIR 1.6\u03bcm - 20m",
-          "eo:bands": [
-            {
-              "name": "B11",
-              "common_name": "swir16",
-              "center_wavelength": 1.61,
-              "full_width_half_max": 0.143
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -568,30 +522,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220a9cbc09adcadf0a5be2225801d828e1bab3a590eb7d608e9dacef83fd2b790f1",
           "file:size": 6717726,
+          "title": "SWIR 1.6\u03bcm - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "swir16",
+              "eo:center_wavelength": 1.61,
+              "eo:full_width_half_max": 0.143,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B11"
+            }
           ]
         },
         "wvp": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/WVP.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Water Vapour (WVP)",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -604,38 +562,30 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "unit": "cm",
-              "scale": 0.001,
-              "offset": 0
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12208a5dc0c2997084cf5fee53728fec4cbe3a40c82c515158f361058bdf19fc4963",
           "file:size": 115845,
+          "title": "Water Vapour (WVP)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
+          ],
+          "bands": [
+            {
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "unit": "cm",
+              "raster:scale": 0.001,
+              "raster:offset": 0
+            }
           ]
         },
         "nir08": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B8A.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "NIR 2 - 20m",
-          "eo:bands": [
-            {
-              "name": "B8A",
-              "common_name": "nir08",
-              "center_wavelength": 0.865,
-              "full_width_half_max": 0.033
-            }
-          ],
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -648,30 +598,34 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220d9ca8ee1dbaf0ff9ace47f23859ee0b73b50c8117108efefca45462b8bee4a1d",
           "file:size": 7077553,
+          "title": "NIR 2 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "nir08",
+              "eo:center_wavelength": 0.865,
+              "eo:full_width_half_max": 0.033,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B8A"
+            }
           ]
         },
         "scl": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/SCL.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Scene classification map (SCL)",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -684,27 +638,27 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 20
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12206ab0c4f040632ba7bcab1191c5a8c568419671ce2db5272717ea4f0eaa1eda2f",
           "file:size": 117483,
+          "title": "Scene classification map (SCL)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
+          ],
+          "bands": [
+            {
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 20
+            }
           ]
         },
         "aot": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/AOT.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Aerosol optical thickness (AOT)",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -717,37 +671,29 @@
             0.0,
             -20.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 20,
-              "scale": 0.001,
-              "offset": 0
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12209a74579e9de7d83b265ae8c826b0d9bca275be38a045a11928fe603cd6b86bd1",
           "file:size": 133485,
+          "title": "Aerosol optical thickness (AOT)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
+          ],
+          "bands": [
+            {
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 20,
+              "raster:scale": 0.001,
+              "raster:offset": 0
+            }
           ]
         },
         "coastal": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B01.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Coastal - 60m",
-          "eo:bands": [
-            {
-              "name": "B01",
-              "common_name": "coastal",
-              "center_wavelength": 0.443,
-              "full_width_half_max": 0.027
-            }
-          ],
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -760,38 +706,34 @@
             0.0,
             -60.0,
             5100040.0
-          ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 60,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
           ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "122043da5f15e3fa202be6a6ca7a6d38fc3cd3473e30cfeac34e630a33f11f19499d",
           "file:size": 730037,
+          "title": "Coastal - 60m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "coastal",
+              "eo:center_wavelength": 0.443,
+              "eo:full_width_half_max": 0.027,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 60,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B01"
+            }
           ]
         },
         "nir09": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/B09.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "NIR 3 - 60m",
-          "eo:bands": [
-            {
-              "name": "B09",
-              "common_name": "nir09",
-              "center_wavelength": 0.945,
-              "full_width_half_max": 0.026
-            }
-          ],
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -805,29 +747,33 @@
             -60.0,
             5100040.0
           ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint16",
-              "spatial_resolution": 60,
-              "scale": 0.0001,
-              "offset": -0.1
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12207349df64be97714c8524664369283b8b416c2c464a123fdcfe5af686f93d2a0e",
           "file:size": 729788,
+          "title": "NIR 3 - 60m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "nir09",
+              "eo:center_wavelength": 0.945,
+              "eo:full_width_half_max": 0.026,
+              "nodata": 0,
+              "data_type": "uint16",
+              "raster:spatial_resolution": 60,
+              "raster:scale": 0.0001,
+              "raster:offset": -0.1,
+              "name": "B09"
+            }
           ]
         },
         "cloud": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/CLD_20m.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Cloud Probabilities",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -841,27 +787,27 @@
             -20.0,
             5100040.0
           ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 20
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12200aae18669281af8243afb7334d07a50eb243e2e09045bc0fc1e375cc992f6833",
           "file:size": 249585,
+          "title": "Cloud Probabilities",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "cloud"
+          ],
+          "bands": [
+            {
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 20
+            }
           ]
         },
         "snow": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/SNW_20m.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "Snow Probabilities",
           "proj:shape": [
             5490,
             5490
@@ -874,27 +820,27 @@
             -20.0,
             5100040.0
           ],
-          "raster:bands": [
-            {
-              "nodata": 0,
-              "data_type": "uint8",
-              "spatial_resolution": 20
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "122044d48427a9c50b7c4f0d358a09317333ff31e5cffad4568105ff5385fb20dfa8",
           "file:size": 53931,
+          "title": "Snow Probabilities",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "snow-ice"
+          ],
+          "bands": [
+            {
+              "nodata": 0,
+              "data_type": "uint8",
+              "raster:spatial_resolution": 20
+            }
           ]
         },
         "preview": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/L2A_PVI.tif",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "title": "True color preview",
           "gsd": 320,
           "proj:shape": [
             343,
@@ -908,77 +854,79 @@
             -320.0,
             5100040.0
           ],
-          "eo:bands": [
-            {
-              "name": "B04",
-              "common_name": "red",
-              "center_wavelength": 0.665,
-              "full_width_half_max": 0.038
-            },
-            {
-              "name": "B03",
-              "common_name": "green",
-              "center_wavelength": 0.56,
-              "full_width_half_max": 0.045
-            },
-            {
-              "name": "B02",
-              "common_name": "blue",
-              "center_wavelength": 0.49,
-              "full_width_half_max": 0.098
-            }
-          ],
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220212ffdb927d9311b6f4b3427ea7cfd2e87743c85b8179c09dd7bd1d54899390c",
           "file:size": 38402,
+          "title": "True color preview",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "overview"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "name": "B04"
+            },
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "name": "B03"
+            },
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "name": "B02"
+            }
           ]
         },
         "granule_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/metadata.xml",
-          "type": "application/xml",
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "1220d77202b75baf476d7ececbb623e079ec52e3531ef72d27672714a509d424bbb7",
           "file:size": 499353,
+          "type": "application/xml",
           "roles": [
             "metadata"
           ]
         },
         "tileinfo_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/tileInfo.json",
-          "type": "application/json",
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12203adeb48235952e9fa4cb4430c3bb6d2d1d83b923dd6669557efc5dbc138df635",
           "file:size": 1803,
+          "type": "application/json",
           "roles": [
             "metadata"
           ]
         },
         "product_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/product_metadata.xml",
-          "type": "application/xml",
           "storage:refs": [
             "aws"
           ],
           "file:checksum": "12206f560bf303079fdd03fc804c7c56c13aa2e75cc87f842ef03e944ec5044021a9",
           "file:size": 55674,
+          "type": "application/xml",
           "roles": [
             "metadata"
           ]
         },
         "thumbnail": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/L2A_PVI.jpg",
-          "type": "image/jpeg",
-          "title": "Thumbnail of preview image",
           "file:checksum": "1220efe12a40a07bb4093be29ac284ce6fe8e04f4a1e91ef0a5861117889db282cb1",
           "file:size": 5265,
+          "title": "Thumbnail of preview image",
+          "type": "image/jpeg",
           "roles": [
             "thumbnail"
           ]

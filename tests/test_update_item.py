@@ -62,7 +62,7 @@ def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
 
 def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
-    assert "classification:classes" not in item["assets"]["scl"]["raster:bands"][0]
+    assert "classification:classes" not in item["assets"]["scl"]["bands"][0]
     assert "eo:snow_cover" not in item["properties"]
     assert not any("classification" in ext for ext in item["stac_extensions"])
 

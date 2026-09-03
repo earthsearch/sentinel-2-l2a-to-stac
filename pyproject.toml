@@ -4,13 +4,13 @@ version = "0.1.0"
 authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
-requires-python = ">=3.11"
+# pystac 2.0-dev requires Python >= 3.12, so 3.11 support is dropped as part of
+# adopting the 2.0 baseline (see MIGRATION_PLAN.md PR 9 / pystac-2.0 adoption).
+requires-python = ">=3.12"
 keywords = ["stac", "workflow", "cirrus"]
 license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13"
 ]
@@ -19,6 +19,11 @@ dependencies = [
     "multiformats~=0.3.1",
     "numpy>=2.4.6",
     "pillow~=12.0",
+    # pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
+    # per CLAUDE.md — never a floating @main. This is the dev build that carries
+    # the native core `bands` API (Asset.bands / Band); the source override lives
+    # in [tool.uv.sources] below. Bump the SHA deliberately and re-verify.
+    "pystac",
     "rasterio~=1.4",
     "requests>=2.34.2",
     "returns~=0.29",
@@ -26,6 +31,9 @@ dependencies = [
     "stactools~=0.5.3",
     "stactools-sentinel2==0.8.0",
 ]
+
+[tool.uv.sources]
+pystac = { git = "https://github.com/stac-utils/pystac.git", rev = "4f346f2e1a1db00d526ef052800f24e19c72476c" }
 
 [project.scripts]
 sentinel-2-l2a-to-stac = "sentinel_2_l2a_to_stac.task:Sentinel2ToStac.cli"

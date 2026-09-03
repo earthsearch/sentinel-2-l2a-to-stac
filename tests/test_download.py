@@ -78,6 +78,8 @@ class _StubItem:
     id = "stub-item"
     collection_id = "stub-collection"
     assets: ClassVar[dict[str, Any]] = {}
+    stac_version = "1.1.0"
+    stac_extensions = "mock"
 
     def to_dict(self) -> dict[str, str]:
         return {"id": "stub-item"}

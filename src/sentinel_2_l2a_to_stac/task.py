@@ -1,10 +1,13 @@
 import hashlib
 import json
 import os
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Sequence
 
 import numpy as np
+import pystac.link
+import pystac.utils
 import rasterio
 import requests
 import stac_asset.blocking
@@ -12,7 +15,7 @@ from boto3utils import s3
 from botocore.exceptions import ClientError
 from multiformats import multihash
 from PIL import Image
-from pystac import Asset, Item, Link, MediaType, RelType
+from pystac import Asset, Band, Item, Link, MediaType, RelType
 from pystac.extensions.file import FileExtension
 from pystac.extensions.grid import GridExtension
 from pystac.extensions.raster import AssetRasterExtension
@@ -25,7 +28,16 @@ from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
-from stactools.sentinel2.stac import create_item
+
+# pystac 2.0 moved HREF from `pystac.link` to `pystac.utils`, but stactools
+# (`stactools.core.io`) still does `from pystac.link import HREF`, so it fails to
+# import under pystac 2.0 unless HREF is restored on `pystac.link` first. Apply
+# the shim before importing stactools. Verified via the pystac2-spike; remove it
+# once stactools imports HREF from `pystac.utils` (or drops the import). This
+# statement intentionally precedes the stactools import (E402 suppressed).
+pystac.link.HREF = pystac.utils.HREF  # type: ignore[attr-defined]
+
+from stactools.sentinel2.stac import create_item  # noqa: E402
 
 # RODA hosts the raw Sentinel-2 tiles in a public bucket with no STAC catalog,
 # only the source metadata files. We reconstruct the product-level metadata
@@ -68,6 +80,10 @@ GSD_TO_BLOCKSIZE: dict[int | None, tuple[int, int]] = {
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
+    # CalVer (vYYYY.0M.0D), consumed by add_software_version_to_item to emit
+    # properties["processing:software"] = {name: version}. Placeholder value —
+    # finalized alongside the CHANGELOG release entry in PR 10.
+    version = "v2026.09.03"
 
     def validate(self) -> bool:
         # The task is driven entirely by a `metadata_href` pointing at the
@@ -96,6 +112,18 @@ class Sentinel2ToStac(Task):
 
     def update_item(self, item: Item, s3_path: str) -> Item:
         """Update metadata from stactools-sentinel2 with Earth Search specifics."""
+        # pystac 2.0: create_item returns assets with no `owner` back-reference,
+        # and Extension.ext(asset, add_if_missing=True) needs the owner to
+        # register the extension URI on the item. Re-parent every asset up front
+        # so the storage/file extension calls downstream work (1.x set this
+        # implicitly). See _set_asset_owners / MIGRATION_PLAN.md PR 9.
+        _set_asset_owners(item)
+        # ...and repair each asset's media type: stactools-sentinel2 builds assets
+        # with pystac 1.x's `media_type=` kwarg, which pystac 2.0 strands in
+        # extra_fields["media_type"] with asset.type left None. Without this the
+        # cogify `asset.type == "image/jp2"` check matches nothing (nothing gets
+        # COGified) and to_dict() emits an invalid `media_type` field. See PR 9.
+        _normalize_asset_media_types(item)
         # Assign the collection by matching the item against each configured
         # JSONPath expression, first match wins. Fail-fast if none match. (The
         # base Task.handler also runs assign_collections() after process(), but
@@ -114,7 +142,10 @@ class Sentinel2ToStac(Task):
         ):
             raise Exception("No collection defined for item")
 
-        item.collection_id = collection
+        # pystac 2.0 made Item.collection_id read-only; set via set_collection()
+        # (accepts a str, serializes to the top-level "collection" field just as
+        # the legacy `item.collection_id = collection` assignment did).
+        item.set_collection(collection)
 
         item.properties["earthsearch:payload_id"] = self._payload["id"]
 
@@ -156,7 +187,7 @@ class Sentinel2ToStac(Task):
         del item.assets["scl"].extra_fields["raster:bands"][0]["classification:classes"]
         del item.properties["eo:snow_cover"]
         item.stac_extensions = [
-            ext for ext in item.stac_extensions if "classification" not in ext
+            ext for ext in (item.stac_extensions or []) if "classification" not in ext
         ]
         # end_scrub
         ########################################
@@ -242,7 +273,10 @@ class Sentinel2ToStac(Task):
             for key, asset in item.assets.copy().items():
                 if key.endswith("m") or key == "thumbnail":
                     del item.assets[key]
-                elif asset.media_type == "image/jp2":
+                # pystac 2.0 renamed Asset.media_type → Asset.type; use .type
+                # for the JP2 filter so it reads the serialized MIME string
+                # rather than the now-absent media_type attribute.
+                elif asset.type == "image/jp2":
                     assets_to_cogify.append(key)
 
             self.logger.info(f"Downloading assets to cogify: {assets_to_cogify}")
@@ -254,6 +288,13 @@ class Sentinel2ToStac(Task):
                 keep_non_downloaded=True,
                 config=Config(s3_requester_pays=False, include=assets_to_cogify),
             )
+
+            # pystac 2.0: download_item returns a new Item whose assets have
+            # owner=None. Re-parent them so Extension.ext(asset,
+            # add_if_missing=True) can register extension URIs on the item
+            # (same reason _set_asset_owners is called at the top of
+            # update_item). Idempotent — safe to call again here.
+            _set_asset_owners(item)
 
             for asset_name in assets_to_cogify:
                 asset = item.assets[asset_name]
@@ -298,6 +339,12 @@ class Sentinel2ToStac(Task):
         # are off) so the local metadata assets get file info too; s3:// assets
         # are skipped. `op.getsize` in legacy → `os.path.getsize` here (the
         # `os.path as op` alias was dropped in PR 6).
+        #
+        # pystac 2.0: re-parent first, because FileExtension.ext(asset,
+        # add_if_missing=True) below needs each asset's owner. make_thumbnail adds
+        # a fresh thumbnail asset via item.add_asset(), which does NOT set owner in
+        # 2.0, so without this the COG path fails on the thumbnail. Idempotent.
+        _set_asset_owners(item)
         for asset in item.assets.values():
             if not self.is_local_asset(asset):
                 continue
@@ -312,6 +359,38 @@ class Sentinel2ToStac(Task):
             if fext.size is None:
                 fext.size = os.path.getsize(asset.href)
 
+        return item
+
+    def upgrade_item_to_stac_1_1(self, item: Item) -> Item:
+        """Normalize a finished Item to STAC 1.1.0 band/extension shape.
+
+        stactools-sentinel2 emits the pre-1.1 per-asset ``eo:bands`` +
+        ``raster:bands`` arrays regardless of the pystac version underneath, so
+        this task owns the 1.1.0 upgrade. Runs *last* (after cogify/thumbnail/
+        fileinfo, just before upload): ``cogify`` reads ``raster:bands`` and the
+        ``update_item`` scrub block targets ``raster:bands`` directly, so
+        consolidating any earlier would break both. See MIGRATION_PLAN.md PR 9.
+
+        Two transforms, both idempotent so they self-disable once
+        stactools-sentinel2 emits native ``bands``:
+
+        1. Merge each asset's ``eo:bands`` + ``raster:bands`` into the core 1.1.0
+           ``bands`` field (``_consolidate_bands``).
+        2. Bump the ``eo``/``raster`` extension URLs to v2.0.0 — the versions
+           whose band fields live inside core ``bands``
+           (``_bump_band_extension_versions``). Both extensions stay declared:
+           ``eo:cloud_cover`` remains an item property, and the merged bands
+           still carry ``eo:``/``raster:`` fields.
+
+        ``stac_version`` is already emitted as ``"1.1.0"`` by the current stack,
+        so it's asserted rather than forced.
+        """
+        assert item.stac_version == "1.1.0", (
+            f"expected create_item to emit STAC 1.1.0, got {item.stac_version}"
+        )
+        for asset in item.assets.values():
+            _consolidate_bands(asset)
+        _bump_band_extension_versions(item)
         return item
 
     def read_href(self, href: str) -> bytes:
@@ -427,6 +506,12 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
 
+        # Final STAC 1.1.0 normalization on the otherwise-finished Item (band
+        # consolidation + eo/raster extension version bump). Runs after all
+        # raster:bands consumers (cogify, the update_item scrub) — see PR 9.
+        self.logger.info("Upgrading item to STAC 1.1.0 band shape")
+        item = self.upgrade_item_to_stac_1_1(item)
+
         # Upload local (workdir) assets to S3. The base-class method no-ops when
         # self._upload is False, which is exactly what --local / skip_upload=True
         # / upload=False produce (verified against stactask 0.7.0's __init__ and
@@ -434,13 +519,122 @@ class Sentinel2ToStac(Task):
         self.logger.info("Uploading assets")
         item = self.upload_item_assets_to_s3(item, self.get_local_asset_keys(item))
 
-        return [item.to_dict()]
+        # Restore processing:software (task name -> CalVer version) + the
+        # processing extension. stactask 0.3.0 applied this automatically; 0.7.0
+        # ships add_software_version_to_item but no longer calls it, so restore it
+        # explicitly to preserve legacy output. Operates on the dict (base method
+        # signature), so it's the final serialization step. See PR 9 PRESERVE
+        # decision in MIGRATION_PLAN.md.
+        return [self.add_software_version_to_item(item.to_dict())]
 
 
 def lambda_handler(
     event: dict[str, Any], context: dict[str, Any] = {}
 ) -> dict[str, Any]:
     return Sentinel2ToStac.handler(payload=event)
+
+
+def _set_asset_owners(item: Item) -> None:
+    # pystac 2.0 requires an asset's `owner` to be set before
+    # Extension.ext(asset, add_if_missing=True) can register the extension URI on
+    # the owning item. create_item (and stac_asset.download_item) return assets
+    # without an owner, so re-parent them explicitly. Idempotent; safe to call
+    # again after any step that rebuilds the item's assets.
+    for asset in item.assets.values():
+        asset.set_owner(item)
+
+
+def _normalize_asset_media_types(item: Item) -> None:
+    # stactools-sentinel2 0.8.0 constructs assets with pystac 1.x's `media_type=`
+    # kwarg. pystac 2.0's Asset() doesn't recognize it, so the value lands in
+    # extra_fields["media_type"] and asset.type stays None — to_dict() then emits
+    # an invalid `media_type` field, and any `asset.type == ...` comparison
+    # (notably the cogify jp2 check) silently fails. Move the stray value onto
+    # asset.type. Idempotent + forward-compatible: a no-op once stactools sets
+    # asset.type itself. Remove when stactools-sentinel2 is pystac-2.0-compatible.
+    for asset in item.assets.values():
+        media_type = asset.extra_fields.pop("media_type", None)
+        if asset.type is None and media_type is not None:
+            asset.type = media_type
+
+
+# STAC 1.1.0 band consolidation (PR 9). stactools-sentinel2 emits the pre-1.1
+# `eo:bands` + `raster:bands` per-asset arrays; 1.1.0 merges them into one core
+# `bands` array whose entries carry: `name` (core), `data_type`/`nodata`/`unit`/
+# `statistics` (core common metadata, bare), the eo band fields (`eo:` prefixed),
+# and the raster band fields that stayed extension-specific (`raster:` prefixed).
+# Keys not in these maps pass through unchanged.
+_EO_BAND_RENAME = {
+    "name": "name",
+    "common_name": "eo:common_name",
+    "center_wavelength": "eo:center_wavelength",
+    "full_width_half_max": "eo:full_width_half_max",
+    "solar_illumination": "eo:solar_illumination",
+}
+_RASTER_BAND_RENAME = {
+    # Core common-metadata fields (1.1.0 pulled these out of the raster ext).
+    "data_type": "data_type",
+    "nodata": "nodata",
+    "unit": "unit",
+    "statistics": "statistics",
+    # Still raster-extension-owned, now `raster:`-prefixed inside `bands`.
+    "spatial_resolution": "raster:spatial_resolution",
+    "scale": "raster:scale",
+    "offset": "raster:offset",
+    "sampling": "raster:sampling",
+    "bits_per_sample": "raster:bits_per_sample",
+    "histogram": "raster:histogram",
+}
+
+# eo/raster extension versions whose band fields live inside the core `bands`
+# array (v1.1.0 still used `eo:bands`/`raster:bands`).
+_EO_EXT_V2 = "https://stac-extensions.github.io/eo/v2.0.0/schema.json"
+_RASTER_EXT_V2 = "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
+
+
+def _merge_band(
+    eo: dict[str, Any] | None, raster: dict[str, Any] | None
+) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for source, rename in ((eo, _EO_BAND_RENAME), (raster, _RASTER_BAND_RENAME)):
+        if not source:
+            continue
+        for key, value in source.items():
+            merged[rename.get(key, key)] = value
+    return merged
+
+
+def _consolidate_bands(asset: Asset) -> None:
+    # Merge this asset's legacy eo:bands/raster:bands (aligned by index) into the
+    # core 1.1.0 `bands` field. Idempotent + forward-compatible: if the asset
+    # already has native `bands` (a future stactools-sentinel2 emitting them
+    # directly), skip — so this whole function becomes a no-op once upstream
+    # switches, with no code change. See MIGRATION_PLAN.md PR 9.
+    if asset.bands:
+        return
+    eo_bands = asset.extra_fields.pop("eo:bands", None)
+    raster_bands = asset.extra_fields.pop("raster:bands", None)
+    if not eo_bands and not raster_bands:
+        return
+    asset.bands = [
+        Band.from_dict(_merge_band(eo, raster))
+        for eo, raster in zip_longest(eo_bands or [], raster_bands or [])
+    ]
+
+
+def _bump_band_extension_versions(item: Item) -> None:
+    # After consolidation the eo/raster band fields live inside core `bands`, so
+    # point their extension URLs at the v2.0.0 schemas that define that shape.
+    # Both extensions stay declared (eo:cloud_cover is still an item property;
+    # the merged bands still carry eo:/raster: fields). Idempotent.
+    item.stac_extensions = [
+        _EO_EXT_V2
+        if "/eo/" in ext
+        else _RASTER_EXT_V2
+        if "/raster/" in ext
+        else ext
+        for ext in (item.stac_extensions or [])
+    ]
 
 
 def cogify(asset_name: str, asset: Asset) -> None:
@@ -513,6 +707,12 @@ def cogify(asset_name: str, asset: Asset) -> None:
         cogfile_tmp.write_bytes(output)
         cogfile_tmp.rename(cogfile)
 
+    # pystac 2.0: add_if_missing=True. On a real create_item asset,
+    # add_if_missing=False raises ExtensionNotImplemented (the file extension
+    # isn't declared on the owner yet — add_fileinfo runs later). Both callers
+    # give the asset an owner first (the pipeline via _set_asset_owners in
+    # make_cogs_for_item; the unit test via owner.add_asset), so add_if_missing=
+    # True can register the file extension URI on the owning item here.
     FileExtension.ext(
         asset,
         add_if_missing=True,
@@ -522,7 +722,9 @@ def cogify(asset_name: str, asset: Asset) -> None:
     )
 
     asset.href = str(cogfile)
-    asset.media_type = MediaType.COG
+    # pystac 2.0 renamed Asset.media_type → Asset.type; .type is serialized
+    # by Asset.to_dict() and is the canonical MIME field under pystac 2.0.
+    asset.type = MediaType.COG
 
 
 def sha256sum_multihash(filename: str) -> str:
@@ -541,9 +743,12 @@ def make_thumbnail(item: Item) -> Item:
     if THUMBNAIL_ASSET_NAME in item.assets:
         item.delete_asset(THUMBNAIL_ASSET_NAME)
 
+    # pystac 2.0 renamed Asset.__init__'s `media_type` kwarg to `type`;
+    # passing `media_type` falls into **kwargs and does not set .type,
+    # so the MIME string would be absent from to_dict() output.
     tn_asset = Asset(
         href=os.path.splitext(asset.href)[0] + ".jpg",
-        media_type=MediaType.JPEG,
+        type=MediaType.JPEG,
         roles=["thumbnail"],
         title="Thumbnail of preview image",
     )
