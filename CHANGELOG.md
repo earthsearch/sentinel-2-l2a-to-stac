@@ -9,6 +9,11 @@ used by this project.
 
 ## [Unreleased]
 
+## [v2026.09.03]
+
+First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus
+task ported forward onto STAC 1.1.0 output and the pystac 2.0 baseline.
+
 ### Added
 
 - Versioning section to README.md, and switched to using dot-delimited CalVer.
@@ -212,6 +217,14 @@ used by this project.
   cogify jp2 detection and valid `type` serialization both depend on it). All shims are
   idempotent and self-disable once upstream is 2.0-ready. See MIGRATION_PLAN.md PR 9.
 
+- Logging: the legacy task's hand-rolled `TaskLoggerAdapter` (payload-id log prefix,
+  `[{id}] msg`) is **not** ported — stactask 0.7.0's `Task.__init__` now installs an
+  identical adapter, which the task inherits (guarded by `tests/test_logging.py`). A
+  module-level config block was added to cover what the base class only does in its
+  `cli()` path: honor `CIRRUS_LOG_LEVEL` (default `WARN`) and quiet the loud
+  `stactools`/`botocore`/`rasterio` loggers in the Lambda handler path too, for clean
+  production logs.
+
 ## [v2025.03.12]
 
 ### Changed
@@ -223,7 +236,8 @@ used by this project.
 
 Initial release
 
-[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.12..main
+[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.03..main
+[v2026.09.03]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.12..v2026.09.03
 [v2025.03.12]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.11..v2025.03.12
 [v2025.03.11]: https://github.com/cirrus-geo/cirrus-task-example/tree/v2025.03.11
 [#1]: https://github.com/cirrus-geo/cirrus-task-example/pull/1

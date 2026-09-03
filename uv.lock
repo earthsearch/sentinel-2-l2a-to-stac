@@ -2063,7 +2063,7 @@ wheels = [
 
 [[package]]
 name = "sentinel-2-l2a-to-stac"
-version = "0.1.0"
+version = "2026.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "boto3-utils" },

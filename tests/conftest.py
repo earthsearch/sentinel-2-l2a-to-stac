@@ -4,29 +4,9 @@ Establishes a hermetic, fully-local AWS environment for the test suite so that
 running ``pytest`` never touches live AWS services and never implicitly uses
 whatever AWS identity the developer happens to have loaded in their shell.
 
-Why this exists
----------------
-``stactask`` constructs an S3 client at *import time* (``boto3utils.s3()`` in
-``stactask.asset_io``), so merely importing the task module during test
-collection triggers botocore credential resolution. botocore >= 1.43 added an
-IAM Identity Center ("login") credential provider to its default resolution
-chain that requires the optional ``botocore[crt]`` dependency; if a developer
-has an SSO session configured (e.g. an ``AWS_PROFILE`` pointing at
-``~/.aws/config``), that resolution raises ``MissingDependencyException`` at
-import time and the whole suite fails to collect.
-
-The fix is to provide *static dummy credentials* via environment variables.
-botocore resolves the environment-variable provider first — ahead of the
-shared-config/SSO providers — so the chain short-circuits before it ever
-reaches the login provider. No CRT, no crash, no real credentials, no network.
-This is good test hygiene regardless of the botocore version: tests should not
-depend on the developer's ambient AWS identity.
-
 Locality contract
 -----------------
-* ``pytest`` stays local. This is guaranteed primarily by test *design* (no
-  live calls: ``skip_upload``/``upload=False``, local ``file://`` fixtures, and
-  from PR 5 onward a ``requests_mock`` stub for the STAC API). The dummy
+* ``pytest`` stays local. This is guaranteed primarily by test *design*. The dummy
   credentials here are a safety net, not the mechanism.
 * Running the task with ``--local`` stays local (a stactask runtime flag,
   orthogonal to and unaffected by this file).
@@ -36,8 +16,7 @@ Locality contract
   has no effect there.
 
 We use ``setdefault`` so a developer who *deliberately* exports real
-credentials (a future opt-in integration test that hits live services) is
-respected rather than overridden; a plain ``pytest`` run remains hermetic.
+credentials is respected rather than overridden; a plain ``pytest`` run remains hermetic.
 """
 
 import json

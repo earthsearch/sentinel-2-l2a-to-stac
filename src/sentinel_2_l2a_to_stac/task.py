@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 from itertools import zip_longest
 from pathlib import Path
@@ -29,39 +30,38 @@ from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
-# pystac 2.0 moved HREF from `pystac.link` to `pystac.utils`, but stactools
-# (`stactools.core.io`) still does `from pystac.link import HREF`, so it fails to
-# import under pystac 2.0 unless HREF is restored on `pystac.link` first. Apply
-# the shim before importing stactools. Verified via the pystac2-spike; remove it
-# once stactools imports HREF from `pystac.utils` (or drops the import). This
-# statement intentionally precedes the stactools import (E402 suppressed).
+# pystac 2.0 moved HREF, but stactools hasn't been updated for the move. This line 
+# can be removed once stactools is updated to work with pystac 2.0
 pystac.link.HREF = pystac.utils.HREF  # type: ignore[attr-defined]
 
 from stactools.sentinel2.stac import create_item  # noqa: E402
 
-# RODA hosts the raw Sentinel-2 tiles in a public bucket with no STAC catalog,
-# only the source metadata files. We reconstruct the product-level metadata
-# href from tileInfo.json's `productPath`, which requires recovering the bucket
-# from the granule href — that's the only use of this client.
+# stactask 0.7.0 already prefixes lines with payload id, so the legacy
+# logging change was deliberately left off.
+logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
+for _noisy_logger in ("stactools", "botocore", "rasterio"):
+    logging.getLogger(_noisy_logger).propagate = False
+
 s3_client = s3(requester_pays=False)
 
-# Storage extension (pystac 1.15.2, schemes/refs model). One aws-s3 scheme,
-# referenced from every asset. In v2 `platform` is the access-endpoint URI/
-# template (provider identity moved to `type`), unlike v1's literal "AWS".
-STORAGE_SCHEME_KEY = "aws"
+# Storage extension (pystac 1.15.2, schemes/refs model). Two aws-s3 schemes:
+# "roda" for source metadata assets remaining on the RODA public bucket, and
+# "earthsearch" for assets uploaded to the Earth Search output bucket. A
+# "local" placeholder scheme is used in --local/test runs where no upload
+# occurs. In v2 `platform` is the access-endpoint URI/template (provider
+# identity moved to `type`), unlike v1's literal "AWS". `bucket` is an
+# additional property required by the aws-s3 best-practices template.
+RODA_SCHEME_KEY = "roda"
+RODA_BUCKET = "sentinel-s2-l2a"
+EARTHSEARCH_SCHEME_KEY = "earthsearch"
+LOCAL_SCHEME_KEY = "local"
+LOCAL_BUCKET = "local"
 STORAGE_PLATFORM = "https://{bucket}.s3.{region}.amazonaws.com"
 STORAGE_REGION = "us-west-2"
 
-# make_thumbnail re-encodes the `preview` asset into a JPEG registered under the
-# `thumbnail` asset key.
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 
-# After processing_baseline check passes for 04.xx tiles, the tile must
-# additionally intersect Europe. This carve-out was introduced for the Tapir
-# project; the inline comment "change this back to 05.00 after Tapir is
-# complete" remains in the legacy code. Preserved verbatim per plan — whether
-# to remove it is an open question for the user (see CLAUDE.md open questions).
 EXPECTED_COGIFIED_COUNT = 19
 
 ASSET_TO_RESAMPLE_ALGORITHM: dict[str | None, str] = {
@@ -80,24 +80,15 @@ GSD_TO_BLOCKSIZE: dict[int | None, tuple[int, int]] = {
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
-    # CalVer (vYYYY.0M.0D), consumed by add_software_version_to_item to emit
-    # properties["processing:software"] = {name: version}. Placeholder value —
-    # finalized alongside the CHANGELOG release entry in PR 10.
     version = "v2026.09.03"
 
     def validate(self) -> bool:
-        # The task is driven entirely by a `metadata_href` pointing at the
-        # Sentinel-2 source metadata on RODA/S3; without it there is nothing to
-        # process, so reject the payload as the input's fault (InvalidInput),
-        # not an internal error. Ported from the legacy classmethod validate,
-        # rewritten for stactask 0.6.1's instance-method signature (reads
-        # self._payload instead of a `payload` arg).
+        # Rewritten for stactask 0.6.1 (requires self._payload instead of 
+        # payload arg)
         if "metadata_href" not in self._payload:
             raise InvalidInput("metadata_href required")
         return True
 
-    # The three source files stactools' create_item reads, all under the
-    # workdir. Path() re-wraps because mypy infers Any from Path.joinpath here.
     @property
     def tileinfo_path(self) -> Path:
         return Path(self._workdir.joinpath("tileInfo.json"))
@@ -113,22 +104,11 @@ class Sentinel2ToStac(Task):
     def update_item(self, item: Item, s3_path: str) -> Item:
         """Update metadata from stactools-sentinel2 with Earth Search specifics."""
         # pystac 2.0: create_item returns assets with no `owner` back-reference,
-        # and Extension.ext(asset, add_if_missing=True) needs the owner to
-        # register the extension URI on the item. Re-parent every asset up front
-        # so the storage/file extension calls downstream work (1.x set this
-        # implicitly). See _set_asset_owners / MIGRATION_PLAN.md PR 9.
+        # and downstream needs the owner.
         _set_asset_owners(item)
-        # ...and repair each asset's media type: stactools-sentinel2 builds assets
-        # with pystac 1.x's `media_type=` kwarg, which pystac 2.0 strands in
-        # extra_fields["media_type"] with asset.type left None. Without this the
-        # cogify `asset.type == "image/jp2"` check matches nothing (nothing gets
-        # COGified) and to_dict() emits an invalid `media_type` field. See PR 9.
+        # stactools-sentinel2 builds assets with pystac 1.x's `media_type=` kwarg, which pystac 2.0 
+        # strands in extra_fields["media_type"]
         _normalize_asset_media_types(item)
-        # Assign the collection by matching the item against each configured
-        # JSONPath expression, first match wins. Fail-fast if none match. (The
-        # base Task.handler also runs assign_collections() after process(), but
-        # we keep this manual assignment for its fail-fast behavior — the two
-        # overlap intentionally; see MIGRATION_PLAN.md PR 4.)
         item_dict = item.to_dict()
         if not (
             collection := next(
@@ -143,8 +123,6 @@ class Sentinel2ToStac(Task):
             raise Exception("No collection defined for item")
 
         # pystac 2.0 made Item.collection_id read-only; set via set_collection()
-        # (accepts a str, serializes to the top-level "collection" field just as
-        # the legacy `item.collection_id = collection` assignment did).
         item.set_collection(collection)
 
         item.properties["earthsearch:payload_id"] = self._payload["id"]
@@ -152,34 +130,16 @@ class Sentinel2ToStac(Task):
         if item.datetime is None:
             raise ValueError("Item datetime property cannot be None")
 
-        # ESA-provided providers/license don't apply to the Earth Search
-        # republish; drop them.
         item.properties.pop("providers", None)
         item.remove_links("license")
 
-        # Link back to the source granule metadata on RODA.
-        item.add_link(
+        item.links.append(
             Link(
                 rel=RelType.VIA,
-                target=f"{s3_path}/metadata.xml",
+                href=f"{s3_path}/metadata.xml",
                 media_type=MediaType.XML,
                 title="Granule Metadata in Sinergize RODA Archive",
             )
-        )
-
-        # Storage extension, rewritten for pystac 1.15.2's schemes/refs model
-        # (legacy's CloudPlatform + .apply(platform=,region=,requester_pays=) API
-        # was removed). Define one aws-s3 scheme here; each asset references it
-        # via storage:refs in the loop below.
-        storage = StorageExtension.ext(item, add_if_missing=True)
-        storage.add_scheme(
-            STORAGE_SCHEME_KEY,
-            StorageScheme.create(
-                type="aws-s3",
-                platform=STORAGE_PLATFORM,
-                region=STORAGE_REGION,
-                requester_pays=False,
-            ),
         )
 
         ########################################
@@ -208,10 +168,6 @@ class Sentinel2ToStac(Task):
 
             # Remove unnecessary fields
             asset.extra_fields.pop("proj:bbox", None)
-
-            StorageExtension.ext(asset, add_if_missing=True).add_ref(
-                STORAGE_SCHEME_KEY
-            )
 
         return item
 
@@ -249,33 +205,17 @@ class Sentinel2ToStac(Task):
 
     def make_cogs_for_item(self, item: Item) -> Item:
         try:
-            # Temporarily allow processing baseline >= 04.00, but change this
-            # back to 05.00 after Tapir is complete (see EUROPE_MGRS_IDS comment).
             processing_baseline = item.properties.get("s2:processing_baseline", "0")
-            if processing_baseline < "04.00":
+            if processing_baseline < "05.00":
                 raise InvalidInput(
-                    f"Processing baseline is {processing_baseline}, only >= 04.00 is "
-                    "supported."
+                    f"Processing baseline is {processing_baseline}, only >= 05.00 (not including 5.09) is supported."
                 )
-            elif processing_baseline.startswith("04."):
-                # grid:code is prefixed with 'MGRS-', so remove that for compare.
-                # Under pystac 1.15.2 GridExtension.code is typed str | None
-                # (was effectively str in legacy's pystac 1.9); a real Sentinel-2
-                # item always carries grid:code, so a missing one is treated as
-                # "not in Europe" and rejected, keeping the check type-safe.
-                grid_code = GridExtension.ext(item).code
-                if grid_code is None or grid_code[5:] not in EUROPE_MGRS_IDS:
-                    raise InvalidInput(
-                        "Processing baseline 04.00 must intersect Europe"
-                    )
 
             assets_to_cogify = list()
             for key, asset in item.assets.copy().items():
                 if key.endswith("m") or key == "thumbnail":
                     del item.assets[key]
-                # pystac 2.0 renamed Asset.media_type → Asset.type; use .type
-                # for the JP2 filter so it reads the serialized MIME string
-                # rather than the now-absent media_type attribute.
+                # pystac 2.0 renamed Asset.media_type → Asset.type
                 elif asset.type == "image/jp2":
                     assets_to_cogify.append(key)
 
@@ -289,10 +229,7 @@ class Sentinel2ToStac(Task):
                 config=Config(s3_requester_pays=False, include=assets_to_cogify),
             )
 
-            # pystac 2.0: download_item returns a new Item whose assets have
-            # owner=None. Re-parent them so Extension.ext(asset,
-            # add_if_missing=True) can register extension URIs on the item
-            # (same reason _set_asset_owners is called at the top of
+            # pystac 2.0 change (same reason _set_asset_owners is called at the top of
             # update_item). Idempotent — safe to call again here.
             _set_asset_owners(item)
 
@@ -333,17 +270,57 @@ class Sentinel2ToStac(Task):
     def get_local_asset_keys(self, item: Item) -> list[str]:
         return [key for key, asset in item.assets.items() if self.is_local_asset(asset)]
 
+    def add_storage_schemes(self, item: Item) -> Item:
+        """Add per-bucket storage schemes and asset refs after upload.
+
+        Classifies each asset by its final href: RODA bucket (source metadata
+        that stayed on the public bucket), Earth Search bucket (uploaded COGs
+        and metadata), or local path (--local/test runs). Each group gets its
+        own named scheme so the `bucket` template variable is always defined.
+        """
+        roda_keys: list[str] = []
+        earthsearch_keys: list[str] = []
+        local_keys: list[str] = []
+
+        for key, asset in item.assets.items():
+            if asset.href.startswith("s3://"):
+                bucket = s3_client.urlparse(asset.href)["bucket"]
+                (roda_keys if bucket == RODA_BUCKET else earthsearch_keys).append(key)
+            else:
+                local_keys.append(key)
+
+        storage = StorageExtension.ext(item, add_if_missing=True)
+
+        def _add(scheme_key: str, bucket: str, asset_keys: list[str]) -> None:
+            storage.add_scheme(
+                scheme_key,
+                StorageScheme.create(
+                    type="aws-s3",
+                    platform=STORAGE_PLATFORM,
+                    region=STORAGE_REGION,
+                    requester_pays=False,
+                    bucket=bucket,
+                ),
+            )
+            for ak in asset_keys:
+                StorageExtension.ext(item.assets[ak], add_if_missing=True).add_ref(
+                    scheme_key
+                )
+
+        if roda_keys:
+            _add(RODA_SCHEME_KEY, RODA_BUCKET, roda_keys)
+        if earthsearch_keys:
+            es_bucket = s3_client.urlparse(item.assets[earthsearch_keys[0]].href)[
+                "bucket"
+            ]
+            _add(EARTHSEARCH_SCHEME_KEY, es_bucket, earthsearch_keys)
+        if local_keys:
+            _add(LOCAL_SCHEME_KEY, LOCAL_BUCKET, local_keys)
+
+        return item
+
     def add_fileinfo_to_local_assets(self, item: Item) -> Item:
-        # Stamp file:checksum (multihash-wrapped sha256) and file:size on every
-        # asset still living in the workdir. Runs unconditionally (even when COGs
-        # are off) so the local metadata assets get file info too; s3:// assets
-        # are skipped. `op.getsize` in legacy → `os.path.getsize` here (the
-        # `os.path as op` alias was dropped in PR 6).
-        #
-        # pystac 2.0: re-parent first, because FileExtension.ext(asset,
-        # add_if_missing=True) below needs each asset's owner. make_thumbnail adds
-        # a fresh thumbnail asset via item.add_asset(), which does NOT set owner in
-        # 2.0, so without this the COG path fails on the thumbnail. Idempotent.
+        # pystac 2.0: re-parent first. Idempotent.
         _set_asset_owners(item)
         for asset in item.assets.values():
             if not self.is_local_asset(asset):
@@ -366,21 +343,14 @@ class Sentinel2ToStac(Task):
 
         stactools-sentinel2 emits the pre-1.1 per-asset ``eo:bands`` +
         ``raster:bands`` arrays regardless of the pystac version underneath, so
-        this task owns the 1.1.0 upgrade. Runs *last* (after cogify/thumbnail/
-        fileinfo, just before upload): ``cogify`` reads ``raster:bands`` and the
-        ``update_item`` scrub block targets ``raster:bands`` directly, so
-        consolidating any earlier would break both. See MIGRATION_PLAN.md PR 9.
+        this task owns the 1.1.0 upgrade. Runs *last*
 
         Two transforms, both idempotent so they self-disable once
         stactools-sentinel2 emits native ``bands``:
 
         1. Merge each asset's ``eo:bands`` + ``raster:bands`` into the core 1.1.0
            ``bands`` field (``_consolidate_bands``).
-        2. Bump the ``eo``/``raster`` extension URLs to v2.0.0 — the versions
-           whose band fields live inside core ``bands``
-           (``_bump_band_extension_versions``). Both extensions stay declared:
-           ``eo:cloud_cover`` remains an item property, and the merged bands
-           still carry ``eo:``/``raster:`` fields.
+        2. Bump the ``eo``/``raster`` extension URLs to v2.0.0
 
         ``stac_version`` is already emitted as ``"1.1.0"`` by the current stack,
         so it's asserted rather than forced.
@@ -394,10 +364,6 @@ class Sentinel2ToStac(Task):
         return item
 
     def read_href(self, href: str) -> bytes:
-        # Fetch a single href's bytes. A missing object (NoSuchKey) is the
-        # input payload's fault (a bad/removed source tile), so translate it to
-        # InvalidInput per the project's InvalidInput-vs-Exception convention;
-        # any other ClientError is an internal/transient failure and re-raises.
         try:
             return bytes(
                 stac_asset.blocking.read_href(
@@ -417,9 +383,8 @@ class Sentinel2ToStac(Task):
         create_cogs = self._payload.get("create_cogs", True)
         s3_path = os.path.dirname(metadata_href)
 
-        # Download the three source metadata files into the workdir, where
-        # create_item (PR 3) will read them. Each download is guarded by
-        # .exists() so a saved workdir is reused without re-fetching.
+        # Download the three source metadata files into the workdir. 
+        # Each download is guarded by .exists() so a saved workdir is reused without re-fetching.
 
         # tileInfo metadata, e.g.
         # s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0/tileInfo.json
@@ -433,9 +398,6 @@ class Sentinel2ToStac(Task):
         except json.JSONDecodeError:
             raise InvalidInput("Corrupted tileInfo.json")
 
-        # Product-level metadata lives under `productPath` (from tileInfo.json),
-        # not next to the granule metadata, so recover the bucket from the
-        # granule path and rebuild the product metadata href.
         if not self.product_metadata_xml_path.exists():
             parts = s3_client.urlparse(s3_path)
             self.product_metadata_xml_path.write_bytes(
@@ -444,17 +406,13 @@ class Sentinel2ToStac(Task):
                 )
             )
 
-        # granule metadata.xml (the metadata_href itself)
         if not self.granule_metadata_xml_path.exists():
             self.granule_metadata_xml_path.write_bytes(
                 self.read_href(f"{s3_path}/metadata.xml")
             )
 
         # Build the STAC Item from the downloaded metadata. stactools-sentinel2
-        # reads all three files out of the workdir. The exception translation is
-        # ported verbatim and preserves the InvalidInput-vs-Exception convention:
-        # a ValueError/AssertionError (and the specific "older metadata format"
-        # message) is the input's fault; anything else is an internal failure.
+        # reads all three files out of the workdir.
         try:
             item = create_item(str(self._workdir))
         except ValueError as ex:
@@ -472,8 +430,7 @@ class Sentinel2ToStac(Task):
             else:
                 raise Exception(f"Unable to create item: {ex}") from ex
 
-        # Apply Earth Search-specific overrides (collection, storage, scrub,
-        # asset href rewriting, ...). Wrap failures as internal Exceptions.
+        # Apply Earth Search-specific overrides
         try:
             item = self.update_item(item, s3_path)
         except Exception as ex:
@@ -482,8 +439,6 @@ class Sentinel2ToStac(Task):
 
         # id and collection are set, so look up in the live STAC API to avoid
         # regressing an already-ingested item.
-        # (Legacy needed `# type: ignore` on these cases for returns ~0.22;
-        # returns 0.29 + mypy 2.3.1 type the pattern matching cleanly.)
         match self.is_newer_than_existing(item):
             case Failure(e):
                 raise e
@@ -506,25 +461,17 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
 
-        # Final STAC 1.1.0 normalization on the otherwise-finished Item (band
-        # consolidation + eo/raster extension version bump). Runs after all
-        # raster:bands consumers (cogify, the update_item scrub) — see PR 9.
+        # Final STAC 1.1.0 normalization on the otherwise-finished Item
         self.logger.info("Upgrading item to STAC 1.1.0 band shape")
         item = self.upgrade_item_to_stac_1_1(item)
 
-        # Upload local (workdir) assets to S3. The base-class method no-ops when
-        # self._upload is False, which is exactly what --local / skip_upload=True
-        # / upload=False produce (verified against stactask 0.7.0's __init__ and
-        # upload_item_assets_to_s3), so a local run never writes to S3.
         self.logger.info("Uploading assets")
         item = self.upload_item_assets_to_s3(item, self.get_local_asset_keys(item))
 
-        # Restore processing:software (task name -> CalVer version) + the
-        # processing extension. stactask 0.3.0 applied this automatically; 0.7.0
-        # ships add_software_version_to_item but no longer calls it, so restore it
-        # explicitly to preserve legacy output. Operates on the dict (base method
-        # signature), so it's the final serialization step. See PR 9 PRESERVE
-        # decision in MIGRATION_PLAN.md.
+        self.logger.info("Adding storage schemes")
+        item = self.add_storage_schemes(item)
+
+        # Restore processing:software, stactask 0.7.0 no longer automatically calls it
         return [self.add_software_version_to_item(item.to_dict())]
 
 
@@ -535,41 +482,29 @@ def lambda_handler(
 
 
 def _set_asset_owners(item: Item) -> None:
-    # pystac 2.0 requires an asset's `owner` to be set before
-    # Extension.ext(asset, add_if_missing=True) can register the extension URI on
-    # the owning item. create_item (and stac_asset.download_item) return assets
-    # without an owner, so re-parent them explicitly. Idempotent; safe to call
-    # again after any step that rebuilds the item's assets.
+    # pystac 2.0 requires an asset's `owner` to be set
     for asset in item.assets.values():
         asset.set_owner(item)
 
 
 def _normalize_asset_media_types(item: Item) -> None:
-    # stactools-sentinel2 0.8.0 constructs assets with pystac 1.x's `media_type=`
-    # kwarg. pystac 2.0's Asset() doesn't recognize it, so the value lands in
-    # extra_fields["media_type"] and asset.type stays None — to_dict() then emits
-    # an invalid `media_type` field, and any `asset.type == ...` comparison
-    # (notably the cogify jp2 check) silently fails. Move the stray value onto
-    # asset.type. Idempotent + forward-compatible: a no-op once stactools sets
-    # asset.type itself. Remove when stactools-sentinel2 is pystac-2.0-compatible.
+    # stactools-sentinel2 0.8.0 update for media_type field. Idempotentent
+    # Remove when stactools-sentinel2 is pystac-2.0-compatible.
     for asset in item.assets.values():
         media_type = asset.extra_fields.pop("media_type", None)
         if asset.type is None and media_type is not None:
             asset.type = media_type
 
 
-# STAC 1.1.0 band consolidation (PR 9). stactools-sentinel2 emits the pre-1.1
-# `eo:bands` + `raster:bands` per-asset arrays; 1.1.0 merges them into one core
-# `bands` array whose entries carry: `name` (core), `data_type`/`nodata`/`unit`/
-# `statistics` (core common metadata, bare), the eo band fields (`eo:` prefixed),
-# and the raster band fields that stayed extension-specific (`raster:` prefixed).
-# Keys not in these maps pass through unchanged.
+# STAC 1.1.0 band consolidation
 _EO_BAND_RENAME = {
     "name": "name",
     "common_name": "eo:common_name",
     "center_wavelength": "eo:center_wavelength",
     "full_width_half_max": "eo:full_width_half_max",
     "solar_illumination": "eo:solar_illumination",
+    "snow_cover": "eo:snow_cover",
+    "cloud_cover": "eo:cloud_cover"
 }
 _RASTER_BAND_RENAME = {
     # Core common-metadata fields (1.1.0 pulled these out of the raster ext).
@@ -586,8 +521,6 @@ _RASTER_BAND_RENAME = {
     "histogram": "raster:histogram",
 }
 
-# eo/raster extension versions whose band fields live inside the core `bands`
-# array (v1.1.0 still used `eo:bands`/`raster:bands`).
 _EO_EXT_V2 = "https://stac-extensions.github.io/eo/v2.0.0/schema.json"
 _RASTER_EXT_V2 = "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
 
@@ -609,7 +542,7 @@ def _consolidate_bands(asset: Asset) -> None:
     # core 1.1.0 `bands` field. Idempotent + forward-compatible: if the asset
     # already has native `bands` (a future stactools-sentinel2 emitting them
     # directly), skip — so this whole function becomes a no-op once upstream
-    # switches, with no code change. See MIGRATION_PLAN.md PR 9.
+    # switches, with no code change.
     if asset.bands:
         return
     eo_bands = asset.extra_fields.pop("eo:bands", None)
@@ -623,10 +556,8 @@ def _consolidate_bands(asset: Asset) -> None:
 
 
 def _bump_band_extension_versions(item: Item) -> None:
-    # After consolidation the eo/raster band fields live inside core `bands`, so
-    # point their extension URLs at the v2.0.0 schemas that define that shape.
-    # Both extensions stay declared (eo:cloud_cover is still an item property;
-    # the merged bands still carry eo:/raster: fields). Idempotent.
+    # After consolidation point the extension URLs at the v2.0.0 
+    # schemas that define that shape. Idempotent.
     item.stac_extensions = [
         _EO_EXT_V2
         if "/eo/" in ext
@@ -665,8 +596,7 @@ def cogify(asset_name: str, asset: Asset) -> None:
             )
         gsd = resolutions[0]
 
-    # Reading the file into a MemoryFile is slightly more performant — avoids
-    # seek-back during the COG overview build step on some filesystems.
+    # Reading the file into a MemoryFile is slightly more performant
     with rasterio.MemoryFile() as mem_src:
         mem_src.write(infile.read_bytes())
 
@@ -707,12 +637,9 @@ def cogify(asset_name: str, asset: Asset) -> None:
         cogfile_tmp.write_bytes(output)
         cogfile_tmp.rename(cogfile)
 
-    # pystac 2.0: add_if_missing=True. On a real create_item asset,
-    # add_if_missing=False raises ExtensionNotImplemented (the file extension
-    # isn't declared on the owner yet — add_fileinfo runs later). Both callers
-    # give the asset an owner first (the pipeline via _set_asset_owners in
-    # make_cogs_for_item; the unit test via owner.add_asset), so add_if_missing=
-    # True can register the file extension URI on the owning item here.
+    # pystac 2.0: add_if_missing=True. Both callers
+    # give the asset an owner first, so add_if_missing=True 
+    # can register the file extension URI on the owning item here.
     FileExtension.ext(
         asset,
         add_if_missing=True,
@@ -722,14 +649,11 @@ def cogify(asset_name: str, asset: Asset) -> None:
     )
 
     asset.href = str(cogfile)
-    # pystac 2.0 renamed Asset.media_type → Asset.type; .type is serialized
-    # by Asset.to_dict() and is the canonical MIME field under pystac 2.0.
+    # pystac 2.0 renamed Asset.media_type → Asset.type
     asset.type = MediaType.COG
 
 
 def sha256sum_multihash(filename: str) -> str:
-    # Wrap a streamed sha256 digest in a multihash envelope (sha2-256 code +
-    # length prefix), hex-encoded — the checksum format the file extension wants.
     with open(filename, "rb") as f:
         return str(
             multihash.wrap(hashlib.file_digest(f, "sha256").digest(), "sha2-256").hex()
@@ -741,18 +665,16 @@ def make_thumbnail(item: Item) -> Item:
 
     # remove existing thumbnail asset linking to preview.jpg/jp2
     if THUMBNAIL_ASSET_NAME in item.assets:
-        item.delete_asset(THUMBNAIL_ASSET_NAME)
+        del item.assets[THUMBNAIL_ASSET_NAME]
 
-    # pystac 2.0 renamed Asset.__init__'s `media_type` kwarg to `type`;
-    # passing `media_type` falls into **kwargs and does not set .type,
-    # so the MIME string would be absent from to_dict() output.
+    # pystac 2.0 renamed `media_type` kwarg to `type`
     tn_asset = Asset(
         href=os.path.splitext(asset.href)[0] + ".jpg",
         type=MediaType.JPEG,
         roles=["thumbnail"],
         title="Thumbnail of preview image",
     )
-    item.add_asset(THUMBNAIL_ASSET_NAME, tn_asset)
+    item.assets[THUMBNAIL_ASSET_NAME] = tn_asset
 
     if not Path(tn_asset.href).exists():
         with Image.open(asset.href) as im:
@@ -830,9 +752,7 @@ def get_band_scales_offsets_nodatas_resolutions(
     list[float | None] | None,
     list[int | float | None] | None,
 ]:
-    # Reads the pre-1.1.0 raster:bands shape by design. PR 9 consolidates
-    # raster:bands + eo:bands into the STAC 1.1.0 `bands` field; this function
-    # intentionally runs before that upgrade.
+    # Reads the pre-1.1.0 raster:bands shape by design.
     bands = AssetRasterExtension(asset).bands
 
     if bands is None:
@@ -860,1151 +780,6 @@ def gsd_to_blocksize(gsd: int | float | None) -> tuple[int, int]:
         None if gsd is None else int(gsd),
         GSD_TO_BLOCKSIZE[None],
     )
-
-
-
-EUROPE_MGRS_IDS = [
-    "21NYC",
-    "21NYD",
-    "21NYE",
-    "21NYF",
-    "21NYG",
-    "21NZC",
-    "21NZD",
-    "21NZE",
-    "21NZF",
-    "21NZG",
-    "22NBH",
-    "22NBJ",
-    "22NBK",
-    "22NBL",
-    "22NBM",
-    "22NCH",
-    "22NCJ",
-    "22NCK",
-    "22NCL",
-    "22NCM",
-    "22NDK",
-    "22NDL",
-    "25SFD",
-    "25TFE",
-    "26SLH",
-    "26SLJ",
-    "26SMH",
-    "26SMJ",
-    "26SNG",
-    "26SNH",
-    "26SNJ",
-    "26SPF",
-    "26SPG",
-    "26SPH",
-    "26VPR",
-    "26WNT",
-    "26WPS",
-    "26WPT",
-    "26WPU",
-    "27RYL",
-    "27RYM",
-    "27RYN",
-    "27VUL",
-    "27VVL",
-    "27VWL",
-    "27VXL",
-    "27WVM",
-    "27WVN",
-    "27WVP",
-    "27WWM",
-    "27WWN",
-    "27WWP",
-    "27WXM",
-    "27WXN",
-    "27WXP",
-    "27WXQ",
-    "28RBR",
-    "28RBS",
-    "28RBT",
-    "28RCR",
-    "28RCS",
-    "28RCU",
-    "28RDR",
-    "28RDS",
-    "28RDU",
-    "28RER",
-    "28RES",
-    "28RET",
-    "28RFS",
-    "28RFT",
-    "28SBB",
-    "28SCA",
-    "28SCB",
-    "28UGC",
-    "28UGD",
-    "28UGE",
-    "28VCR",
-    "28VDR",
-    "28WDS",
-    "28WDT",
-    "28WDU",
-    "28WDV",
-    "28WES",
-    "28WET",
-    "28WEU",
-    "29SMA",
-    "29SMB",
-    "29SMC",
-    "29SMD",
-    "29SNA",
-    "29SNB",
-    "29SNC",
-    "29SND",
-    "29SPA",
-    "29SPB",
-    "29SPC",
-    "29SPD",
-    "29SQA",
-    "29SQB",
-    "29SQC",
-    "29SQD",
-    "29SQV",
-    "29TME",
-    "29TMF",
-    "29TMG",
-    "29TMH",
-    "29TMJ",
-    "29TNE",
-    "29TNF",
-    "29TNG",
-    "29TNH",
-    "29TNJ",
-    "29TPE",
-    "29TPF",
-    "29TPG",
-    "29TPH",
-    "29TPJ",
-    "29TQE",
-    "29TQF",
-    "29TQG",
-    "29TQH",
-    "29TQJ",
-    "29ULA",
-    "29ULT",
-    "29ULU",
-    "29ULV",
-    "29UMA",
-    "29UMS",
-    "29UMT",
-    "29UMU",
-    "29UMV",
-    "29UNA",
-    "29UNB",
-    "29UNS",
-    "29UNT",
-    "29UNU",
-    "29UNV",
-    "29UPA",
-    "29UPB",
-    "29UPR",
-    "29UPT",
-    "29UPU",
-    "29UPV",
-    "29UQP",
-    "29UQQ",
-    "29UQR",
-    "29UQS",
-    "29UQT",
-    "29UQU",
-    "29UQV",
-    "29VNC",
-    "29VND",
-    "29VNE",
-    "29VNF",
-    "29VPC",
-    "29VPD",
-    "29VPE",
-    "29VPF",
-    "30STE",
-    "30STF",
-    "30STG",
-    "30STH",
-    "30STJ",
-    "30SUD",
-    "30SUE",
-    "30SUF",
-    "30SUG",
-    "30SUH",
-    "30SUJ",
-    "30SVD",
-    "30SVE",
-    "30SVF",
-    "30SVG",
-    "30SVH",
-    "30SVJ",
-    "30SWD",
-    "30SWE",
-    "30SWF",
-    "30SWG",
-    "30SWH",
-    "30SWJ",
-    "30SXF",
-    "30SXG",
-    "30SXH",
-    "30SXJ",
-    "30SYG",
-    "30SYH",
-    "30SYJ",
-    "30TTK",
-    "30TTL",
-    "30TTM",
-    "30TUK",
-    "30TUL",
-    "30TUM",
-    "30TUN",
-    "30TUP",
-    "30TUT",
-    "30TVK",
-    "30TVL",
-    "30TVM",
-    "30TVN",
-    "30TVP",
-    "30TVT",
-    "30TWK",
-    "30TWL",
-    "30TWM",
-    "30TWN",
-    "30TWP",
-    "30TWS",
-    "30TWT",
-    "30TXK",
-    "30TXL",
-    "30TXM",
-    "30TXN",
-    "30TXP",
-    "30TXQ",
-    "30TXR",
-    "30TXS",
-    "30TXT",
-    "30TYK",
-    "30TYL",
-    "30TYM",
-    "30TYN",
-    "30TYP",
-    "30TYQ",
-    "30TYR",
-    "30TYS",
-    "30TYT",
-    "30UUA",
-    "30UUB",
-    "30UUC",
-    "30UUD",
-    "30UUE",
-    "30UUF",
-    "30UUG",
-    "30UUU",
-    "30UUV",
-    "30UVA",
-    "30UVB",
-    "30UVC",
-    "30UVD",
-    "30UVE",
-    "30UVF",
-    "30UVG",
-    "30UVU",
-    "30UVV",
-    "30UWA",
-    "30UWB",
-    "30UWC",
-    "30UWD",
-    "30UWE",
-    "30UWF",
-    "30UWG",
-    "30UWU",
-    "30UWV",
-    "30UXA",
-    "30UXB",
-    "30UXC",
-    "30UXD",
-    "30UXE",
-    "30UXF",
-    "30UXG",
-    "30UXU",
-    "30UXV",
-    "30UYA",
-    "30UYB",
-    "30UYC",
-    "30UYD",
-    "30UYE",
-    "30UYU",
-    "30UYV",
-    "30VUH",
-    "30VUJ",
-    "30VUK",
-    "30VUL",
-    "30VVH",
-    "30VVJ",
-    "30VVK",
-    "30VVL",
-    "30VVM",
-    "30VWH",
-    "30VWJ",
-    "30VWK",
-    "30VWL",
-    "30VWM",
-    "30VWN",
-    "30VXM",
-    "30VXN",
-    "31SBC",
-    "31SBD",
-    "31SCC",
-    "31SCD",
-    "31SDD",
-    "31SED",
-    "31SFD",
-    "31TBE",
-    "31TBF",
-    "31TBG",
-    "31TCE",
-    "31TCF",
-    "31TCG",
-    "31TCH",
-    "31TCJ",
-    "31TCK",
-    "31TCL",
-    "31TCM",
-    "31TCN",
-    "31TDE",
-    "31TDF",
-    "31TDG",
-    "31TDH",
-    "31TDJ",
-    "31TDK",
-    "31TDL",
-    "31TDM",
-    "31TDN",
-    "31TEE",
-    "31TEG",
-    "31TEH",
-    "31TEJ",
-    "31TEK",
-    "31TEL",
-    "31TEM",
-    "31TEN",
-    "31TFE",
-    "31TFH",
-    "31TFJ",
-    "31TFK",
-    "31TFL",
-    "31TFM",
-    "31TFN",
-    "31TGH",
-    "31TGJ",
-    "31TGK",
-    "31TGL",
-    "31TGM",
-    "31TGN",
-    "31UCA",
-    "31UCP",
-    "31UCQ",
-    "31UCR",
-    "31UCS",
-    "31UCT",
-    "31UCU",
-    "31UCV",
-    "31UDP",
-    "31UDQ",
-    "31UDR",
-    "31UDS",
-    "31UDT",
-    "31UDU",
-    "31UEP",
-    "31UEQ",
-    "31UER",
-    "31UES",
-    "31UET",
-    "31UEU",
-    "31UEV",
-    "31UFP",
-    "31UFQ",
-    "31UFR",
-    "31UFS",
-    "31UFT",
-    "31UFU",
-    "31UFV",
-    "31UGP",
-    "31UGQ",
-    "31UGR",
-    "31UGS",
-    "31UGT",
-    "31UGU",
-    "31UGV",
-    "31VCG",
-    "31VCH",
-    "31VEF",
-    "31VEG",
-    "31VEH",
-    "31VEJ",
-    "31VEK",
-    "31VFL",
-    "32SMH",
-    "32SMJ",
-    "32SNJ",
-    "32SQE",
-    "32SQF",
-    "32SQG",
-    "32SQH",
-    "32TLN",
-    "32TLP",
-    "32TLQ",
-    "32TLR",
-    "32TLS",
-    "32TLT",
-    "32TMK",
-    "32TML",
-    "32TMM",
-    "32TMN",
-    "32TMP",
-    "32TMQ",
-    "32TMR",
-    "32TMS",
-    "32TMT",
-    "32TNK",
-    "32TNL",
-    "32TNM",
-    "32TNN",
-    "32TNP",
-    "32TNQ",
-    "32TNR",
-    "32TNS",
-    "32TNT",
-    "32TPM",
-    "32TPN",
-    "32TPP",
-    "32TPQ",
-    "32TPR",
-    "32TPS",
-    "32TPT",
-    "32TQL",
-    "32TQM",
-    "32TQN",
-    "32TQP",
-    "32TQQ",
-    "32TQR",
-    "32TQS",
-    "32TQT",
-    "32ULA",
-    "32ULB",
-    "32ULC",
-    "32ULD",
-    "32ULE",
-    "32ULU",
-    "32ULV",
-    "32UMA",
-    "32UMB",
-    "32UMC",
-    "32UMD",
-    "32UME",
-    "32UMF",
-    "32UMG",
-    "32UMU",
-    "32UMV",
-    "32UNA",
-    "32UNB",
-    "32UNC",
-    "32UND",
-    "32UNE",
-    "32UNF",
-    "32UNG",
-    "32UNU",
-    "32UNV",
-    "32UPA",
-    "32UPB",
-    "32UPC",
-    "32UPD",
-    "32UPE",
-    "32UPF",
-    "32UPG",
-    "32UPU",
-    "32UPV",
-    "32UQA",
-    "32UQB",
-    "32UQC",
-    "32UQD",
-    "32UQE",
-    "32UQU",
-    "32UQV",
-    "32VKK",
-    "32VKL",
-    "32VKM",
-    "32VKN",
-    "32VKP",
-    "32VKQ",
-    "32VLK",
-    "32VLL",
-    "32VLM",
-    "32VLN",
-    "32VLP",
-    "32VLQ",
-    "32VLR",
-    "32VMH",
-    "32VMJ",
-    "32VMK",
-    "32VML",
-    "32VMM",
-    "32VMN",
-    "32VMP",
-    "32VMQ",
-    "32VMR",
-    "32VNH",
-    "32VNJ",
-    "32VNK",
-    "32VNL",
-    "32VNM",
-    "32VNN",
-    "32VNP",
-    "32VNQ",
-    "32VNR",
-    "32VPH",
-    "32VPJ",
-    "32VPK",
-    "32VPL",
-    "32VPM",
-    "32VPN",
-    "32VPP",
-    "32VPQ",
-    "32VPR",
-    "32WMS",
-    "32WNS",
-    "32WNT",
-    "32WNU",
-    "32WPA",
-    "32WPB",
-    "32WPS",
-    "32WPT",
-    "32WPU",
-    "32WPV",
-    "33STA",
-    "33STB",
-    "33STC",
-    "33STV",
-    "33SUA",
-    "33SUB",
-    "33SUC",
-    "33SUD",
-    "33SUV",
-    "33SVA",
-    "33SVB",
-    "33SVC",
-    "33SVD",
-    "33SVV",
-    "33SWA",
-    "33SWB",
-    "33SWC",
-    "33SWD",
-    "33SXB",
-    "33SXC",
-    "33SXD",
-    "33SYD",
-    "33TTF",
-    "33TTG",
-    "33TUE",
-    "33TUF",
-    "33TUG",
-    "33TUH",
-    "33TUJ",
-    "33TUK",
-    "33TUL",
-    "33TUM",
-    "33TUN",
-    "33TVE",
-    "33TVF",
-    "33TVG",
-    "33TVH",
-    "33TVJ",
-    "33TVK",
-    "33TVL",
-    "33TVM",
-    "33TVN",
-    "33TWE",
-    "33TWF",
-    "33TWG",
-    "33TWH",
-    "33TWJ",
-    "33TWK",
-    "33TWL",
-    "33TWM",
-    "33TWN",
-    "33TXE",
-    "33TXF",
-    "33TXG",
-    "33TXH",
-    "33TXJ",
-    "33TXK",
-    "33TXL",
-    "33TXM",
-    "33TXN",
-    "33TYE",
-    "33TYF",
-    "33TYG",
-    "33TYH",
-    "33TYJ",
-    "33TYK",
-    "33TYL",
-    "33TYM",
-    "33TYN",
-    "33UUA",
-    "33UUB",
-    "33UUP",
-    "33UUQ",
-    "33UUR",
-    "33UUS",
-    "33UUT",
-    "33UUU",
-    "33UUV",
-    "33UVA",
-    "33UVB",
-    "33UVP",
-    "33UVQ",
-    "33UVR",
-    "33UVS",
-    "33UVT",
-    "33UVU",
-    "33UVV",
-    "33UWA",
-    "33UWB",
-    "33UWP",
-    "33UWQ",
-    "33UWR",
-    "33UWS",
-    "33UWT",
-    "33UWU",
-    "33UWV",
-    "33UXA",
-    "33UXB",
-    "33UXP",
-    "33UXQ",
-    "33UXR",
-    "33UXS",
-    "33UXT",
-    "33UXU",
-    "33UXV",
-    "33UYP",
-    "33UYQ",
-    "33UYR",
-    "33UYS",
-    "33UYT",
-    "33UYU",
-    "33UYV",
-    "33VUC",
-    "33VUD",
-    "33VUE",
-    "33VUF",
-    "33VUG",
-    "33VUH",
-    "33VUJ",
-    "33VUK",
-    "33VUL",
-    "33VVC",
-    "33VVD",
-    "33VVE",
-    "33VVF",
-    "33VVG",
-    "33VVH",
-    "33VVJ",
-    "33VVK",
-    "33VVL",
-    "33VWC",
-    "33VWD",
-    "33VWE",
-    "33VWF",
-    "33VWG",
-    "33VWH",
-    "33VWJ",
-    "33VWK",
-    "33VWL",
-    "33VXC",
-    "33VXD",
-    "33VXE",
-    "33VXF",
-    "33VXG",
-    "33VXH",
-    "33VXJ",
-    "33VXK",
-    "33VXL",
-    "33WVM",
-    "33WVN",
-    "33WVP",
-    "33WVQ",
-    "33WVR",
-    "33WVS",
-    "33WWM",
-    "33WWN",
-    "33WWP",
-    "33WWQ",
-    "33WWR",
-    "33WWS",
-    "33WWT",
-    "33WXM",
-    "33WXN",
-    "33WXP",
-    "33WXQ",
-    "33WXR",
-    "33WXS",
-    "33WXT",
-    "33WXU",
-    "33WYV",
-    "34SBJ",
-    "34SCJ",
-    "34SDG",
-    "34SDH",
-    "34SDJ",
-    "34SEF",
-    "34SEG",
-    "34SEH",
-    "34SEJ",
-    "34SFE",
-    "34SFF",
-    "34SFG",
-    "34SFH",
-    "34SFJ",
-    "34SGD",
-    "34SGE",
-    "34SGF",
-    "34SGG",
-    "34SGH",
-    "34SGJ",
-    "34TBK",
-    "34TBL",
-    "34TBM",
-    "34TCK",
-    "34TCL",
-    "34TCM",
-    "34TCN",
-    "34TCP",
-    "34TCQ",
-    "34TCR",
-    "34TCS",
-    "34TCT",
-    "34TDK",
-    "34TDL",
-    "34TDM",
-    "34TDN",
-    "34TDP",
-    "34TDQ",
-    "34TDR",
-    "34TDS",
-    "34TDT",
-    "34TEK",
-    "34TEL",
-    "34TEM",
-    "34TEN",
-    "34TEP",
-    "34TEQ",
-    "34TER",
-    "34TES",
-    "34TET",
-    "34TFK",
-    "34TFL",
-    "34TFM",
-    "34TFN",
-    "34TFP",
-    "34TFQ",
-    "34TFR",
-    "34TFS",
-    "34TFT",
-    "34TGK",
-    "34TGL",
-    "34TGM",
-    "34TGN",
-    "34TGP",
-    "34TGQ",
-    "34TGR",
-    "34TGS",
-    "34TGT",
-    "34UCA",
-    "34UCB",
-    "34UCC",
-    "34UCD",
-    "34UCE",
-    "34UCF",
-    "34UCG",
-    "34UCU",
-    "34UCV",
-    "34UDA",
-    "34UDB",
-    "34UDC",
-    "34UDD",
-    "34UDE",
-    "34UDF",
-    "34UDG",
-    "34UDU",
-    "34UDV",
-    "34UEA",
-    "34UEB",
-    "34UEC",
-    "34UED",
-    "34UEE",
-    "34UEF",
-    "34UEG",
-    "34UEU",
-    "34UEV",
-    "34UFA",
-    "34UFB",
-    "34UFC",
-    "34UFD",
-    "34UFE",
-    "34UFF",
-    "34UFG",
-    "34UFU",
-    "34UFV",
-    "34UGA",
-    "34UGB",
-    "34UGD",
-    "34UGE",
-    "34UGU",
-    "34VCJ",
-    "34VCK",
-    "34VCL",
-    "34VCM",
-    "34VCN",
-    "34VCP",
-    "34VCQ",
-    "34VCR",
-    "34VDH",
-    "34VDJ",
-    "34VDK",
-    "34VDL",
-    "34VDM",
-    "34VDN",
-    "34VDP",
-    "34VDQ",
-    "34VDR",
-    "34VEH",
-    "34VEJ",
-    "34VEK",
-    "34VEL",
-    "34VEM",
-    "34VEN",
-    "34VEP",
-    "34VEQ",
-    "34VER",
-    "34VFH",
-    "34VFJ",
-    "34VFK",
-    "34VFL",
-    "34VFM",
-    "34VFN",
-    "34VFP",
-    "34VFQ",
-    "34VFR",
-    "34WDA",
-    "34WDB",
-    "34WDC",
-    "34WDD",
-    "34WDS",
-    "34WDT",
-    "34WDU",
-    "34WDV",
-    "34WEA",
-    "34WEB",
-    "34WEC",
-    "34WED",
-    "34WEE",
-    "34WES",
-    "34WET",
-    "34WEU",
-    "34WEV",
-    "34WFA",
-    "34WFB",
-    "34WFC",
-    "34WFD",
-    "34WFE",
-    "34WFS",
-    "34WFT",
-    "34WFU",
-    "34WFV",
-    "35SKA",
-    "35SKB",
-    "35SKC",
-    "35SKD",
-    "35SKU",
-    "35SKV",
-    "35SLA",
-    "35SLB",
-    "35SLC",
-    "35SLD",
-    "35SLU",
-    "35SLV",
-    "35SMA",
-    "35SMB",
-    "35SMC",
-    "35SMD",
-    "35SMU",
-    "35SMV",
-    "35SNA",
-    "35SNB",
-    "35SNC",
-    "35SND",
-    "35SNV",
-    "35SPA",
-    "35SPB",
-    "35SPC",
-    "35SPD",
-    "35SPV",
-    "35SQA",
-    "35SQB",
-    "35SQC",
-    "35SQD",
-    "35SQV",
-    "35TKE",
-    "35TKF",
-    "35TKG",
-    "35TLE",
-    "35TLF",
-    "35TLG",
-    "35TLH",
-    "35TLJ",
-    "35TLK",
-    "35TLL",
-    "35TLM",
-    "35TLN",
-    "35TME",
-    "35TMF",
-    "35TMG",
-    "35TMH",
-    "35TMJ",
-    "35TMK",
-    "35TML",
-    "35TMM",
-    "35TMN",
-    "35TNE",
-    "35TNF",
-    "35TNG",
-    "35TNH",
-    "35TNJ",
-    "35TNK",
-    "35TNL",
-    "35TNM",
-    "35TNN",
-    "35TPE",
-    "35TPF",
-    "35TPG",
-    "35TPH",
-    "35TPJ",
-    "35TPK",
-    "35TPL",
-    "35TPM",
-    "35TQE",
-    "35TQF",
-    "35TQK",
-    "35TQL",
-    "35ULA",
-    "35ULB",
-    "35ULP",
-    "35ULR",
-    "35ULS",
-    "35ULU",
-    "35ULV",
-    "35UMA",
-    "35UMB",
-    "35UMP",
-    "35UMV",
-    "35UNB",
-    "35UNP",
-    "35VLC",
-    "35VLD",
-    "35VLE",
-    "35VLF",
-    "35VLG",
-    "35VLH",
-    "35VLJ",
-    "35VLK",
-    "35VLL",
-    "35VMC",
-    "35VMD",
-    "35VME",
-    "35VMF",
-    "35VMG",
-    "35VMH",
-    "35VMJ",
-    "35VMK",
-    "35VML",
-    "35VNC",
-    "35VND",
-    "35VNE",
-    "35VNF",
-    "35VNG",
-    "35VNH",
-    "35VNJ",
-    "35VNK",
-    "35VNL",
-    "35VPH",
-    "35VPJ",
-    "35VPK",
-    "35VPL",
-    "35WLV",
-    "35WMM",
-    "35WMN",
-    "35WMP",
-    "35WMQ",
-    "35WMR",
-    "35WMS",
-    "35WMT",
-    "35WMU",
-    "35WMV",
-    "35WNM",
-    "35WNN",
-    "35WNP",
-    "35WNQ",
-    "35WNR",
-    "35WNS",
-    "35WNT",
-    "35WNU",
-    "35WNV",
-    "35WPM",
-    "35WPN",
-    "35WPP",
-    "35WPQ",
-    "35WPR",
-    "35WPS",
-    "35WPT",
-    "35WPU",
-    "36STE",
-    "36STF",
-    "36STG",
-    "36STH",
-    "36STJ",
-    "36SUF",
-    "36SUG",
-    "36SUH",
-    "36SUJ",
-    "36SVD",
-    "36SVE",
-    "36SVF",
-    "36SVG",
-    "36SVH",
-    "36SVJ",
-    "36SWD",
-    "36SWE",
-    "36SWF",
-    "36SWG",
-    "36SWH",
-    "36SWJ",
-    "36SXD",
-    "36SXE",
-    "36SXF",
-    "36SXG",
-    "36SXH",
-    "36SXJ",
-    "36SYE",
-    "36SYF",
-    "36SYG",
-    "36SYH",
-    "36SYJ",
-    "36TTK",
-    "36TTL",
-    "36TUK",
-    "36TUL",
-    "36TUM",
-    "36TVK",
-    "36TVL",
-    "36TVM",
-    "36TWK",
-    "36TWL",
-    "36TWM",
-    "36TXK",
-    "36TXL",
-    "36TXM",
-    "36TYK",
-    "36TYL",
-    "36TYM",
-    "36VUN",
-    "36VUP",
-    "36VUQ",
-    "36VUR",
-    "36VVQ",
-    "36VVR",
-    "36WVC",
-    "36WVD",
-    "37SBA",
-    "37SBB",
-    "37SBC",
-    "37SBD",
-    "37SBV",
-    "37SCA",
-    "37SCB",
-    "37SCC",
-    "37SCD",
-    "37SDA",
-    "37SDB",
-    "37SDC",
-    "37SDD",
-    "37SEA",
-    "37SEB",
-    "37SEC",
-    "37SED",
-    "37SFA",
-    "37SFB",
-    "37SFC",
-    "37SFD",
-    "37SGA",
-    "37SGB",
-    "37SGC",
-    "37SGD",
-    "37TBE",
-    "37TBF",
-    "37TBG",
-    "37TCE",
-    "37TCF",
-    "37TCG",
-    "37TDE",
-    "37TDF",
-    "37TEE",
-    "37TEF",
-    "37TFE",
-    "37TFF",
-    "37TFG",
-    "37TGE",
-    "37TGF",
-    "37TGG",
-    "38SKF",
-    "38SKG",
-    "38SKH",
-    "38SKJ",
-    "38SLG",
-    "38SLH",
-    "38SLJ",
-    "38SMF",
-    "38SMG",
-    "38SMH",
-    "38SMJ",
-    "38TKK",
-    "38TKL",
-    "38TKM",
-    "38TLK",
-    "38TLL",
-    "38TLM",
-    "38TMK",
-    "38TML",
-    "20PPA",
-    "20PPB",
-    "20PPC",
-    "20PQA",
-    "20PQB",
-    "20PQC",
-    "20QPD",
-    "20QQD",
-    "38LML",
-    "38LMM",
-    "38LNL",
-    "38LNM",
-    "40KCB",
-    "40KCC",
-    "29VNJ",
-    "29VNK",
-    "29VPJ",
-    "29VPK",
-    "30VUP",
-    "30VUQ",
-]
 
 if __name__ == "__main__":
     Sentinel2ToStac.cli()

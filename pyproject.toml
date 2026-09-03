@@ -1,6 +1,6 @@
 [project]
 name = "sentinel-2-l2a-to-stac"
-version = "0.1.0"
+version = "v2026.09.03"
 authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"

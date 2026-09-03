@@ -2,7 +2,12 @@
 
 *A Cirrus task that builds STAC Items from Sentinel-2 L2A products. See the [DEVELOPMENT.md](DEVELOPMENT.md) file for instructions on developing a task.*
 
-**Insert Task Desription here**
+**A Cirrus task that reconstructs STAC 1.1.0 Items for Sentinel-2 L2A scenes from
+the raw metadata Sinergise/AWS host on the public RODA bucket
+(`s3://sentinel-s2-l2a`, no STAC catalog of its own): it downloads the source
+metadata, builds an Item via `stactools-sentinel2`, applies Earth Search overrides,
+optionally COGifies the JP2 imagery and generates a thumbnail, and returns the
+Item(s).**
 
 ## Usage
 
@@ -13,13 +18,18 @@ file in the Cirrus deployment repository. See [CHANGELOG.md](CHANGELOG.md) for v
 Docker URL
 ```
 
-Configuration parameters are available available to the task through the Cirrus process payload as `['tasks']['<taskname>']`. The following parameters are available:
+This task reads its inputs from the **top level of the Cirrus process payload**,
+not from `payload['process']['tasks']['sentinel-2-l2a-to-stac']` (it reads no
+task-scoped config keys — that table is empty, as in the legacy task):
 
-| Field       | Type     | Description |
-| ----------- | -------- | ----------- |
-| parameter1  | Map<string, int> | **REQUIRED** Dictionary of parameters for a series of keys |
-| option1 | float | An optional floating point parameter
-| option2 | string | An optional parameter (Default: "")  |
+| Field          | Type    | Description |
+| -------------- | ------- | ----------- |
+| `metadata_href`  | string  | **REQUIRED.** Href to the source granule `metadata.xml` on RODA/S3 (e.g. `s3://sentinel-s2-l2a/tiles/.../metadata.xml`). Drives the whole task; the sibling `tileInfo.json` and product-level `metadata.xml` are located relative to it. |
+| `create_cogs`    | boolean | Optional. When `true`, COGify the JP2 imagery assets (enforcing the processing-baseline floor) and generate a JPEG thumbnail; when `false`, skip both and emit the Item with its source asset hrefs. (Default: `true`.) |
+
+The collection each Item is assigned to is resolved from
+`payload['process']['upload_options']['collections']` (a map of collection id →
+JSONPath expression, first match wins), per the standard Cirrus convention.
 
 ## Development
 

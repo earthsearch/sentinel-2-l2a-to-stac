@@ -113,11 +113,12 @@
         "s2:reflectance_conversion_factor": 1.03409825213211,
         "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87",
         "storage:schemes": {
-          "aws": {
+          "local": {
             "type": "aws-s3",
             "platform": "https://{bucket}.s3.{region}.amazonaws.com",
             "region": "us-west-2",
-            "requester_pays": false
+            "requester_pays": false,
+            "bucket": "local"
           }
         },
         "processing:software": {
@@ -148,11 +149,11 @@
             -10.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220cf805788874959ed2a9b14a659c963373589f5b582e16b19f8b6130d394d2ca8",
           "file:size": 28101665,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Red - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -188,11 +189,11 @@
             -10.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12200c21b36a4cd8437024ebb3a06dc0a6eb012202813518b8d52b6f20b0c06d5b9b",
           "file:size": 28087121,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Green - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -228,11 +229,11 @@
             -10.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220859a31abb70ed161ef5aa2a04f4d0b081209bbbaf5c5cd6493dae08710ec3d87",
           "file:size": 27982870,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Blue - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -268,11 +269,11 @@
             -10.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220d64b4b92275dfb7ce7eb68d0d995c4faf0843dfa81bf8c9a64a65452aeb4ef98",
           "file:size": 38654297,
+          "storage:refs": [
+            "local"
+          ],
           "title": "True color image",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -323,11 +324,11 @@
             -10.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12201d837c5a1e30f0c9d6dd5efe741fee44a9ca3298009a6094ed92f4c59a028d40",
           "file:size": 27849406,
+          "storage:refs": [
+            "local"
+          ],
           "title": "NIR 1 - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -363,11 +364,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220f42b6b3781eae81a145e4fd70487f0c5996d6faea6bb2e4a8a7bf7de223b4bc6",
           "file:size": 6678734,
+          "storage:refs": [
+            "local"
+          ],
           "title": "SWIR 2.2\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -403,11 +404,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220bab016fc5330da9ae1dba433f2ff4f7eca89367c9b87de27d9f4196a73242ccd",
           "file:size": 7111926,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Red Edge 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -443,11 +444,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220cd35fdc8c12a8a9a49c89001f671b773f24644e7a4061fd668f20e07a149b605",
           "file:size": 7097882,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Red Edge 3 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -483,11 +484,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12203c7b83b7cd513c9e74fa68b7750f512183b06a77a81a24bf22a1f34ce8019877",
           "file:size": 7145713,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Red Edge 1 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -523,11 +524,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220a9cbc09adcadf0a5be2225801d828e1bab3a590eb7d608e9dacef83fd2b790f1",
           "file:size": 6717726,
+          "storage:refs": [
+            "local"
+          ],
           "title": "SWIR 1.6\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -563,11 +564,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12208a5dc0c2997084cf5fee53728fec4cbe3a40c82c515158f361058bdf19fc4963",
           "file:size": 115845,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Water Vapour (WVP)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -599,11 +600,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220d9ca8ee1dbaf0ff9ace47f23859ee0b73b50c8117108efefca45462b8bee4a1d",
           "file:size": 7077553,
+          "storage:refs": [
+            "local"
+          ],
           "title": "NIR 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -639,11 +640,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12206ab0c4f040632ba7bcab1191c5a8c568419671ce2db5272717ea4f0eaa1eda2f",
           "file:size": 117483,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Scene classification map (SCL)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -672,11 +673,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12209a74579e9de7d83b265ae8c826b0d9bca275be38a045a11928fe603cd6b86bd1",
           "file:size": 133485,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Aerosol optical thickness (AOT)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -707,11 +708,11 @@
             -60.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "122043da5f15e3fa202be6a6ca7a6d38fc3cd3473e30cfeac34e630a33f11f19499d",
           "file:size": 730037,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Coastal - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -747,11 +748,11 @@
             -60.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12207349df64be97714c8524664369283b8b416c2c464a123fdcfe5af686f93d2a0e",
           "file:size": 729788,
+          "storage:refs": [
+            "local"
+          ],
           "title": "NIR 3 - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -787,11 +788,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12200aae18669281af8243afb7334d07a50eb243e2e09045bc0fc1e375cc992f6833",
           "file:size": 249585,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Cloud Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -820,11 +821,11 @@
             -20.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "122044d48427a9c50b7c4f0d358a09317333ff31e5cffad4568105ff5385fb20dfa8",
           "file:size": 53931,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Snow Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -854,11 +855,11 @@
             -320.0,
             5100040.0
           ],
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220212ffdb927d9311b6f4b3427ea7cfd2e87743c85b8179c09dd7bd1d54899390c",
           "file:size": 38402,
+          "storage:refs": [
+            "local"
+          ],
           "title": "True color preview",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -887,11 +888,11 @@
         },
         "granule_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/metadata.xml",
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "1220d77202b75baf476d7ececbb623e079ec52e3531ef72d27672714a509d424bbb7",
           "file:size": 499353,
+          "storage:refs": [
+            "local"
+          ],
           "type": "application/xml",
           "roles": [
             "metadata"
@@ -899,11 +900,11 @@
         },
         "tileinfo_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/tileInfo.json",
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12203adeb48235952e9fa4cb4430c3bb6d2d1d83b923dd6669557efc5dbc138df635",
           "file:size": 1803,
+          "storage:refs": [
+            "local"
+          ],
           "type": "application/json",
           "roles": [
             "metadata"
@@ -911,11 +912,11 @@
         },
         "product_metadata": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/product_metadata.xml",
-          "storage:refs": [
-            "aws"
-          ],
           "file:checksum": "12206f560bf303079fdd03fc804c7c56c13aa2e75cc87f842ef03e944ec5044021a9",
           "file:size": 55674,
+          "storage:refs": [
+            "local"
+          ],
           "type": "application/xml",
           "roles": [
             "metadata"
@@ -925,6 +926,9 @@
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87/L2A_PVI.jpg",
           "file:checksum": "1220efe12a40a07bb4093be29ac284ce6fe8e04f4a1e91ef0a5861117889db282cb1",
           "file:size": 5265,
+          "storage:refs": [
+            "local"
+          ],
           "title": "Thumbnail of preview image",
           "type": "image/jpeg",
           "roles": [
