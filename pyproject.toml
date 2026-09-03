@@ -40,10 +40,21 @@ warn_unused_ignores = true
 # typing info, so under --strict mypy would emit import-untyped; scope the
 # suppression to just these modules rather than weakening strictness globally.
 [[tool.mypy.overrides]]
-module = ["boto3utils.*", "botocore.*", "multiformats.*", "numpy.*", "rasterio.*", "stactools.*"]
+module = ["boto3utils.*", "botocore.*", "deepdiff.*", "multiformats.*", "numpy.*", "rasterio.*", "stactools.*", "shapely.geometry"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+# The `system` marker flags the network-hitting parity tests in
+# tests/test_task.py (they download real Sentinel-2 imagery from the public
+# RODA/AWS bucket and run the full COG/thumbnail pipeline). They are OPT-IN:
+# `addopts` deselects them by default so `uv run pytest` stays fast and
+# offline. To run them, override the marker expression on the CLI:
+#     uv run pytest -m system
+# The trailing CLI `-m` wins over the `-m "not system"` in addopts.
+addopts = ["-m", "not system"]
+markers = [
+    "system: network-hitting parity tests against real imagery (opt in with -m system)",
+]
 filterwarnings = [
     # Silence DeprecationWarnings from third-party libraries (already present).
     "ignore::DeprecationWarning",
@@ -62,11 +73,13 @@ lint.select = ["F", "E", "W", "I", "ERA", "RUF"]
 
 [dependency-groups]
 dev = [
+    "deepdiff>=8.0",
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
     "requests-mock>=1.12.1",
     "ruff>=0.16.5",
+    "shapely>=2.0",
     "types-requests>=2.33.0.20260712",
 ]
 

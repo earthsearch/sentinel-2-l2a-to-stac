@@ -8,7 +8,7 @@ is monkeypatched (or, for the ClientError translation, the underlying
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 import stac_asset.blocking
@@ -77,7 +77,7 @@ class _StubItem:
 
     id = "stub-item"
     collection_id = "stub-collection"
-    assets: dict[str, Any] = {}
+    assets: ClassVar[dict[str, Any]] = {}
 
     def to_dict(self) -> dict[str, str]:
         return {"id": "stub-item"}

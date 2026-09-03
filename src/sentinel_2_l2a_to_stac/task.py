@@ -18,7 +18,7 @@ from pystac.extensions.grid import GridExtension
 from pystac.extensions.raster import AssetRasterExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from rasterio.enums import ColorInterp, Resampling
-from rasterio.errors import CRSError, StatisticsError
+from rasterio.errors import CRSError
 from rasterio.rio.overview import get_maximum_overview_level
 from returns.result import Failure, ResultE, Success
 from stac_asset import Config
@@ -427,7 +427,13 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
 
-        # Upload is ported in PR 8.
+        # Upload local (workdir) assets to S3. The base-class method no-ops when
+        # self._upload is False, which is exactly what --local / skip_upload=True
+        # / upload=False produce (verified against stactask 0.7.0's __init__ and
+        # upload_item_assets_to_s3), so a local run never writes to S3.
+        self.logger.info("Uploading assets")
+        item = self.upload_item_assets_to_s3(item, self.get_local_asset_keys(item))
+
         return [item.to_dict()]
 
 
@@ -609,13 +615,7 @@ def write_cog(
             dst.update_tags(**tags)
             dst.write(array)
             dst.build_overviews(overviews, Resampling[overview_resampling.lower()])
-            for band in range(dst.count):
-                try:
-                    dst.statistics(band + 1)
-                except StatisticsError:
-                    # stats fail if a raster is all nodata
-                    pass
-
+            dst.stats()
 
 def get_band_scales_offsets_nodatas_resolutions(
     asset: Asset,

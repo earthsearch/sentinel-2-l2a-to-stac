@@ -63,11 +63,30 @@ This repository uses [uv](https://docs.astral.sh/uv/getting-started/installation
 
 The `tests/test_task.py` file contains test code to iterate through the input payloads in `fixtures`, which contains a series of input and payload files, each pair in it's own folder. For expected errors in tests an `exception.txt` file is provided intead of an output payload.
 
-To run the tests:
+To run the fast, offline test suite:
 
 ```
 uv run pytest
 ```
+
+### Network parity tests (`-m system`)
+
+`tests/test_task.py` also contains full-pipeline parity tests that compare the
+task's output against the legacy Sentinel-2 C1 L2A task. These **hit the
+network**: they download genuine Sentinel-2 imagery from the public RODA/AWS
+bucket (`s3://sentinel-s2-l2a`) so the COG/thumbnail pipeline runs end-to-end.
+They are marked `@pytest.mark.system` and are **excluded by default**. Run them
+explicitly with:
+
+```
+uv run pytest -m system
+```
+
+They never write to S3 (every call uses `upload=False`), and the STAC API
+item-lookup stays stubbed to 404 so the run is deterministic. Downloaded imagery
+is cached under `tests/external-data/<payload-id>`; delete that directory to
+force a clean re-fetch. The expected `out.json` for each success fixture is
+generated on the first run if absent.
 
 # Versions and Releases
 

@@ -115,6 +115,37 @@ used by this project.
   `sha256sum_multihash()` helper. `op.getsize` → `os.path.getsize` (the
   `os.path as op` alias was dropped in PR 6). Added `pillow~=12.0` dependency
   (`Image.open`/`Image.save`). Upload wiring remains deferred to PR 8.
+- S3 upload wired into `process()` as the final step — `self.upload_item_assets_to_s3(
+  item, self.get_local_asset_keys(item))`. This is a base-class method (no new task
+  code, just the call site). It no-ops whenever `self._upload` is False, which is
+  exactly what `--local` / `skip_upload=True` / `upload=False` produce (verified
+  against stactask 0.7.0's `__init__` and `upload_item_assets_to_s3`), so a local
+  run never writes to S3. `process()` now returns the fully-built, uploaded item.
+- Full-pipeline parity tests in `tests/test_task.py` (rewritten from the template's
+  strict `==` walker). Ported legacy's tolerant comparators `normalize()` /
+  `diff_output()` (geometry symmetric-difference ratio, centroid threshold,
+  thumbnail size/checksum wobble) over `deepdiff` + `shapely`, and the payload
+  fixtures `success/payload-2022`, `success/antimeridian`,
+  `failure/processing_baseline_02.13`, plus the standalone regression payloads
+  `payload-tileinfo-no-tileDataGeometry.json` and `payload-antimeridian-pole.json`.
+  These **hit the real network** (download genuine imagery from the public RODA/AWS
+  bucket to run the COG/thumbnail pipeline end-to-end) and are therefore marked
+  `@pytest.mark.system` and **opt-in**: run them with `uv run pytest -m system`.
+  They never write to S3 (`upload=False`), and the STAC API item-lookup stays
+  stubbed to 404 by the autouse `_stub_stac_api` fixture so the gate is
+  deterministic. Downloaded imagery caches under `tests/external-data/`. Added
+  `deepdiff` and `shapely` dev dependencies. `out.json` for the two success cases
+  is generated on the first `-m system` run, then diffed against legacy's to
+  confirm only expected drift (storage `schemes`/`refs` shape, dependency-version
+  deltas). The offline `missing-metadata-href` validate failure moved to a
+  dedicated non-`system` test so it still runs in the default fast suite.
+
+- `scripts/compare_fixture.py`: a dev tool (not part of the test suite) for
+  reviewing legacy↔destination parity — a structural, key-order-insensitive
+  `deepdiff` comparison that strips expected-drift fields (`created`, hrefs,
+  `file:checksum`/`file:size`, geometry, `proj:centroid`, extension order) so only
+  semantic STAC differences surface. Used during the migration to confirm that all
+  output deltas vs legacy trace to the dependency-baseline bump, not the port.
 
 ### Changed
 
