@@ -163,6 +163,13 @@ task ported forward onto STAC 1.1.0 output and the pystac 2.0 baseline.
   `version`) via `add_software_version_to_item`, which stactask 0.7.0 no longer applies
   automatically.
 
+- `tests/run_tests.sh`: POSTs every `tests/fixtures/payloads/{success,failure}/*/in.json`
+  to the local Lambda RIE (`localhost:8080`) and reports pass/fail per fixture, enabling
+  the Local Dockerized Lambda Testing workflow described in the README.
+- `.env.example`: documents the four AWS credential environment variables the Docker
+  container requires (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
+  `AWS_DEFAULT_REGION`).
+
 ### Changed
 
 - With `add_fileinfo_to_local_assets` now wired unconditionally into
@@ -252,6 +259,21 @@ task ported forward onto STAC 1.1.0 output and the pystac 2.0 baseline.
   downloading — works against pystac 2.0. Surfaced once the fixture refresh
   invalidated the `tests/external-data` cache and forced real downloads.
   Self-removes once `stac-asset` migrates to `Asset.type`.
+
+- Dockerfile: updated Python base images from 3.11 to 3.12 throughout
+  (`lambgeo/lambda-gdal` and both `public.ecr.aws/lambda/python` stages) to
+  match `requires-python = ">=3.12"`. The 3.11 images could not install the
+  package at build time.
+- Dockerfile: replaced the two-step `uv export … -o requirements.txt && uv pip
+  install -r requirements.txt` with a single `uv pip install --frozen
+  --no-editable --target`. `uv.lock` is now read directly with no intermediate
+  `requirements.txt` generated.
+- `docker-compose.yml`: corrected stale image name (`cirrus-task-example` →
+  `sentinel-2-l2a-to-stac`), enabled `env_file: .env`, added port mapping
+  `8080:8080` for the Lambda RIE, added `platform: linux/amd64` to both the
+  build and service (eliminating the `DOCKER_DEFAULT_PLATFORM` workaround for
+  Apple Silicon compose builds), and removed the `entrypoint: /bin/bash` override
+  that was preventing the Lambda handler from starting.
 
 ## [v2025.03.12]
 

@@ -1,8 +1,8 @@
 FROM ghcr.io/astral-sh/uv:0.6.6 AS uv
 
-FROM ghcr.io/lambgeo/lambda-gdal:3.8-python3.11 as gdal
+FROM ghcr.io/lambgeo/lambda-gdal:3.10-python3.12 as gdal
 
-FROM public.ecr.aws/lambda/python:3.11 as builder
+FROM public.ecr.aws/lambda/python:3.12 as builder
 
 # Bring C libs from lambgeo/lambda-gdal image
 COPY --from=gdal /opt/lib/ ${LAMBDA_TASK_ROOT}/lib/
@@ -31,22 +31,21 @@ ENV UV_NO_INSTALLER_METADATA=1
 # Enable copy mode to support bind mount caching.
 ENV UV_LINK_MODE=copy
 
-# Bundle the dependencies into the Lambda task root via `uv pip install --target`.
-#
-# Omit any local packages (`--no-emit-workspace`) and development dependencies (`--no-dev`).
-# This ensures that the Docker layer cache is only invalidated when the `pyproject.toml` or `uv.lock`
-# files change, but remains robust to changes in the application code.
+# Install directly from uv.lock into the Lambda task root. --frozen means uv reads
+# exact versions from uv.lock without regenerating it; dev dependencies are excluded
+# because they are not part of [project.dependencies]. The Docker layer cache is only
+# invalidated when pyproject.toml or uv.lock change; source changes land via the
+# COPY at the bottom of the final stage without re-installing dependencies.
 RUN --mount=from=uv,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=README.md,target=README.md \
     --mount=type=bind,source=src,target=src \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv export --frozen --no-emit-workspace --no-dev --no-editable -o requirements.txt && \
-    uv pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}" .
+    uv pip install --frozen --no-editable --target "${LAMBDA_TASK_ROOT}" .
 
 
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
 # Copy the runtime dependencies from the builder stage.
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}

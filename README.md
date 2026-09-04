@@ -9,6 +9,53 @@ metadata, builds an Item via `stactools-sentinel2`, applies Earth Search overrid
 optionally COGifies the JP2 imagery and generates a thumbnail, and returns the
 Item(s).**
 
+## Development
+
+- Make a Python 3.12 enviornment
+
+```bash
+uv venv --python 3.12
+uv sync
+```
+
+## Input
+
+This task does not require complete STAC Items. Each `Feature` in the Cirrus Process Payload
+need only have two fields, `id` and the `href` of the metadata.xml file.
+
+| Field                       | Description                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| id                          | A unique identifier for this scene (will not be the final scene ID) |
+| assets\['metadata']['href'] | The URL of the metadata.xml file                                    |
+
+Example:
+
+```json
+{
+  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/tileInfo.json",
+  "process": [
+    {
+      "workflow": "sentinel-2-l2a-to-stac",
+      "upload_options": {
+        "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
+        "collections": {
+          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+        }
+      },
+      "tasks": {
+        "sentinel-2-l2a-to-stac": {}
+      }
+    }
+  ]
+}
+
+```
+
+## Output
+
+This task will create a STAC Item for the L2A scene.
+
 ## Usage
 
 To use this task in a Cirrus workflow reference the Docker location in the task configuration
@@ -31,9 +78,38 @@ The collection each Item is assigned to is resolved from
 `payload['process']['upload_options']['collections']` (a map of collection id →
 JSONPath expression, first match wins), per the standard Cirrus convention.
 
-## Development
+## Testing
 
-Tasks can be run locally with the built-in CLI.
+This repository uses [uv](https://docs.astral.sh/uv/getting-started/installation/) and uses [pytest](https://docs.pytest.org/en/stable/) for testing.
+
+The `tests/test_task.py` file contains test code to iterate through the input payloads in `fixtures`, which contains a series of input and payload files, each pair in it's own folder. For expected errors in tests an `exception.txt` file is provided intead of an output payload.
+
+To run the fast, offline test suite:
+
+```
+uv run pytest
+```
+
+### Network parity tests (`-m system`)
+
+`tests/test_task.py` also contains full-pipeline parity tests that compare the
+task's output against the legacy Sentinel-2 C1 L2A task. These **hit the
+network**: they download genuine Sentinel-2 imagery from the public RODA/AWS
+bucket (`s3://sentinel-s2-l2a`) so the COG/thumbnail pipeline runs end-to-end.
+They are marked `@pytest.mark.system` and are **excluded by default**. Run them
+explicitly with:
+
+```
+uv run pytest -m system
+```
+
+They never write to S3 (every call uses `upload=False`), and the STAC API
+item-lookup stays stubbed to 404 so the run is deterministic. Downloaded imagery
+is cached under `tests/external-data/<payload-id>`; delete that directory to
+force a clean re-fetch. The expected `out.json` for each success fixture is
+generated on the first run if absent.
+
+Tasks can also be run locally with the built-in CLI.
 
 ```
 $ uv run sentinel-2-l2a-to-stac
@@ -67,36 +143,31 @@ not try to upload the data files to s3.
 $ task.py payload.json --local
 ```
 
-## Testing
+### Updating test fixtures
 
-This repository uses [uv](https://docs.astral.sh/uv/getting-started/installation/) and uses [pytest](https://docs.pytest.org/en/stable/) for testing.
+To update the expected output for any given fixture, simply remove the
+`actual.json` file from the test's fixture directory, and rerun the tests.
+This will recreate the fixture. `git diff` can be used to examine what has
+changed.
 
-The `tests/test_task.py` file contains test code to iterate through the input payloads in `fixtures`, which contains a series of input and payload files, each pair in it's own folder. For expected errors in tests an `exception.txt` file is provided intead of an output payload.
+## Local Dockerized Lambda Testing
 
-To run the fast, offline test suite:
+1. Copy `.env.example` to `.env` and fill in your AWS credentials.
+2. `docker-compose up -d` will build and launch the local Lambda server on port 8080.
+3. `bash tests/run_tests.sh` will POST all fixture payloads to the server and report pass/fail.
+4. `docker-compose down` will spin down the local Lambda server.
 
+## Building Locally on Apple Silicon (arm64)
+
+`docker-compose` sets `platform: linux/amd64` automatically, so `docker-compose up` works on
+Apple Silicon without any extra flags.
+
+If you need to build the image directly with `docker build` (outside of compose), specify the
+platform explicitly:
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build .
 ```
-uv run pytest
-```
-
-### Network parity tests (`-m system`)
-
-`tests/test_task.py` also contains full-pipeline parity tests that compare the
-task's output against the legacy Sentinel-2 C1 L2A task. These **hit the
-network**: they download genuine Sentinel-2 imagery from the public RODA/AWS
-bucket (`s3://sentinel-s2-l2a`) so the COG/thumbnail pipeline runs end-to-end.
-They are marked `@pytest.mark.system` and are **excluded by default**. Run them
-explicitly with:
-
-```
-uv run pytest -m system
-```
-
-They never write to S3 (every call uses `upload=False`), and the STAC API
-item-lookup stays stubbed to 404 so the run is deterministic. Downloaded imagery
-is cached under `tests/external-data/<payload-id>`; delete that directory to
-force a clean re-fetch. The expected `out.json` for each success fixture is
-generated on the first run if absent.
 
 # Versions and Releases
 
