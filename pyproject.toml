@@ -74,6 +74,9 @@ filterwarnings = [
     # noise from a third-party call we don't control.  Matched by message text
     # + module so our own code can still raise warnings freely.
     "ignore:The exterior ring::antimeridian.*",
+    # pystac raises this when any caller sets link.target = <str>; the warning
+    # is issued from pystac.link itself, so the module filter must match there.
+    "ignore:Setting Link.target to href:UserWarning:pystac.*",
 ]
 
 [tool.ruff]

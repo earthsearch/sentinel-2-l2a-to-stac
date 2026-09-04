@@ -30,9 +30,16 @@ from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
-# pystac 2.0 moved HREF, but stactools hasn't been updated for the move. This line 
+# pystac 2.0 moved HREF, but stactools hasn't been updated for the move. This line
 # can be removed once stactools is updated to work with pystac 2.0
 pystac.link.HREF = pystac.utils.HREF  # type: ignore[attr-defined]
+
+# pystac 2.0 renamed Asset.media_type -> Asset.type, but stac-asset (0.4.7)
+# still reads asset.media_type when downloading, raising AttributeError. Add a
+# read-only alias so downloads work. Guarded on hasattr so it self-disables once
+# stac-asset migrates to Asset.type (or pystac restores media_type).
+if not hasattr(Asset, "media_type"):
+    Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
 
 from stactools.sentinel2.stac import create_item  # noqa: E402
 
@@ -206,7 +213,7 @@ class Sentinel2ToStac(Task):
     def make_cogs_for_item(self, item: Item) -> Item:
         try:
             processing_baseline = item.properties.get("s2:processing_baseline", "0")
-            if processing_baseline < "05.00":
+            if processing_baseline < "05.00" or processing_baseline == "05.09":
                 raise InvalidInput(
                     f"Processing baseline is {processing_baseline}, only >= 05.00 (not including 5.09) is supported."
                 )

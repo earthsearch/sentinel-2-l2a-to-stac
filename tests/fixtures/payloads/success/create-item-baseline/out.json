@@ -1,6 +1,6 @@
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2023/4/19/0/tileInfo.json",
+  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/tileInfo.json",
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",
@@ -31,7 +31,7 @@
         "https://stac-extensions.github.io/storage/v2.0.0/schema.json",
         "https://stac-extensions.github.io/view/v1.0.0/schema.json"
       ],
-      "id": "S2A_T19TDJ_20230419T153818_L2A",
+      "id": "S2A_T19TDJ_20260823T153829_L2A",
       "geometry": {
         "type": "Polygon",
         "coordinates": [
@@ -66,13 +66,13 @@
         44.253343
       ],
       "properties": {
-        "datetime": "2023-04-19T15:40:55.358000Z",
+        "datetime": "2026-08-23T15:41:11.392000Z",
         "platform": "sentinel-2a",
         "constellation": "sentinel-2",
         "instruments": [
           "msi"
         ],
-        "eo:cloud_cover": 82.069045,
+        "eo:cloud_cover": 98.602855,
         "proj:code": "EPSG:32619",
         "proj:centroid": {
           "lat": 43.75705,
@@ -82,33 +82,32 @@
         "mgrs:latitude_band": "T",
         "mgrs:grid_square": "DJ",
         "grid:code": "MGRS-19TDJ",
-        "view:azimuth": 168.64323116221308,
-        "view:incidence_angle": 2.8018118499403624,
-        "view:sun_azimuth": 155.183804720267,
-        "view:sun_elevation": 55.2649167897936,
-        "s2:tile_id": "S2A_OPER_MSI_L2A_TL_2APS_20230419T220859_A040863_T19TDJ_N05.09",
-        "s2:degraded_msi_data_percentage": 0.0063,
+        "view:azimuth": 166.93177780455332,
+        "view:incidence_angle": 2.811563209646554,
+        "view:sun_azimuth": 153.855193604202,
+        "view:sun_elevation": 55.0579367314227,
+        "s2:tile_id": "S2A_OPER_MSI_L2A_TL_2APS_20260824T030507_A058338_T19TDJ_N05.12",
+        "s2:degraded_msi_data_percentage": 0.0,
         "s2:nodata_pixel_percentage": 0.0,
         "s2:saturated_defective_pixel_percentage": 0.0,
-        "s2:dark_features_percentage": 0.0,
-        "s2:cloud_shadow_percentage": 0.169956,
-        "s2:vegetation_percentage": 0.00132,
-        "s2:not_vegetated_percentage": 0.003368,
-        "s2:water_percentage": 17.754981,
-        "s2:unclassified_percentage": 0.001334,
-        "s2:medium_proba_clouds_percentage": 7.247292,
-        "s2:high_proba_clouds_percentage": 71.573049,
-        "s2:thin_cirrus_percentage": 3.248699,
+        "s2:cloud_shadow_percentage": 0.002113,
+        "s2:vegetation_percentage": 0.0,
+        "s2:not_vegetated_percentage": 0.0,
+        "s2:water_percentage": 1.395032,
+        "s2:unclassified_percentage": 0.0,
+        "s2:medium_proba_clouds_percentage": 6.04359,
+        "s2:high_proba_clouds_percentage": 92.136657,
+        "s2:thin_cirrus_percentage": 0.422606,
         "s2:snow_ice_percentage": 0.0,
         "s2:product_type": "S2MSI2A",
-        "s2:processing_baseline": "05.09",
-        "s2:product_uri": "S2A_MSIL2A_20230419T153551_N0509_R111_T19TDJ_20230419T220859.SAFE",
-        "s2:generation_time": "2023-04-19T22:08:59.000000Z",
-        "s2:datatake_id": "GS2A_20230419T153551_040863_N05.09",
+        "s2:processing_baseline": "05.12",
+        "s2:product_uri": "S2A_MSIL2A_20260823T153711_N0512_R111_T19TDJ_20260824T030507.SAFE",
+        "s2:generation_time": "2026-08-24T03:05:07.000000Z",
+        "s2:datatake_id": "GS2A_20260823T153711_058338_N05.12",
         "s2:datatake_type": "INS-NOBS",
-        "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20230419T220859_S20230419T153818_N05.09",
-        "s2:reflectance_conversion_factor": 0.993839086746126,
-        "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0",
+        "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20260824T030507_S20260823T153829_N05.12",
+        "s2:reflectance_conversion_factor": 0.976724304949719,
+        "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
         "storage:schemes": {
           "local": {
             "type": "aws-s3",
@@ -124,7 +123,7 @@
       },
       "links": [
         {
-          "href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2023/4/19/0/metadata.xml",
+          "href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/metadata.xml",
           "rel": "via",
           "type": "application/xml",
           "title": "Granule Metadata in Sinergize RODA Archive"
@@ -132,7 +131,7 @@
       ],
       "assets": {
         "red": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B04.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B04.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -146,8 +145,8 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220158b1f760c73f1a1f1a31f4e8d8d27ab38ccab097f8a42493683cc65c7385584",
-          "file:size": 181056871,
+          "file:checksum": "1220a79c76f0b0a65790ccec5c0acc175ff45449e575bd6c28634aa05b4e65fd5b11",
+          "file:size": 182499486,
           "storage:refs": [
             "local"
           ],
@@ -172,7 +171,7 @@
           ]
         },
         "green": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B03.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B03.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -186,8 +185,8 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220e39f151b15c26256d28c3b6f4f3ca1f3a05600358e90ac81ea0e276905a81ad4",
-          "file:size": 180762607,
+          "file:checksum": "1220b144cde29c49c75fff7ca19a7878f2d964fe2ca12ec94352438b502b9f676fb9",
+          "file:size": 182399337,
           "storage:refs": [
             "local"
           ],
@@ -212,7 +211,7 @@
           ]
         },
         "blue": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B02.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B02.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -226,8 +225,8 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "12201c09069d28e54610e5b8c6ebadd74044225a525cbe75e0078c2b573704867832",
-          "file:size": 181397837,
+          "file:checksum": "1220de084d252178940fc1f7efd4651683ee0a913ad914b70af3a0ff7948ffe14477",
+          "file:size": 183827915,
           "storage:refs": [
             "local"
           ],
@@ -252,7 +251,7 @@
           ]
         },
         "visual": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/TCI.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/TCI.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -266,8 +265,8 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220fe550760a2617dceaba4cb341fd13e9a1f85293e811e5c1b040f34f46b9bc64e",
-          "file:size": 90392472,
+          "file:checksum": "12200e2ab95dbb6ee417cd2f3ca673a89e9f49cfd9abc409d3378409409ac57161da",
+          "file:size": 13270626,
           "storage:refs": [
             "local"
           ],
@@ -307,7 +306,7 @@
           ]
         },
         "nir": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B08.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B08.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -321,8 +320,8 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220162bf0450544a2661494fc6990cb2ca7619dc763d575513cbf2593c30164f0a2",
-          "file:size": 181708563,
+          "file:checksum": "1220a413fa40232d6c2e02709337d17f68ff309947803a43f7b0e002cac1bb73c0c8",
+          "file:size": 184599970,
           "storage:refs": [
             "local"
           ],
@@ -347,7 +346,7 @@
           ]
         },
         "swir22": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B12.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B12.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -361,8 +360,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "122085281d035a109ce3e45039e31dc91bfd5a2f770496787ba65582588f253942e1",
-          "file:size": 54537188,
+          "file:checksum": "1220cb45c28d75abcb3adc65b8c759b401391a87aedb5257a575db18f89328df8fa8",
+          "file:size": 50703332,
           "storage:refs": [
             "local"
           ],
@@ -387,7 +386,7 @@
           ]
         },
         "rededge2": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B06.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B06.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -401,8 +400,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "12200a67972560e86abcd62758b1ddb22d120e5e75200099481feef585f878bacd7c",
-          "file:size": 56378798,
+          "file:checksum": "1220a07a56cc8c6ea072c0a4e0c36d5a181d46cc1bc07072772555d6ee81168044e3",
+          "file:size": 54406416,
           "storage:refs": [
             "local"
           ],
@@ -427,7 +426,7 @@
           ]
         },
         "rededge3": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B07.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B07.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -441,8 +440,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220581e9b98e285052340a6badfd2ac0aeda52de541eb80666a9a86aa7bf6302d3f",
-          "file:size": 56259756,
+          "file:checksum": "1220b9bfe4a2c2795b2b5f4fd58ff3c501308ed06f3ac0bd0e9ea92b36fb5984d65f",
+          "file:size": 54411301,
           "storage:refs": [
             "local"
           ],
@@ -467,7 +466,7 @@
           ]
         },
         "rededge1": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B05.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B05.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -481,8 +480,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220566eb17bffa3bd323f084bfaf8c0cae074f7a969ca67f43847454bf47d3d7a02",
-          "file:size": 56525663,
+          "file:checksum": "122040c849ac006c42b1bdbe52d6158be32fd146bd47a59b8adf83ea4ebda16df352",
+          "file:size": 54318035,
           "storage:refs": [
             "local"
           ],
@@ -507,7 +506,7 @@
           ]
         },
         "swir16": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B11.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B11.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -521,8 +520,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220a5e41decce5c7593afee31de6e09583fdaf76755f73c45c464790f925215850c",
-          "file:size": 54384908,
+          "file:checksum": "12204ccf5c2a553a8ee1f6d29b87e2a246c616f8295c18bac40fa42b6ea8a132366a",
+          "file:size": 51533675,
           "storage:refs": [
             "local"
           ],
@@ -547,7 +546,7 @@
           ]
         },
         "wvp": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/WVP.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/WVP.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -561,8 +560,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220812890b920310f43a2590ca091c27d6821c8e0027b77bc3e9a6e91563fc0f8c1",
-          "file:size": 209864,
+          "file:checksum": "12200c612f7c4e66cded6ceee333eee971968b75df0a79c4e85731e19e58933e3b12",
+          "file:size": 95829,
           "storage:refs": [
             "local"
           ],
@@ -583,7 +582,7 @@
           ]
         },
         "nir08": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B8A.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B8A.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -597,8 +596,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220df00bec4f0461fabbac2329880bf062171a2212e41e762a0917f39153fc3a803",
-          "file:size": 56296223,
+          "file:checksum": "1220cf681d0e57fce41314ca0745be50c8bb46190d6f69c3a9cc7df60643a0225263",
+          "file:size": 54938353,
           "storage:refs": [
             "local"
           ],
@@ -623,7 +622,7 @@
           ]
         },
         "scl": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/SCL.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/SCL.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -637,8 +636,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220deb3ecd42d3c5a92db6495501c7ab286abd3b155890458b3521f31736b61b1c3",
-          "file:size": 1158744,
+          "file:checksum": "12203bef9303d4582fa53fa2a67abd22d23861b569d57376219c0917f26c77b58022",
+          "file:size": 415419,
           "storage:refs": [
             "local"
           ],
@@ -656,7 +655,7 @@
           ]
         },
         "aot": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/AOT.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/AOT.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -670,8 +669,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220d7cc10a6e849fc5871c1d51a9121906a86672930f30d713e3ecd56a4d6ffa998",
-          "file:size": 620023,
+          "file:checksum": "1220dd2467e2a471f067fc0d457d57d9cf8d905831868a366b5352600f98827ab334",
+          "file:size": 531141,
           "storage:refs": [
             "local"
           ],
@@ -691,7 +690,7 @@
           ]
         },
         "coastal": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B01.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B01.tif",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -705,8 +704,8 @@
             -60.0,
             4900020.0
           ],
-          "file:checksum": "1220ede0b2bb0b842f4dd032bd8cbf4c8640f65d251daecce5b32bb27f6384757b1f",
-          "file:size": 6429259,
+          "file:checksum": "1220d699ecb92cb6b6007543c5160e92c0569ca64660dc1544e1e498e6129b990d7f",
+          "file:size": 6542411,
           "storage:refs": [
             "local"
           ],
@@ -731,7 +730,7 @@
           ]
         },
         "nir09": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/B09.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B09.tif",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -745,8 +744,8 @@
             -60.0,
             4900020.0
           ],
-          "file:checksum": "122064fb6e2673df7e75929830d6677d3ee61d23ad22bee1ae9388088050c73db7d1",
-          "file:size": 5918285,
+          "file:checksum": "12200dad2af60dc393ebf8e1317188d33b28a41d038769a37d1f22f18c278a0d0023",
+          "file:size": 5984157,
           "storage:refs": [
             "local"
           ],
@@ -771,7 +770,7 @@
           ]
         },
         "cloud": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/CLD_20m.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/CLD_20m.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -785,8 +784,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220e445f767a293688ef8bc05ac96531247e1b721f41ff0c72debc7974b83bc6aa0",
-          "file:size": 4211940,
+          "file:checksum": "1220a42e168b7c02dc00ebe508e92348fc79fc5c840b99a03b01cfee23edf05d4f88",
+          "file:size": 1264704,
           "storage:refs": [
             "local"
           ],
@@ -805,7 +804,7 @@
           ]
         },
         "snow": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/SNW_20m.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/SNW_20m.tif",
           "proj:shape": [
             5490,
             5490
@@ -818,8 +817,8 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220aee975e7194cf3fe12136348e087e209b1c27431ba9484d6c20f2972f625f97b",
-          "file:size": 68371,
+          "file:checksum": "122022fb64d418ea3648b813a7b898c9c812fbfadfe65ce21245f87648e727aa1228",
+          "file:size": 399453,
           "storage:refs": [
             "local"
           ],
@@ -838,7 +837,7 @@
           ]
         },
         "preview": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/L2A_PVI.tif",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/L2A_PVI.tif",
           "gsd": 320,
           "proj:shape": [
             343,
@@ -852,8 +851,8 @@
             -320.0,
             4900020.0
           ],
-          "file:checksum": "1220176a5b74f757d6aa3e8565ce5afa5f516b7b81ffb8e2ff96e96f5fa241d0d797",
-          "file:size": 113341,
+          "file:checksum": "12206dfceae6cf7ff36cbea2757e57ece56922983b2740fef67c27dd61c56fac2ed1",
+          "file:size": 23242,
           "storage:refs": [
             "local"
           ],
@@ -884,9 +883,9 @@
           ]
         },
         "granule_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/metadata.xml",
-          "file:checksum": "1220bab6e6683eb4d8a6b5a74d3408af24428ad82fc7849564c0919a0ad8fd5d9b48",
-          "file:size": 626486,
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/metadata.xml",
+          "file:checksum": "1220ef782e63401d0e275282bfdad4e3a4d62ba8f7055532034776ce7b61967897e4",
+          "file:size": 626353,
           "storage:refs": [
             "local"
           ],
@@ -896,8 +895,8 @@
           ]
         },
         "tileinfo_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/tileInfo.json",
-          "file:checksum": "1220d6971e03dca2693a297dfb9ca917291f1b649999847e362e9bd9a48ba30bb814",
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/tileInfo.json",
+          "file:checksum": "1220d0809fc2c49e9632974c20798454bd640d5e9f5f15074028788cb9d08573ca4e",
           "file:size": 1491,
           "storage:refs": [
             "local"
@@ -908,9 +907,9 @@
           ]
         },
         "product_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/product_metadata.xml",
-          "file:checksum": "122036375b638a709b5f6aa0e82cd5b5e242267340d2f8af09337604722d35829ae2",
-          "file:size": 54807,
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/product_metadata.xml",
+          "file:checksum": "1220c0434eb82e70a0d54ca56d7a688e517727e6b313638d99db63432923ccb297e7",
+          "file:size": 54957,
           "storage:refs": [
             "local"
           ],
@@ -920,9 +919,9 @@
           ]
         },
         "thumbnail": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2023-4-19-0/L2A_PVI.jpg",
-          "file:checksum": "1220d72427777c08581b7dc65b2afaec497c4fd9f5aa552e6fa215c62f1c2dfb5ba0",
-          "file:size": 18945,
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/L2A_PVI.jpg",
+          "file:checksum": "12205732d1c1be5e7338d0e0d85a18f1d81891e4f2b1bf89bfd8a15741c002316e33",
+          "file:size": 5238,
           "storage:refs": [
             "local"
           ],

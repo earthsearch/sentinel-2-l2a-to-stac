@@ -225,6 +225,34 @@ task ported forward onto STAC 1.1.0 output and the pystac 2.0 baseline.
   `stactools`/`botocore`/`rasterio` loggers in the Lambda handler path too, for clean
   production logs.
 
+- Testing: Refreshed the `success/` payload fixtures onto processing baseline
+  `> 05.09` so the 05.09-era fixtures (and eventually the 05.09 baseline-floor
+  handling) can be retired. Same MGRS tile and same platform (Sentinel-2A) in
+  every case; where no reprocessed `> 05.09` version of the original acquisition
+  exists, the newest qualifying acquisition over that tile was used instead:
+  - `antimeridian`: tile 01LAC, 2023-04-18 (05.09) → 2026-08-30 (05.12). A new
+    datetime was required — the antimeridian-crossing acquisition has no
+    reprocessed `> 05.09` product.
+  - `payload-2022` → renamed `payload-2025`: tile 55GFL, 2022-12-31 (05.09) →
+    2025-12-31 (05.11). Different relative orbit (original R130 near-full tile →
+    R030 western-partial), so the item geometry/bbox shifts. Expected, same
+    tile — no recent Sentinel-2A acquisition reproduces the original near-full
+    footprint (R130 over this tile is an infrequent late-December pass).
+  - `payload-2023` → renamed `payload-2026` and `create-item-baseline`: tile 
+    19TDJ, 2023-04-19 (05.09) → 2026-08-23 (05.12). Both point at the same scene 
+    but keep their distinct payload shapes (object vs. array `process`, 
+    differing workflow/task names, `input_collections` present vs. absent).
+  Side effect across all fixtures: `s2:dark_features_percentage` is no longer
+  emitted — ESA dropped `DARK_FEATURES_PERCENTAGE` from the granule/product
+  source metadata after 05.09, so `stactools-sentinel2` has no value to surface.
+  Not a code regression.
+- Added a read-only `Asset.media_type` property alias in `task.py`, guarded on
+  `hasattr` (mirroring the other self-disabling pystac 2.0 shims), so
+  `stac-asset` 0.4.7 — which still reads the pre-2.0 `Asset.media_type` when
+  downloading — works against pystac 2.0. Surfaced once the fixture refresh
+  invalidated the `tests/external-data` cache and forced real downloads.
+  Self-removes once `stac-asset` migrates to `Asset.type`.
+
 ## [v2025.03.12]
 
 ### Changed

@@ -1,6 +1,6 @@
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/5427299e5b635537f33c07e0ad32fb87",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/55/G/FL/2022/12/31/0/tileInfo.json",
+  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/55/G/FL/2025/12/31/0/tileInfo.json",
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",

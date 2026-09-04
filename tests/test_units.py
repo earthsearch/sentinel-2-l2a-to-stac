@@ -262,7 +262,7 @@ def test_collection_and_payload_id(baseline_item_dict: dict[str, Any]) -> None:
     assert item["collection"] == "sentinel-2-c1-l2a"
     assert item["properties"]["earthsearch:payload_id"] == (
         "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/"
-        "tiles-19-T-DJ-2023-4-19-0"
+        "tiles-19-T-DJ-2026-8-23-0"
     )
 
 
@@ -276,7 +276,7 @@ def test_via_link_added(baseline_item_dict: dict[str, Any]) -> None:
     via = [link for link in baseline_item_dict["links"] if link["rel"] == "via"]
     assert len(via) == 1
     assert via[0]["href"] == (
-        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2023/4/19/0/metadata.xml"
+        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/metadata.xml"
     )
     assert via[0]["type"] == "application/xml"
     assert via[0]["title"] == "Granule Metadata in Sinergize RODA Archive"
@@ -324,9 +324,9 @@ def test_add_storage_schemes_classification() -> None:
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.add_asset("roda_asset", Asset(href="s3://sentinel-s2-l2a/tiles/x/y.jp2"))
-    item.add_asset("es_asset", Asset(href="s3://earth-search-output/collection/x.tif"))
-    item.add_asset("local_asset", Asset(href="/tmp/workdir/metadata.xml"))
+    item.assets["roda_asset"] = Asset(href="s3://sentinel-s2-l2a/tiles/x/y.jp2")
+    item.assets["es_asset"] = Asset(href="s3://earth-search-output/collection/x.tif")
+    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
     result = _minimal_task("test-storage").add_storage_schemes(item)
@@ -347,6 +347,56 @@ def test_add_storage_schemes_classification() -> None:
     assert any("storage" in ext for ext in result_dict["stac_extensions"])
 
 
+def test_earthsearch_storage_scheme_after_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Verify that assets uploaded to the Earth Search bucket get the "earthsearch"
+    # scheme and ref — a path the baseline_item_dict fixture can't reach because
+    # it runs with upload=False.
+    ES_BUCKET = "earth-search-output"
+
+    def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
+        for key in asset_keys:
+            fname = Path(item.assets[key].href).name
+            item.assets[key].href = (
+                f"s3://{ES_BUCKET}/sentinel-2-c1-l2a/S2A_TEST/{fname}"
+            )
+        return item
+
+    monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
+
+    local_file = tmp_path / "B01.tif"
+    local_file.write_bytes(b"fake")
+    item = Item(
+        id="S2A_TEST",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.set_collection("sentinel-2-c1-l2a")
+    item.assets["blue"] = Asset(href=str(local_file), type=MediaType.COG)
+    _set_asset_owners(item)
+
+    task = Sentinel2ToStac(
+        {"id": "test-es-scheme", "metadata_href": "s3://sentinel-s2-l2a/x"},
+        workdir=tmp_path,
+        upload=False,
+    )
+    local_keys = task.get_local_asset_keys(item)
+    item = task.upload_item_assets_to_s3(item, local_keys)
+    item = task.add_storage_schemes(item)
+
+    result = item.to_dict()
+    schemes = result["properties"]["storage:schemes"]
+
+    assert set(schemes.keys()) == {"earthsearch"}
+    assert schemes["earthsearch"]["bucket"] == ES_BUCKET
+    assert schemes["earthsearch"]["type"] == "aws-s3"
+    assert result["assets"]["blue"]["storage:refs"] == ["earthsearch"]
+
+
 def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
     assert "classification:classes" not in item["assets"]["scl"]["bands"][0]
@@ -357,11 +407,40 @@ def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
 def test_asset_href_rewriting_and_proj_bbox(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
     assert item["assets"]["blue"]["href"] == (
-        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2023/4/19/0/R10m/B02.jp2"
+        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/R10m/B02.jp2"
     )
     assert item["assets"]["granule_metadata"]["href"].endswith("/metadata.xml")
     assert not item["assets"]["granule_metadata"]["href"].startswith("s3://")
     assert "proj:bbox" not in item["assets"]["blue"]
+
+
+# ---------------------------------------------------------------------------
+# get_local_asset_keys
+# ---------------------------------------------------------------------------
+
+def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None:
+    # Only assets whose href lives under the task workdir count as local. S3
+    # hrefs and local paths *outside* the workdir are excluded. This is exactly
+    # the key list handed to upload_item_assets_to_s3, so a misclassification
+    # would upload (or skip) the wrong assets.
+    task = Sentinel2ToStac(
+        {"id": "test-local-keys", "metadata_href": "s3://sentinel-s2-l2a/x"},
+        workdir=tmp_path,
+        upload=False,
+    )
+    item = Item(
+        id="test",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.assets["local_meta"] = Asset(href=str(tmp_path / "metadata.xml"))
+    item.assets["local_cog"] = Asset(href=str(tmp_path / "R10m" / "B02.tif"))
+    item.assets["roda"] = Asset(href="s3://sentinel-s2-l2a/tiles/x/B02.jp2")
+    item.assets["outside"] = Asset(href="/some/other/dir/B01.tif")
+
+    assert task.get_local_asset_keys(item) == ["local_meta", "local_cog"]
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +522,7 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={},
     )
-    owner.add_asset("B01", asset)
+    owner.assets["B01"] =  asset
     asset.set_owner(owner)
 
     cogify("B01", asset)
