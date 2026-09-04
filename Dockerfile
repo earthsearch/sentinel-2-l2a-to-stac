@@ -1,6 +1,7 @@
+#Currently doens't work due to the python 3.12 requirement
 FROM ghcr.io/astral-sh/uv:0.6.6 AS uv
 
-FROM ghcr.io/lambgeo/lambda-gdal:3.10-python3.12 as gdal
+FROM ghcr.io/lambgeo/lambda-gdal:3.8-python3.12 as gdal
 
 FROM public.ecr.aws/lambda/python:3.12 as builder
 

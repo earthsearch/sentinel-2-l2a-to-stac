@@ -6,8 +6,6 @@ services:
         - linux/amd64
     image: sentinel-2-l2a-to-stac:latest
     env_file: .env
-    ports:
-      - "9000:8080"
     platform: linux/amd64
     ports:
       - 9000:8080

@@ -20,20 +20,25 @@ uv sync
 
 ## Input
 
-This task does not require complete STAC Items. Each `Feature` in the Cirrus Process Payload
-need only have two fields, `id` and the `href` of the metadata.xml file.
+This task does not require complete STAC Items. Each `Feature` in the Cirrus Process Payload needs
+only two **top-level** fields: an `id` and the `metadata_href` of the source
+`metadata.xml`. (This differs from the legacy task, which read the href from
+`assets['metadata']['href']`.)
 
-| Field                       | Description                                                         |
-| --------------------------- | ------------------------------------------------------------------- |
-| id                          | A unique identifier for this scene (will not be the final scene ID) |
-| assets\['metadata']['href'] | The URL of the metadata.xml file                                    |
+| Field           | Description                                                          |
+| --------------- | ------------------------------------------------------------------- |
+| `id`            | A unique identifier for this scene (will not be the final scene ID) |
+| `metadata_href` | The URL of the source granule `metadata.xml`                        |
+
+See the [Usage](#usage) section below for the full field reference, including the
+optional `create_cogs` toggle.
 
 Example:
 
 ```json
 {
   "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/tileInfo.json",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/metadata.xml",
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",
@@ -54,16 +59,12 @@ Example:
 
 ## Output
 
-This task will create a STAC Item for the L2A scene.
+This task returns a single STAC **1.1.0** Item for the L2A scene.
 
 ## Usage
 
 To use this task in a Cirrus workflow reference the Docker location in the task configuration
 file in the Cirrus deployment repository. See [CHANGELOG.md](CHANGELOG.md) for version information.
-
-```
-Docker URL
-```
 
 This task reads its inputs from the **top level of the Cirrus process payload**,
 not from `payload['process']['tasks']['sentinel-2-l2a-to-stac']` (it reads no
@@ -77,6 +78,16 @@ task-scoped config keys — that table is empty, as in the legacy task):
 The collection each Item is assigned to is resolved from
 `payload['process']['upload_options']['collections']` (a map of collection id →
 JSONPath expression, first match wins), per the standard Cirrus convention.
+
+### Environment Variables
+
+| Variable              | Default                                          | Description |
+| --------------------- | ------------------------------------------------ | ----------- |
+| `STAC_API_URL`        | `https://earth-search.aws.element84.com/v1`      | STAC API queried by the `is_newer_than_existing` gate. |
+| `AWS_DEFAULT_REGION`  | (none — required)                                | AWS region for the S3 reads/writes (`us-west-2` for the public RODA bucket). Required for any run that touches S3. |
+| `CIRRUS_LOG_LEVEL`    | `WARN`                                            | Root log level. `stactools`/`botocore`/`rasterio` loggers are quieted regardless. |
+| `BIGTIFF`             | `IF_SAFER`                                         | Passed through to the GDAL COG driver during COG creation. |
+| `GDAL_TIFF_INTERNAL_MASK` | `True`                                        | Passed through to the GDAL COG driver during COG creation. |
 
 ## Testing
 
@@ -151,6 +162,12 @@ This will recreate the fixture. `git diff` can be used to examine what has
 changed.
 
 ## Local Dockerized Lambda Testing
+
+> **Note:** The `Dockerfile` currently does not build. It references
+> `ghcr.io/lambgeo/lambda-gdal:3.8-python3.12`, which does not exist — the
+> lambgeo project's GDAL 3.8 images top out at Python 3.11. A base image
+> for Python 3.12 needs to be identified before Docker-based testing is
+> possible.
 
 1. Copy `.env.example` to `.env` and fill in your AWS credentials.
 2. `docker-compose up -d` will build and launch the local Lambda server on port 8080.
