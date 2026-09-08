@@ -1,27 +1,17 @@
-#Currently doens't work due to the python 3.12 requirement
 FROM ghcr.io/astral-sh/uv:0.6.6 AS uv
 
-FROM ghcr.io/lambgeo/lambda-gdal:3.8-python3.12 as gdal
+FROM public.ecr.aws/lambda/python:3.12 AS builder
 
-FROM public.ecr.aws/lambda/python:3.12 as builder
-
-# Bring C libs from lambgeo/lambda-gdal image
-COPY --from=gdal /opt/lib/ ${LAMBDA_TASK_ROOT}/lib/
-COPY --from=gdal /opt/include/ ${LAMBDA_TASK_ROOT}/include/
-COPY --from=gdal /opt/share/ ${LAMBDA_TASK_ROOT}/share/
-COPY --from=gdal /opt/bin/ ${LAMBDA_TASK_ROOT}/bin/
-
-ENV \
-  GDAL_DATA=${LAMBDA_TASK_ROOT}/share/gdal \
-  PROJ_LIB=${LAMBDA_TASK_ROOT}/share/proj \
-  GDAL_CONFIG=${LAMBDA_TASK_ROOT}/bin/gdal-config \
-  GEOS_CONFIG=${LAMBDA_TASK_ROOT}/bin/geos-config \
-  PATH=${LAMBDA_TASK_ROOT}/bin:$PATH
-
-RUN yum update -y && \
-  yum install -y git libxml2-devel libxslt-devel python-devel gcc && \
-  yum clean all && \
-  rm -rf /var/cache/yum /var/lib/yum/history
+# No system GDAL needed: the pinned rasterio (1.5.x) and pyproj (3.7.x) wheels are
+# manylinux_2_28 and bundle their own GDAL/PROJ/GEOS. The Lambda base is Amazon
+# Linux 2023 (glibc 2.34), which satisfies manylinux_2_28, so the wheels install
+# and run as-is. `task.py` uses rasterio only (no osgeo bindings), so there is
+# nothing that needs a system libgdal. `git` is required because pystac is a
+# git dependency (see [tool.uv.sources] in pyproject.toml).
+RUN dnf update -y && \
+  dnf install -y git && \
+  dnf clean all && \
+  rm -rf /var/cache/dnf
 
 # Enable bytecode compilation, to improve cold-start performance.
 ENV UV_COMPILE_BYTECODE=1
@@ -32,7 +22,7 @@ ENV UV_NO_INSTALLER_METADATA=1
 # Enable copy mode to support bind mount caching.
 ENV UV_LINK_MODE=copy
 
-# Install directly from uv.lock into the Lambda task root. --frozen means uv reads
+# Install directly from uv.lock into the Lambda task root. uv export --frozen reads
 # exact versions from uv.lock without regenerating it; dev dependencies are excluded
 # because they are not part of [project.dependencies]. The Docker layer cache is only
 # invalidated when pyproject.toml or uv.lock change; source changes land via the
@@ -43,7 +33,8 @@ RUN --mount=from=uv,source=/uv,target=/bin/uv \
     --mount=type=bind,source=README.md,target=README.md \
     --mount=type=bind,source=src,target=src \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv pip install --frozen --no-editable --target "${LAMBDA_TASK_ROOT}" .
+    uv export --frozen --no-dev | \
+    uv pip install -r /dev/stdin --target "${LAMBDA_TASK_ROOT}"
 
 
 FROM public.ecr.aws/lambda/python:3.12

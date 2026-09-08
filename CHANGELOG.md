@@ -65,7 +65,16 @@ task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline. See
 - Switched to dot-delimited CalVer and added a Versioning section to the README.
 - **Dockerfile/compose**: Python 3.12 base images, single `uv pip install
   --frozen` step (reads `uv.lock` directly, no intermediate `requirements.txt`),
-  and `linux/amd64` platform pinning for Apple Silicon.
+  and `linux/amd64` platform pinning for Apple Silicon. Dropped the
+  `ghcr.io/lambgeo/lambda-gdal` build stage and its `GDAL_DATA`/`PROJ_LIB`/
+  `GDAL_CONFIG`/`GEOS_CONFIG` env plumbing: the pinned `rasterio` (1.5.x) and
+  `pyproj` (3.7.x) wheels are `manylinux_2_28` and bundle their own GDAL/PROJ,
+  which the Amazon Linux 2023 base (glibc 2.34) satisfies — removing a GDAL
+  3.8-vs-wheel version conflict and the dependency on a Python 3.12 lambgeo tag
+  that blocked the build (build deps trimmed to just `git` for the pystac git
+  dependency). Fixed the compose handler string to
+  `sentinel_2_l2a_to_stac.task.lambda_handler` (was `task.handler`, a
+  non-existent module/function) so it matches the Dockerfile `CMD`.
 
 ## [v2025.03.12]
 
