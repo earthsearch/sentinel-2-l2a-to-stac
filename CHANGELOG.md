@@ -9,6 +9,33 @@ used by this project.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced `stactools~=0.5.3` and `stactools-sentinel2==0.8.0` with a
+  self-contained `metadata.py` (vendored + pruned granule/S3 path). The public
+  interface is unchanged: `create_item(workdir)` returns a `pystac.Item`.
+  `antimeridian`, `lxml`, and `pyproj` are now direct dependencies (they were
+  previously transitive through stactools).
+- `metadata.py` now emits STAC 1.1.0-native `bands` on every asset directly,
+  using `pystac.Band.from_dict(...)` with merged `eo:`/`raster:` prefixed fields.
+  The post-hoc `upgrade_item_to_stac_1_1` / `_consolidate_bands` fixups in
+  `task.py` are removed.
+- `Asset.type` is used throughout instead of the old `media_type=` kwarg; the
+  `_normalize_asset_media_types` shim is removed.
+- Asset owners are set inside `create_item` at construction time; the
+  `_set_asset_owners` call is removed from `update_item` (still present in
+  `make_cogs_for_item` and `add_fileinfo_to_local_assets` where stac-asset
+  download can reset ownership).
+- The `pystac.link.HREF` monkeypatch (only needed for stactools compatibility) is
+  removed. The `Asset.media_type` alias for stac-asset compatibility is retained
+  and marked `# SHIM(pystac-2.0)` for easy discovery when stac-asset is updated.
+- EO and raster extension schema URIs are bumped to v2.0.0 inside `create_item`
+  rather than as a late post-processing step.
+- SCL classification classes are no longer emitted (they were always scrubbed by
+  `update_item`); the scrub block is removed.
+- `eo:snow_cover` is no longer set on the item (it was always deleted by
+  `update_item`); the corresponding delete is removed.
+
 ## [v2026.09.03]
 
 First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus

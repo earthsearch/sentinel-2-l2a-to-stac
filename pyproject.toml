@@ -15,7 +15,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
+    "antimeridian>=0.4.8",
     "boto3-utils>=0.4.2",
+    "lxml>=6.0",
     "multiformats~=0.3.1",
     "numpy>=2.4.6",
     "pillow~=12.0",
@@ -23,13 +25,12 @@ dependencies = [
     # per CLAUDE.md — never a floating @main. This is the dev build that carries
     # the native core `bands` API (Asset.bands / Band); the source override lives
     # in [tool.uv.sources] below. Bump the SHA deliberately and re-verify.
+    "pyproj>=3.7",
     "pystac",
     "rasterio~=1.4",
     "requests>=2.34.2",
     "returns~=0.29",
     "stactask>=0.7.0",
-    "stactools~=0.5.3",
-    "stactools-sentinel2==0.8.0",
 ]
 
 [tool.uv.sources]
@@ -48,7 +49,7 @@ warn_unused_ignores = true
 # typing info, so under --strict mypy would emit import-untyped; scope the
 # suppression to just these modules rather than weakening strictness globally.
 [[tool.mypy.overrides]]
-module = ["boto3utils.*", "botocore.*", "deepdiff.*", "lxml.*", "multiformats.*", "numpy.*", "rasterio.*", "shapely.*", "stactools.*"]
+module = ["boto3utils.*", "botocore.*", "deepdiff.*", "lxml.*", "multiformats.*", "numpy.*", "rasterio.*", "shapely.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -69,10 +70,10 @@ filterwarnings = [
     # Rasterio internally uses the `*` operator for Affine matrix multiplication;
     # suppress the PendingDeprecationWarning it emits until rasterio fixes this.
     "ignore::PendingDeprecationWarning:rasterio.*",
-    # antimeridian.FixWindingWarning fires when stactools-sentinel2 passes a
-    # clockwise exterior ring; it auto-fixes the winding, but the warning is
-    # noise from a third-party call we don't control.  Matched by message text
-    # + module so our own code can still raise warnings freely.
+    # antimeridian.FixWindingWarning fires when metadata.py passes a clockwise
+    # exterior ring; it auto-fixes the winding, but the warning is noise from a
+    # third-party call we don't control. Matched by message text + module so
+    # our own code can still raise warnings freely.
     "ignore:The exterior ring::antimeridian.*",
     # pystac raises this when any caller sets link.target = <str>; the warning
     # is issued from pystac.link itself, so the module filter must match there.

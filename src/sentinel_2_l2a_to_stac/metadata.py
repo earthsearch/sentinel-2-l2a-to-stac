@@ -27,8 +27,8 @@
 # - L1C image paths removed; L2A-only constants kept
 # - MgrsExtension vendored inline; stactools.core.projection.transform_from_bbox
 #   inlined as a few lines; stactools.core.io.xml.XmlElement vendored inline
-# - pystac 1.x extension API preserved for initial parity; will migrate to
-#   pystac 2.0 native API in a follow-on step
+# - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
+#   per-asset eo:bands / raster:bands arrays eliminated
 
 from __future__ import annotations
 
@@ -53,11 +53,11 @@ from lxml import etree
 from lxml.etree import _Element as lxmlElement
 from pyproj import Transformer
 from pystac.extensions.base import ExtensionManagementMixin, PropertiesExtension
-from pystac.extensions.classification import Classification, ClassificationExtension
-from pystac.extensions.eo import Band, EOExtension
+from pystac.extensions.eo import Band as EOBand
+from pystac.extensions.eo import EOExtension
 from pystac.extensions.grid import GridExtension
 from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import DataType, RasterBand, RasterExtension
+from pystac.extensions.raster import RasterExtension
 from pystac.extensions.sat import OrbitState, SatExtension
 from pystac.extensions.view import SCHEMA_URI as VIEW_EXT_URI
 from pystac.extensions.view import ViewExtension
@@ -105,80 +105,80 @@ TILEINFO_METADATA_ASSET_KEY: Final[str] = "tileinfo_metadata"
 DEFAULT_TOLERANCE: Final[float] = 0.01
 COORD_ROUNDING: Final[int] = 6
 
-SENTINEL_BANDS: Final[dict[str, Band]] = {
-    "coastal": Band.create(
+SENTINEL_BANDS: Final[dict[str, EOBand]] = {
+    "coastal": EOBand.create(
         name="B01",
         common_name="coastal",
         center_wavelength=0.443,
         full_width_half_max=0.027,
     ),
-    "blue": Band.create(
+    "blue": EOBand.create(
         name="B02",
         common_name="blue",
         center_wavelength=0.490,
         full_width_half_max=0.098,
     ),
-    "green": Band.create(
+    "green": EOBand.create(
         name="B03",
         common_name="green",
         center_wavelength=0.560,
         full_width_half_max=0.045,
     ),
-    "red": Band.create(
+    "red": EOBand.create(
         name="B04",
         common_name="red",
         center_wavelength=0.665,
         full_width_half_max=0.038,
     ),
-    "rededge1": Band.create(
+    "rededge1": EOBand.create(
         name="B05",
         common_name="rededge",
         center_wavelength=0.704,
         full_width_half_max=0.019,
     ),
-    "rededge2": Band.create(
+    "rededge2": EOBand.create(
         name="B06",
         common_name="rededge",
         center_wavelength=0.740,
         full_width_half_max=0.018,
     ),
-    "rededge3": Band.create(
+    "rededge3": EOBand.create(
         name="B07",
         common_name="rededge",
         center_wavelength=0.783,
         full_width_half_max=0.028,
     ),
-    "nir": Band.create(
+    "nir": EOBand.create(
         name="B08",
         common_name="nir",
         center_wavelength=0.842,
         full_width_half_max=0.145,
     ),
-    "nir08": Band.create(
+    "nir08": EOBand.create(
         name="B8A",
         common_name="nir08",
         center_wavelength=0.865,
         full_width_half_max=0.033,
     ),
-    "nir09": Band.create(
+    "nir09": EOBand.create(
         name="B09",
         common_name="nir09",
         center_wavelength=0.945,
         full_width_half_max=0.026,
     ),
-    "cirrus": Band.create(
+    "cirrus": EOBand.create(
         name="B10",
         common_name="cirrus",
         center_wavelength=1.3735,
         full_width_half_max=0.075,
     ),
-    "swir16": Band.create(
+    "swir16": EOBand.create(
         name="B11",
         common_name="swir16",
         center_wavelength=1.610,
         full_width_half_max=0.143,
     ),
-    "swir22": Band.create(
+    "swir22": EOBand.create(
         name="B12",
         common_name="swir22",
         center_wavelength=2.190,
@@ -298,6 +298,61 @@ L1C_IMAGE_PATHS: Final[list[str]] = [
 ]
 
 DEFAULT_SCALE: Final[float] = 0.0001
+
+# EO and raster extension URIs bumped to v2.0.0 to match STAC 1.1.0 `bands` shape.
+_EO_EXT_V2: Final[str] = "https://stac-extensions.github.io/eo/v2.0.0/schema.json"
+_RASTER_EXT_V2: Final[str] = (
+    "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
+)
+
+# Rename maps: old eo/raster band dict keys → STAC 1.1.0 merged `bands` keys.
+# EOBand.to_dict() uses the old unprefixed names; pystac.Band.from_dict() expects
+# the 1.1 `eo:`/`raster:` prefixed names.
+_EO_BAND_RENAME: Final[dict[str, str]] = {
+    "name": "name",
+    "common_name": "eo:common_name",
+    "center_wavelength": "eo:center_wavelength",
+    "full_width_half_max": "eo:full_width_half_max",
+    "solar_illumination": "eo:solar_illumination",
+}
+_RASTER_BAND_RENAME: Final[dict[str, str]] = {
+    "data_type": "data_type",
+    "nodata": "nodata",
+    "unit": "unit",
+    "statistics": "statistics",
+    "spatial_resolution": "raster:spatial_resolution",
+    "scale": "raster:scale",
+    "offset": "raster:offset",
+    "sampling": "raster:sampling",
+    "bits_per_sample": "raster:bits_per_sample",
+}
+
+
+def _native_band(
+    eo: dict[str, Any] | None,
+    raster: dict[str, Any] | None,
+) -> pystac.Band:
+    """Merge an EOBand dict + raster-fields dict into a STAC 1.1 pystac.Band."""
+    merged: dict[str, Any] = {}
+    for src, rename in ((eo, _EO_BAND_RENAME), (raster, _RASTER_BAND_RENAME)):
+        if src:
+            for k, v in src.items():
+                merged[rename.get(k, k)] = v
+    return pystac.Band.from_dict(merged)
+
+
+def _bump_band_extension_versions(item: pystac.Item) -> None:
+    """Replace eo/raster extension URIs with the v2.0.0 schemas that define the
+    STAC 1.1.0 `bands` field shape."""
+    item.stac_extensions = [
+        _EO_EXT_V2
+        if "/eo/" in ext
+        else _RASTER_EXT_V2
+        if "/raster/" in ext
+        else ext
+        for ext in (item.stac_extensions or [])
+    ]
+
 
 # ---------------------------------------------------------------------------
 # From stactools.core.projection — only transform_from_bbox is needed
@@ -656,7 +711,7 @@ class GranuleMetadata:
 
     def create_asset(self) -> tuple[str, pystac.Asset]:
         asset = pystac.Asset(
-            href=self.href, media_type=pystac.MediaType.XML, roles=["metadata"]
+            href=self.href, type=pystac.MediaType.XML, roles=["metadata"]
         )
         return GRANULE_METADATA_ASSET_KEY, asset
 
@@ -871,7 +926,7 @@ class ProductMetadata:
 
     def create_asset(self) -> tuple[str, pystac.Asset]:
         asset = pystac.Asset(
-            href=self.href, media_type=pystac.MediaType.XML, roles=["metadata"]
+            href=self.href, type=pystac.MediaType.XML, roles=["metadata"]
         )
         return PRODUCT_METADATA_ASSET_KEY, asset
 
@@ -922,7 +977,7 @@ class TileInfoMetadata:
 
     def create_asset(self) -> tuple[str, pystac.Asset]:
         asset = pystac.Asset(
-            href=self.href, media_type=pystac.MediaType.JSON, roles=["metadata"]
+            href=self.href, type=pystac.MediaType.JSON, roles=["metadata"]
         )
         return TILEINFO_METADATA_ASSET_KEY, asset
 
@@ -1049,7 +1104,7 @@ _IS_TCI_PATTERN: Final[Pattern[str]] = re.compile(r"[_/]TCI")
 _IS_PVI_PATTERN: Final[Pattern[str]] = re.compile(r"[_/]PVI")
 _BAND_ID_PATTERN: Final[Pattern[str]] = re.compile(r"[_/](B\d[A\d])")
 
-_RGB_BANDS: Final[list[Band]] = [
+_RGB_BANDS: Final[list[EOBand]] = [
     SENTINEL_BANDS["red"],
     SENTINEL_BANDS["green"],
     SENTINEL_BANDS["blue"],
@@ -1084,33 +1139,31 @@ def _offset_for_pb(processing_baseline: str) -> float:
     return 0 if processing_baseline < "04.00" else -0.1
 
 
-def _raster_bands(
+def _raster_band_fields(
     boa_add_offsets: Optional[dict[str, int]],
     processing_baseline: str,
     band_id: str,
     resolution: float,
-) -> list[RasterBand]:
+) -> dict[str, Any]:
     offset = (
         round(boa_add_offsets[band_id] * DEFAULT_SCALE, 6)
         if boa_add_offsets
         else _offset_for_pb(processing_baseline)
     )
-    return [
-        RasterBand.create(
-            nodata=0,
-            spatial_resolution=resolution,
-            data_type=DataType.UINT16,
-            scale=DEFAULT_SCALE,
-            offset=offset,
-        )
-    ]
+    return {
+        "nodata": 0,
+        "spatial_resolution": resolution,
+        "data_type": "uint16",
+        "scale": DEFAULT_SCALE,
+        "offset": offset,
+    }
 
 
 def _highest_asset_res(band_id: str) -> int:
     return UNSUFFIXED_BAND_RESOLUTION[BANDS_TO_ASSET_NAME[band_id]]
 
 
-def _band_from_band_id(band_id: str) -> Band:
+def _band_from_band_id(band_id: str) -> EOBand:
     return SENTINEL_BANDS[BANDS_TO_ASSET_NAME[band_id]]
 
 
@@ -1142,7 +1195,6 @@ def _set_asset_properties(
 
 
 def _image_asset_from_href(
-    item: pystac.Item,
     asset_href: str,
     resolution_to_shape: dict[int, tuple[int, int]],
     proj_bbox: list[float],
@@ -1178,15 +1230,19 @@ def _image_asset_from_href(
 
     shape = resolution_to_shape[int(resolution)]
 
+    _raster_uint8 = {
+        "nodata": 0, "spatial_resolution": resolution, "data_type": "uint8"
+    }
+
     if "_PVI" in asset_href:
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="True color preview",
             roles=["overview"],
         )
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        EOExtension.ext(asset).bands = _RGB_BANDS
+        asset.bands = [_native_band(b.to_dict(), None) for b in _RGB_BANDS]
         return "preview", asset
 
     band_id_search = _BAND_ID_PATTERN.search(asset_href)
@@ -1207,166 +1263,108 @@ def _image_asset_from_href(
 
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title=f"{ASSET_TO_TITLE[asset_id.split('_')[0]]} - {asset_res}m",
             roles=["data", "reflectance"],
         )
-
-        EOExtension.ext(asset).bands = [_band_from_band_id(band_id)]
+        asset.bands = [
+            _native_band(
+                _band_from_band_id(band_id).to_dict(),
+                _raster_band_fields(
+                    boa_add_offsets, processing_baseline, band_id, resolution
+                ),
+            )
+        ]
         _set_asset_properties(asset, resolution, shape, proj_bbox, band_gsd)
-        RasterExtension.ext(asset).bands = _raster_bands(
-            boa_add_offsets, processing_baseline, band_id, resolution
-        )
 
     elif _TCI_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="True color image",
             roles=["visual"],
         )
-        EOExtension.ext(asset).bands = _RGB_BANDS
-        RasterExtension.ext(asset).bands = [
-            RasterBand.create(
-                nodata=0, spatial_resolution=resolution, data_type=DataType.UINT8
-            ),
-            RasterBand.create(
-                nodata=0, spatial_resolution=resolution, data_type=DataType.UINT8
-            ),
-            RasterBand.create(
-                nodata=0, spatial_resolution=resolution, data_type=DataType.UINT8
-            ),
-        ]
+        asset.bands = [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS]
         asset_id = f"visual_{maybe_res}m" if maybe_res and maybe_res != 10 else "visual"
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
 
     elif _AOT_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="Aerosol optical thickness (AOT)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "aot")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        RasterExtension.ext(asset).bands = [
-            RasterBand.create(
-                nodata=0,
-                spatial_resolution=resolution,
-                data_type=DataType.UINT16,
-                scale=0.001,
-                offset=0,
+        asset.bands = [
+            _native_band(
+                None,
+                {
+                    "nodata": 0,
+                    "spatial_resolution": resolution,
+                    "data_type": "uint16",
+                    "scale": 0.001,
+                    "offset": 0,
+                },
             )
         ]
 
     elif _WVP_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="Water Vapour (WVP)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "wvp")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        RasterExtension.ext(asset).bands = [
-            RasterBand.create(
-                nodata=0,
-                spatial_resolution=resolution,
-                data_type=DataType.UINT16,
-                unit="cm",
-                scale=0.001,
-                offset=0,
+        asset.bands = [
+            _native_band(
+                None,
+                {
+                    "nodata": 0,
+                    "spatial_resolution": resolution,
+                    "data_type": "uint16",
+                    "unit": "cm",
+                    "scale": 0.001,
+                    "offset": 0,
+                },
             )
         ]
 
     elif _SCL_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="Scene classification map (SCL)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "scl")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-
-        band = RasterBand.create(
-            nodata=0,
-            spatial_resolution=resolution,
-            data_type=DataType.UINT8,
-        )
-        RasterExtension.ext(asset).bands = [band]
-
-        ClassificationExtension.ext(item, add_if_missing=True)
-        ClassificationExtension.ext(band).classes = [
-            Classification.create(
-                0, description="No Data (Missing data)", name="no_data"
-            ),
-            Classification.create(
-                1,
-                description="Saturated or defective pixel",
-                name="saturated_or_defective",
-            ),
-            Classification.create(
-                2,
-                description=(
-                    "Topographic casted shadows (formerly 'Dark features/Shadows')"
-                ),
-                name="dark_area_pixels",
-            ),
-            Classification.create(
-                3, description="Cloud shadows", name="cloud_shadows"
-            ),
-            Classification.create(4, description="Vegitation", name="vegetation"),
-            Classification.create(
-                5, description="Not-vegetated", name="not_vegetated"
-            ),
-            Classification.create(6, description="Water", name="water"),
-            Classification.create(7, description="Unclassified", name="unclassified"),
-            Classification.create(
-                8,
-                description="Cloud - medium probability",
-                name="cloud_medium_probability",
-            ),
-            Classification.create(
-                9,
-                description="Cloud - high probability",
-                name="cloud_high_probability",
-            ),
-            Classification.create(
-                10, description="Thin cirrus", name="thin_cirrus"
-            ),
-            Classification.create(11, description="Snow or ice", name="snow"),
-        ]
+        asset.bands = [_native_band(None, _raster_uint8)]
 
     elif _CLD_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="Cloud Probabilities",
             roles=["data", "cloud"],
         )
         asset_id = _mk_asset_id(maybe_res, "cloud")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        RasterExtension.ext(asset).bands = [
-            RasterBand.create(
-                nodata=0, spatial_resolution=resolution, data_type=DataType.UINT8
-            )
-        ]
+        asset.bands = [_native_band(None, _raster_uint8)]
 
     elif _SNW_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            media_type=asset_media_type,
+            type=asset_media_type,
             title="Snow Probabilities",
             roles=["data", "snow-ice"],
         )
         asset_id = _mk_asset_id(maybe_res, "snow")
         _set_asset_properties(asset, resolution, shape, proj_bbox)
-        RasterExtension.ext(asset).bands = [
-            RasterBand.create(
-                nodata=0, spatial_resolution=resolution, data_type=DataType.UINT8
-            )
-        ]
+        asset.bands = [_native_band(None, _raster_uint8)]
 
     else:
         raise ValueError(f"Unexpected asset: {asset_href}")
@@ -1515,7 +1513,6 @@ def create_item(
 
     eo = EOExtension.ext(item, add_if_missing=True)
     eo.cloud_cover = metadata.cloudiness_percentage
-    eo.snow_cover = metadata.snow_ice_percentage
     RasterExtension.add_to(item)
 
     if metadata.orbit_state or metadata.relative_orbit:
@@ -1585,7 +1582,6 @@ def create_item(
     image_assets = dict(
         [
             _image_asset_from_href(
-                item=item,
                 asset_href=os.path.join(granule_href, image_path),
                 resolution_to_shape=metadata.resolution_to_shape,
                 proj_bbox=metadata.proj_bbox,
@@ -1599,8 +1595,11 @@ def create_item(
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):
         assert key not in item.assets
-        item.add_asset(key, asset)
+        item.assets[key] = asset
+        asset.set_owner(item)
 
     item.links.append(SENTINEL_LICENSE)
+
+    _bump_band_extension_versions(item)
 
     return item
