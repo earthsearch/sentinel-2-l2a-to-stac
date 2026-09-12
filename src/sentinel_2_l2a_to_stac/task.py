@@ -41,12 +41,12 @@ pystac.link.HREF = pystac.utils.HREF  # type: ignore[attr-defined]
 if not hasattr(Asset, "media_type"):
     Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
 
-from stactools.sentinel2.stac import create_item  # noqa: E402
+from sentinel_2_l2a_to_stac.metadata import create_item  # noqa: E402
 
 # stactask 0.7.0 already prefixes lines with payload id, so the legacy
 # logging change was deliberately left off.
 logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
-for _noisy_logger in ("stactools", "botocore", "rasterio"):
+for _noisy_logger in ("botocore", "rasterio"):
     logging.getLogger(_noisy_logger).propagate = False
 
 s3_client = s3(requester_pays=False)
