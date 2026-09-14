@@ -315,14 +315,23 @@ _EO_BAND_RENAME: Final[dict[str, str]] = {
     "full_width_half_max": "eo:full_width_half_max",
     "solar_illumination": "eo:solar_illumination",
 }
+# Keys `bands[*]` are addressed by once merged onto a `pystac.Band` (via
+# _RASTER_BAND_RENAME below). task.py reads these back out of
+# Band.extra_fields, so they're named here rather than duplicated as string
+# literals in both files.
+RASTER_NODATA_KEY: Final[str] = "nodata"
+RASTER_SCALE_KEY: Final[str] = "raster:scale"
+RASTER_OFFSET_KEY: Final[str] = "raster:offset"
+RASTER_SPATIAL_RESOLUTION_KEY: Final[str] = "raster:spatial_resolution"
+
 _RASTER_BAND_RENAME: Final[dict[str, str]] = {
     "data_type": "data_type",
-    "nodata": "nodata",
+    "nodata": RASTER_NODATA_KEY,
     "unit": "unit",
     "statistics": "statistics",
-    "spatial_resolution": "raster:spatial_resolution",
-    "scale": "raster:scale",
-    "offset": "raster:offset",
+    "spatial_resolution": RASTER_SPATIAL_RESOLUTION_KEY,
+    "scale": RASTER_SCALE_KEY,
+    "offset": RASTER_OFFSET_KEY,
     "sampling": "raster:sampling",
     "bits_per_sample": "raster:bits_per_sample",
 }
@@ -503,22 +512,26 @@ class GranuleMetadata:
         self.href = href
         self._root = XmlElement.from_file(href)
 
-        tile_id = self._root.find_text("n1:General_Info/TILE_ID")
-        if tile_id is None:
-            raise GranuleMetadataError(
+        self.tile_id = self._root.find_text_or_throw(
+            "n1:General_Info/TILE_ID",
+            lambda _: GranuleMetadataError(
                 f"Cannot find granule tile_id granule metadata at {self.href}"
-            )
-        self.tile_id = tile_id
+            ),
+        )
 
-        geocoding_node = self._root.find("n1:Geometric_Info/Tile_Geocoding")
-        if geocoding_node is None:
-            raise GranuleMetadataError(f"Cannot find geocoding node in {self.href}")
-        self._geocoding_node = geocoding_node
+        self._geocoding_node = self._root.find_or_throw(
+            "n1:Geometric_Info/Tile_Geocoding",
+            lambda _: GranuleMetadataError(
+                f"Cannot find geocoding node in {self.href}"
+            ),
+        )
 
-        tile_angles_node = self._root.find("n1:Geometric_Info/Tile_Angles")
-        if tile_angles_node is None:
-            raise GranuleMetadataError(f"Cannot find tile angles node in {self.href}")
-        self._tile_angles_node = tile_angles_node
+        self._tile_angles_node = self._root.find_or_throw(
+            "n1:Geometric_Info/Tile_Angles",
+            lambda _: GranuleMetadataError(
+                f"Cannot find tile angles node in {self.href}"
+            ),
+        )
 
         self.viewing_angles = ViewingAngle.from_nodes(
             self._tile_angles_node.findall(
@@ -526,8 +539,11 @@ class GranuleMetadata:
             )
         )
 
-        self._image_content_node = self._root.find(
-            "n1:Quality_Indicators_Info/Image_Content_QI"
+        self._image_content_node = self._root.find_or_throw(
+            "n1:Quality_Indicators_Info/Image_Content_QI",
+            lambda _: GranuleMetadataError(
+                f"Cannot find Image_Content_QI node in {self.href}"
+            ),
         )
 
         self.resolution_to_shape: dict[int, tuple[int, int]] = {}
@@ -573,8 +589,6 @@ class GranuleMetadata:
 
     @property
     def cloudiness_percentage(self) -> Optional[float]:
-        if self._image_content_node is None:
-            return None
         return map_opt(
             float,
             self._image_content_node.find_text("CLOUDY_PIXEL_PERCENTAGE"),
@@ -582,8 +596,6 @@ class GranuleMetadata:
 
     @property
     def snow_ice_percentage(self) -> Optional[float]:
-        if self._image_content_node is None:
-            return None
         return map_opt(
             float,
             self._image_content_node.find_text("SNOW_ICE_PERCENTAGE"),
@@ -605,8 +617,6 @@ class GranuleMetadata:
 
     @property
     def metadata_dict(self) -> dict[str, Any]:
-        if self._image_content_node is None:
-            return {}
         icn = self._image_content_node
         properties: dict[str, Any] = {
             f"{s2_prefix}:tile_id": self.tile_id,
@@ -730,63 +740,59 @@ class ProductMetadata:
         self.href = href
         self._root = XmlElement.from_file(href)
 
-        product_info_node = self._root.find("n1:General_Info/Product_Info")
-        if product_info_node is None:
-            raise ProductMetadataError(
+        self.product_info_node = self._root.find_or_throw(
+            "n1:General_Info/Product_Info",
+            lambda _: ProductMetadataError(
                 f"Cannot find product info node for product metadata at {self.href}"
-            )
-        self.product_info_node = product_info_node
+            ),
+        )
 
-        datatake_node = self.product_info_node.find("Datatake")
-        if datatake_node is None:
-            raise ProductMetadataError(
+        self.datatake_node = self.product_info_node.find_or_throw(
+            "Datatake",
+            lambda _: ProductMetadataError(
                 f"Cannot find Datatake node in product metadata at {self.href}"
-            )
-        self.datatake_node = datatake_node
-
-        granule_node = self.product_info_node.find(
-            "Product_Organisation/Granule_List/Granule"
+            ),
         )
-        if granule_node is None:
-            raise ProductMetadataError(
+
+        self.granule_node = self.product_info_node.find_or_throw(
+            "Product_Organisation/Granule_List/Granule",
+            lambda _: ProductMetadataError(
                 f"Cannot find granule node in product metadata at {self.href}"
-            )
-        self.granule_node = granule_node
-
-        reflectance_conversion_node = self._root.find(
-            "n1:General_Info/Product_Image_Characteristics/Reflectance_Conversion"
+            ),
         )
-        if reflectance_conversion_node is None:
-            raise ProductMetadataError(
+
+        self.reflectance_conversion_node = self._root.find_or_throw(
+            "n1:General_Info/Product_Image_Characteristics/Reflectance_Conversion",
+            lambda _: ProductMetadataError(
                 "Could not find reflectance conversion node in product metadata at "
                 f"{self.href}"
-            )
-        self.reflectance_conversion_node = reflectance_conversion_node
+            ),
+        )
 
-        qa_node = self._root.find("n1:Quality_Indicators_Info")
-        if qa_node is None:
-            raise ProductMetadataError(
+        self.qa_node = self._root.find_or_throw(
+            "n1:Quality_Indicators_Info",
+            lambda _: ProductMetadataError(
                 f"Could not find QA node in product metadata at {self.href}"
-            )
-        self.qa_node = qa_node
+            ),
+        )
 
         self.boa_add_offset_values_list_node = self._root.find(
             "n1:General_Info/Product_Image_Characteristics/BOA_ADD_OFFSET_VALUES_LIST"
         )
 
         def _get_geometries() -> tuple[Any, Any]:
-            geometric_info = self._root.find("n1:Geometric_Info")
-            if geometric_info is None:
-                raise ProductMetadataError(
+            geometric_info = self._root.find_or_throw(
+                "n1:Geometric_Info",
+                lambda _: ProductMetadataError(
                     f"Cannot find geometric info in product metadata at {self.href}"
-                )
-            footprint_text = geometric_info.find_text(
-                "Product_Footprint/Product_Footprint/Global_Footprint/EXT_POS_LIST"
+                ),
             )
-            if footprint_text is None:
-                raise ProductMetadataError(
+            footprint_text = geometric_info.find_text_or_throw(
+                "Product_Footprint/Product_Footprint/Global_Footprint/EXT_POS_LIST",
+                lambda _: ProductMetadataError(
                     f"Cannot parse footprint from product metadata at {self.href}"
-                )
+                ),
+            )
             footprint_coords = _fix_z_values(footprint_text.split(" "))
             footprint_points = [
                 p[::-1]
@@ -831,22 +837,24 @@ class ProductMetadata:
 
     @property
     def product_id(self) -> str:
-        result = self.product_info_node.find_text("PRODUCT_URI")
-        if result is None:
-            raise ValueError(
+        return self.product_info_node.find_text_or_throw(
+            "PRODUCT_URI",
+            lambda _: ValueError(
                 f"Cannot determine product ID using product metadata at {self.href}"
-            )
-        return result
+            ),
+        )
 
     @property
     def datetime(self) -> datetime:
-        time = self.product_info_node.find_text("PRODUCT_START_TIME")
-        if time is None:
-            raise ValueError(
-                "Cannot determine product start time using product metadata "
-                f"at {self.href}"
+        return str_to_datetime(
+            self.product_info_node.find_text_or_throw(
+                "PRODUCT_START_TIME",
+                lambda _: ValueError(
+                    "Cannot determine product start time using product metadata "
+                    f"at {self.href}"
+                ),
             )
-        return str_to_datetime(time)
+        )
 
     @property
     def image_media_type(self) -> str:

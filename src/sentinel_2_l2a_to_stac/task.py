@@ -30,7 +30,13 @@ from stactask.utils import stac_jsonpath_match
 if not hasattr(Asset, "media_type"):
     Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
 
-from sentinel_2_l2a_to_stac.metadata import create_item
+from sentinel_2_l2a_to_stac.metadata import (
+    RASTER_NODATA_KEY,
+    RASTER_OFFSET_KEY,
+    RASTER_SCALE_KEY,
+    RASTER_SPATIAL_RESOLUTION_KEY,
+    create_item,
+)
 
 # stactask 0.7.0 already prefixes lines with payload id, so the legacy
 # logging change was deliberately left off.
@@ -633,11 +639,11 @@ def get_band_scales_offsets_nodatas_resolutions(
     scales, offsets, nodatas, resolutions = [], [], [], []
     for band in bands:
         ef = band.extra_fields
-        scales.append(ef.get("raster:scale") or 1)
-        offsets.append(ef.get("raster:offset") or 0)
-        nodata = ef.get("nodata")
+        scales.append(ef.get(RASTER_SCALE_KEY) or 1)
+        offsets.append(ef.get(RASTER_OFFSET_KEY) or 0)
+        nodata = ef.get(RASTER_NODATA_KEY)
         nodatas.append(float(nodata) if nodata is not None else None)
-        resolutions.append(ef.get("raster:spatial_resolution"))
+        resolutions.append(ef.get(RASTER_SPATIAL_RESOLUTION_KEY))
 
     return scales, offsets, nodatas, resolutions
 
