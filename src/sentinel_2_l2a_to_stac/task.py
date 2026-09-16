@@ -126,22 +126,12 @@ class Sentinel2ToStac(Task):
         if item.datetime is None:
             raise ValueError("Item datetime property cannot be None")
 
-        item.properties.pop("providers", None)
-        item.remove_links("license")
-
-        item.links.append(
-            Link(
-                rel=RelType.VIA,
-                href=f"{s3_path}/metadata.xml",
-                media_type=MediaType.XML,
-                title="Granule Metadata in Sinergize RODA Archive",
-            )
-        )
-
-        # Rewrite asset URLs to reference the RODA S3 bucket instead of the local
-        # workdir, except for the metadata assets, which point to the local files
-        # already downloaded for create_item(). Also strip proj:bbox and attach
-        # the storage ref to every asset.
+        # stactools writes workdir-relative hrefs when building the item. Rewrite
+        # them: metadata assets stay as local paths (uploaded to earthsearch later
+        # by upload_item_assets_to_s3); all other assets get RODA S3 hrefs. When
+        # create_cogs=True those RODA hrefs are transitional — they're overwritten
+        # again as each JP2 is downloaded, cogified, and uploaded to earthsearch.
+        # With create_cogs=False the RODA hrefs are the final hrefs in the output.
         for asset_name, asset in item.assets.items():
             if asset_name == "tileinfo_metadata":
                 asset.href = str(self.tileinfo_path)
@@ -152,14 +142,11 @@ class Sentinel2ToStac(Task):
             else:
                 asset.href = f"{s3_path}{asset.href.removeprefix(str(self._workdir))}"
 
-            # Remove unnecessary fields
-            asset.extra_fields.pop("proj:bbox", None)
-
         return item
 
     def is_newer_than_existing(self, item: Item) -> ResultE[bool]:
         stac_api_url = os.getenv(
-            "STAC_API_URL", "https://earth-search.aws.element84.com/v1"
+            "STAC_API_URL", "https://earth-search.aws.element84.com/v2"
         )
         existing_item_r = requests.get(
             f"{stac_api_url}/collections/{item.collection_id}/items/{item.id}",
@@ -430,7 +417,6 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding storage schemes")
         item = self.add_storage_schemes(item)
 
-        # Restore processing:software, stactask 0.7.0 no longer automatically calls it
         return [self.add_software_version_to_item(item.to_dict())]
 
 

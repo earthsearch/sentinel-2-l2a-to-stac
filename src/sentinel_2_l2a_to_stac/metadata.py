@@ -25,8 +25,7 @@
 # - stactools.core I/O (StacIO, ReadHrefModifier) replaced with direct local
 #   file reads; all hrefs in this task are local workdir paths
 # - L1C image paths removed; L2A-only constants kept
-# - MgrsExtension vendored inline; stactools.core.projection.transform_from_bbox
-#   inlined as a few lines; stactools.core.io.xml.XmlElement vendored inline
+# - stactools.core.projection.transform_from_bbox inlined as a few lines
 # - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
 #   per-asset eo:bands / raster:bands arrays eliminated
 
@@ -39,29 +38,25 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from functools import lru_cache
 from itertools import chain
 from pathlib import Path
 from re import Pattern
 from statistics import mean
-from typing import Any, Final, Optional, cast
+from typing import Any, Final, Optional
 
 import antimeridian
 import pystac
 import rasterio.transform
-from lxml import etree
-from lxml.etree import _Element as lxmlElement
 from pyproj import Transformer
-from pystac.extensions.base import ExtensionManagementMixin, PropertiesExtension
 from pystac.extensions.eo import Band as EOBand
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.grid import GridExtension
+from pystac.extensions.mgrs import MgrsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from pystac.extensions.sat import OrbitState, SatExtension
 from pystac.extensions.view import SCHEMA_URI as VIEW_EXT_URI
 from pystac.extensions.view import ViewExtension
-from pystac.link import Link
 from pystac.provider import ProviderRole
 from pystac.utils import map_opt, now_to_rfc3339_str, str_to_datetime
 from shapely import remove_repeated_points
@@ -70,6 +65,7 @@ from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry import shape as shapely_shape
 from shapely.ops import transform as shapely_transform
 from shapely.validation import make_valid
+from src.sentinel_2_l2a_to_stac.utils import XmlElement, ViewingAngle
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +78,6 @@ s2_prefix = SENTINEL2_PROPERTY_PREFIX
 
 SENTINEL2_EXTENSION_SCHEMA: Final[str] = (
     "https://stac-extensions.github.io/sentinel-2/v1.0.0/schema.json"
-)
-
-SENTINEL_LICENSE: Final[Link] = Link(
-    rel="license",
-    target="https://sentinel.esa.int/documents/247904/690755/Sentinel_Data_Legal_Notice",
 )
 
 SENTINEL_INSTRUMENTS: Final[list[str]] = ["msi"]
@@ -399,71 +390,6 @@ def _fix_z_values(coord_values: list[str]) -> list[float]:
 
 
 # ---------------------------------------------------------------------------
-# Inline: stactools.core.io.xml.XmlElement (local-file reads only)
-# ---------------------------------------------------------------------------
-
-
-class XmlElement:
-    def __init__(self, element: lxmlElement) -> None:
-        self.element = element
-
-    @lru_cache(maxsize=100)
-    def find(self, xpath: str) -> Optional["XmlElement"]:
-        node = self.element.find(xpath, self.element.nsmap)
-        return None if node is None else XmlElement(node)
-
-    def find_or_throw(
-        self, xpath: str, get_exception: Any
-    ) -> "XmlElement":
-        result = self.find(xpath)
-        if result is None:
-            raise get_exception(xpath)
-        return result
-
-    @lru_cache(maxsize=100)
-    def findall(self, xpath: str) -> list["XmlElement"]:
-        return [
-            XmlElement(e)
-            for e in self.element.findall(xpath, self.element.nsmap)
-        ]
-
-    @lru_cache(maxsize=100)
-    def find_text(self, xpath: str) -> Optional[str]:
-        node = self.find(xpath)
-        return None if node is None else node.text
-
-    def find_text_or_throw(self, xpath: str, get_exception: Any) -> str:
-        result = self.find_text(xpath)
-        if result is None:
-            raise get_exception(xpath)
-        return result
-
-    @lru_cache(maxsize=100)
-    def find_attr(self, attr: str, xpath: str) -> Optional[str]:
-        node = self.find(xpath)
-        return None if node is None else node.get_attr(attr)
-
-    @property
-    def text(self) -> Optional[str]:
-        if isinstance(self.element.text, str):
-            return self.element.text
-        elif isinstance(self.element.text, bytes):
-            return str(self.element.text, encoding="utf-8")
-        else:
-            assert self.element.text is None
-            return None
-
-    @lru_cache(maxsize=100)
-    def get_attr(self, attr: str) -> Optional[str]:
-        return cast(Optional[str], self.element.get(attr, None))
-
-    @classmethod
-    def from_file(cls, href: str) -> "XmlElement":
-        text = Path(href).read_text(encoding="utf-8")
-        return cls(etree.fromstring(bytes(text, encoding="utf-8")))
-
-
-# ---------------------------------------------------------------------------
 # GranuleMetadata (from stactools-sentinel2 granule_metadata.py)
 # ---------------------------------------------------------------------------
 
@@ -472,40 +398,6 @@ _BASELINE_PROCESSING: Final[Pattern[str]] = re.compile(r"_N(\d\d\.\d\d)")
 
 class GranuleMetadataError(Exception):
     pass
-
-
-@dataclass
-class ViewingAngle:
-    azimuth: float
-    zenith: float
-
-    @classmethod
-    def from_nodes(cls, nodes: list[XmlElement]) -> dict[str, "ViewingAngle"]:
-        angles: dict[str, ViewingAngle] = {}
-        for node in nodes:
-            band_id_str = node.get_attr("bandId")
-            if band_id_str is None:
-                raise ValueError("expected band id on viewing angle node")
-            band_id = int(band_id_str)
-            if band_id < 8:
-                band = f"B0{band_id + 1}"
-            elif band_id == 8:
-                band = "B8A"
-            else:
-                band = f"B{band_id:02}"
-            zenith = float(
-                node.find_text_or_throw(
-                    "ZENITH_ANGLE", lambda s: ValueError(f"missing ZENITH_ANGLE: {s}")
-                )
-            )
-            azimuth = float(
-                node.find_text_or_throw(
-                    "AZIMUTH_ANGLE", lambda s: ValueError(f"missing AZIMUTH_ANGLE: {s}")
-                )
-            )
-            angles[band] = cls(azimuth=azimuth, zenith=zenith)
-        return angles
-
 
 class GranuleMetadata:
     def __init__(self, href: str) -> None:
@@ -991,107 +883,6 @@ class TileInfoMetadata:
 
 
 # ---------------------------------------------------------------------------
-# MgrsExtension (from stactools-sentinel2 mgrs.py)
-# ---------------------------------------------------------------------------
-
-_MGRS_SCHEMA_URI: str = "https://stac-extensions.github.io/mgrs/v1.0.0/schema.json"
-_MGRS_PREFIX: str = "mgrs:"
-
-_LATITUDE_BAND_PROP: str = _MGRS_PREFIX + "latitude_band"
-_GRID_SQUARE_PROP: str = _MGRS_PREFIX + "grid_square"
-_UTM_ZONE_PROP: str = _MGRS_PREFIX + "utm_zone"
-
-_LATITUDE_BANDS: frozenset[str] = frozenset(
-    "C D E F G H J K L M N P Q R S T U V W X".split()
-)
-
-_UTM_ZONES: frozenset[int] = frozenset(range(1, 61))
-
-_GRID_SQUARE_REGEX: str = (
-    r"[ABCDEFGHJKLMNPQRSTUVWXYZ][ABCDEFGHJKLMNPQRSTUV]"
-    r"(\d{2}|\d{4}|\d{6}|\d{8}|\d{10})?"
-)
-_GRID_SQUARE_PATTERN: Pattern[str] = re.compile(_GRID_SQUARE_REGEX)
-
-
-def _validated_latitude_band(v: str) -> str:
-    if not isinstance(v, str):
-        raise ValueError("Invalid MGRS latitude band: must be str")
-    if v not in _LATITUDE_BANDS:
-        raise ValueError(f"Invalid MGRS latitude band: {v}")
-    return v
-
-
-def _validated_grid_square(v: str) -> str:
-    if not isinstance(v, str):
-        raise ValueError("Invalid MGRS grid square identifier: must be str")
-    if not _GRID_SQUARE_PATTERN.fullmatch(v):
-        raise ValueError(f"Invalid MGRS grid square identifier: {v}")
-    return v
-
-
-def _validated_utm_zone(v: Optional[int]) -> Optional[int]:
-    if v is not None and not isinstance(v, int):
-        raise ValueError("Invalid MGRS utm zone: must be None or int")
-    if v is not None and v not in _UTM_ZONES:
-        raise ValueError(f"Invalid MGRS UTM zone: {v}")
-    return v
-
-
-class MgrsExtension(
-    PropertiesExtension,
-    ExtensionManagementMixin,
-):
-    item: pystac.Item
-    properties: Any  # pystac Properties type
-
-    def __init__(self, item: pystac.Item) -> None:
-        self.item = item
-        self.properties = item.properties
-
-    @property
-    def latitude_band(self) -> Optional[str]:
-        return self._get_property(_LATITUDE_BAND_PROP, str)
-
-    @latitude_band.setter
-    def latitude_band(self, v: str) -> None:
-        self._set_property(
-            _LATITUDE_BAND_PROP, _validated_latitude_band(v), pop_if_none=False
-        )
-
-    @property
-    def grid_square(self) -> Optional[str]:
-        return self._get_property(_GRID_SQUARE_PROP, str)
-
-    @grid_square.setter
-    def grid_square(self, v: str) -> None:
-        self._set_property(
-            _GRID_SQUARE_PROP, _validated_grid_square(v), pop_if_none=False
-        )
-
-    @property
-    def utm_zone(self) -> Optional[int]:
-        return self._get_property(_UTM_ZONE_PROP, int)
-
-    @utm_zone.setter
-    def utm_zone(self, v: Optional[int]) -> None:
-        self._set_property(_UTM_ZONE_PROP, _validated_utm_zone(v), pop_if_none=False)
-
-    @classmethod
-    def get_schema_uri(cls) -> str:
-        return _MGRS_SCHEMA_URI
-
-    @classmethod
-    def ext(cls, obj: pystac.Item, add_if_missing: bool = False) -> "MgrsExtension":
-        if isinstance(obj, pystac.Item):
-            cls.ensure_has_extension(obj, add_if_missing)
-            return MgrsExtension(obj)
-        raise pystac.ExtensionTypeError(
-            f"MGRS Extension does not apply to type '{type(obj).__name__}'"
-        )
-
-
-# ---------------------------------------------------------------------------
 # Metadata dataclass + create_item (from stactools-sentinel2 stac.py,
 # granule/S3 path only)
 # ---------------------------------------------------------------------------
@@ -1190,14 +981,14 @@ def _set_asset_properties(
         pystac.CommonMetadata(asset).gsd = gsd
     asset_projection = ProjectionExtension.ext(asset)
     asset_projection.shape = list(shape)
-    asset_projection.bbox = [
+    bbox = [
         proj_bbox_10m[0],
         proj_bbox_10m[3] - resolution * shape[1],
         proj_bbox_10m[0] + resolution * shape[0],
         proj_bbox_10m[3],
     ]
     asset_projection.transform = _transform_from_bbox(
-        asset_projection.bbox, list(shape)
+        bbox, list(shape)
     )
     return asset
 
@@ -1514,10 +1305,9 @@ def create_item(
         properties={"created": now_to_rfc3339_str()},
     )
 
-    item.common_metadata.providers = [SENTINEL_PROVIDER]
-    item.common_metadata.platform = metadata.platform.lower()
-    item.common_metadata.constellation = SENTINEL_CONSTELLATION
-    item.common_metadata.instruments = SENTINEL_INSTRUMENTS
+    item.properties["platform"] = metadata.platform.lower()
+    item.properties["constellation"] = SENTINEL_CONSTELLATION
+    item.properties["instruments"] = SENTINEL_INSTRUMENTS
 
     eo = EOExtension.ext(item, add_if_missing=True)
     eo.cloud_cover = metadata.cloudiness_percentage
@@ -1544,9 +1334,11 @@ def create_item(
     mgrs_match = _MGRS_PATTERN.search(metadata.scene_id)
     if mgrs_match and len(mgrs_groups := mgrs_match.groups()) == 3:
         mgrs = MgrsExtension.ext(item, add_if_missing=True)
-        mgrs.utm_zone = int(mgrs_groups[0])
-        mgrs.latitude_band = mgrs_groups[1]
-        mgrs.grid_square = mgrs_groups[2]
+        mgrs.apply(
+            utm_zone=int(mgrs_groups[0]),
+            latitude_band=mgrs_groups[1],
+            grid_square=mgrs_groups[2],
+        )
         grid = GridExtension.ext(item, add_if_missing=True)
         grid.code = f"MGRS-{mgrs.utm_zone:02}{mgrs.latitude_band}{mgrs.grid_square}"
     else:
@@ -1605,8 +1397,6 @@ def create_item(
         assert key not in item.assets
         item.assets[key] = asset
         asset.set_owner(item)
-
-    item.links.append(SENTINEL_LICENSE)
 
     _bump_band_extension_versions(item)
 

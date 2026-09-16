@@ -199,7 +199,7 @@ def test_read_href_reraises_other_client_errors(
 # ---------------------------------------------------------------------------
 
 _ITEM_URL = (
-    "https://earth-search.aws.element84.com/v1"
+    "https://earth-search.aws.element84.com/v2"
     "/collections/sentinel-2-c1-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
 )
 _BASELINE_GEN_TIME = "2023-04-19T22:08:59.000000Z"
@@ -270,16 +270,6 @@ def test_providers_and_license_dropped(baseline_item_dict: dict[str, Any]) -> No
     item = baseline_item_dict
     assert "providers" not in item["properties"]
     assert [link for link in item["links"] if link["rel"] == "license"] == []
-
-
-def test_via_link_added(baseline_item_dict: dict[str, Any]) -> None:
-    via = [link for link in baseline_item_dict["links"] if link["rel"] == "via"]
-    assert len(via) == 1
-    assert via[0]["href"] == (
-        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/metadata.xml"
-    )
-    assert via[0]["type"] == "application/xml"
-    assert via[0]["title"] == "Granule Metadata in Sinergize RODA Archive"
 
 
 def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
