@@ -619,19 +619,32 @@ def get_band_scales_offsets_nodatas_resolutions(
     # 2.0-dev Band has no typed raster accessors yet. Replace with proper
     # attribute access once pystac stabilises the Band field API.
     bands = asset.bands
-    if not bands:
+    if bands:
+        # Multi-band: fields live in each Band's extra_fields.
+        scales, offsets, nodatas, resolutions = [], [], [], []
+        for band in bands:
+            ef = band.extra_fields
+            scales.append(ef.get(RASTER_SCALE_KEY) or 1)
+            offsets.append(ef.get(RASTER_OFFSET_KEY) or 0)
+            nodata = ef.get(RASTER_NODATA_KEY)
+            nodatas.append(float(nodata) if nodata is not None else None)
+            resolutions.append(ef.get(RASTER_SPATIAL_RESOLUTION_KEY))
+        return scales, offsets, nodatas, resolutions
+
+    # Single-band: fields are merged directly onto asset.extra_fields.
+    # Assets with no band info at all (metadata XML, thumbnail) won't have
+    # any of these keys, so we return None in that case.
+    ef = asset.extra_fields
+    if RASTER_SPATIAL_RESOLUTION_KEY not in ef and RASTER_SCALE_KEY not in ef:
         return None, None, None, None
 
-    scales, offsets, nodatas, resolutions = [], [], [], []
-    for band in bands:
-        ef = band.extra_fields
-        scales.append(ef.get(RASTER_SCALE_KEY) or 1)
-        offsets.append(ef.get(RASTER_OFFSET_KEY) or 0)
-        nodata = ef.get(RASTER_NODATA_KEY)
-        nodatas.append(float(nodata) if nodata is not None else None)
-        resolutions.append(ef.get(RASTER_SPATIAL_RESOLUTION_KEY))
-
-    return scales, offsets, nodatas, resolutions
+    nodata = ef.get(RASTER_NODATA_KEY)
+    return (
+        [ef.get(RASTER_SCALE_KEY) or 1],
+        [ef.get(RASTER_OFFSET_KEY) or 0],
+        [float(nodata) if nodata is not None else None],
+        [ef.get(RASTER_SPATIAL_RESOLUTION_KEY)],
+    )
 
 
 def asset_name_to_resample_algorithm(asset_name: str) -> str:

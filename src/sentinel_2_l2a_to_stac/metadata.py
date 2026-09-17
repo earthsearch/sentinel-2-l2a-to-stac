@@ -341,6 +341,19 @@ def _native_band(
     return pystac.Band.from_dict(merged)
 
 
+def _apply_bands(asset: pystac.Asset, bands: list[pystac.Band]) -> None:
+    """Apply band metadata to an asset.
+
+    Single-band assets get fields merged directly into extra_fields (STAC 1.1.0
+    canonical form for single-band). Multi-band assets use asset.bands so each
+    band's position is unambiguous.
+    """
+    if len(bands) == 1:
+        asset.extra_fields.update(bands[0].to_dict())
+    else:
+        asset.bands = bands
+
+
 def _bump_band_extension_versions(item: pystac.Item) -> None:
     """Replace eo/raster extension URIs with the v2.0.0 schemas that define the
     STAC 1.1.0 `bands` field shape."""
@@ -1041,7 +1054,7 @@ def _image_asset_from_href(
             roles=["overview"],
         )
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        asset.bands = [_native_band(b.to_dict(), None) for b in _RGB_BANDS]
+        _apply_bands(asset, [_native_band(b.to_dict(), None) for b in _RGB_BANDS])
         return "preview", asset
 
     band_id_search = _BAND_ID_PATTERN.search(asset_href)
@@ -1066,14 +1079,17 @@ def _image_asset_from_href(
             title=f"{ASSET_TO_TITLE[asset_id.split('_')[0]]} - {asset_res}m",
             roles=["data", "reflectance"],
         )
-        asset.bands = [
-            _native_band(
-                _band_from_band_id(band_id).to_dict(),
-                _raster_band_fields(
-                    boa_add_offsets, processing_baseline, band_id, resolution
-                ),
-            )
-        ]
+        _apply_bands(
+            asset,
+            [
+                _native_band(
+                    _band_from_band_id(band_id).to_dict(),
+                    _raster_band_fields(
+                        boa_add_offsets, processing_baseline, band_id, resolution
+                    ),
+                )
+            ],
+        )
         _set_asset_properties(asset, resolution, shape, proj_bbox, band_gsd)
 
     elif _TCI_PATTERN.search(asset_href):
@@ -1083,7 +1099,7 @@ def _image_asset_from_href(
             title="True color image",
             roles=["visual"],
         )
-        asset.bands = [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS]
+        _apply_bands(asset, [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS])
         asset_id = f"visual_{maybe_res}m" if maybe_res and maybe_res != 10 else "visual"
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
 
@@ -1096,18 +1112,21 @@ def _image_asset_from_href(
         )
         asset_id = _mk_asset_id(maybe_res, "aot")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        asset.bands = [
-            _native_band(
-                None,
-                {
-                    "nodata": 0,
-                    "spatial_resolution": resolution,
-                    "data_type": "uint16",
-                    "scale": 0.001,
-                    "offset": 0,
-                },
-            )
-        ]
+        _apply_bands(
+            asset,
+            [
+                _native_band(
+                    None,
+                    {
+                        "nodata": 0,
+                        "spatial_resolution": resolution,
+                        "data_type": "uint16",
+                        "scale": 0.001,
+                        "offset": 0,
+                    },
+                )
+            ],
+        )
 
     elif _WVP_PATTERN.search(asset_href):
         asset = pystac.Asset(
@@ -1118,19 +1137,22 @@ def _image_asset_from_href(
         )
         asset_id = _mk_asset_id(maybe_res, "wvp")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        asset.bands = [
-            _native_band(
-                None,
-                {
-                    "nodata": 0,
-                    "spatial_resolution": resolution,
-                    "data_type": "uint16",
-                    "unit": "cm",
-                    "scale": 0.001,
-                    "offset": 0,
-                },
-            )
-        ]
+        _apply_bands(
+            asset,
+            [
+                _native_band(
+                    None,
+                    {
+                        "nodata": 0,
+                        "spatial_resolution": resolution,
+                        "data_type": "uint16",
+                        "unit": "cm",
+                        "scale": 0.001,
+                        "offset": 0,
+                    },
+                )
+            ],
+        )
 
     elif _SCL_PATTERN.search(asset_href):
         asset = pystac.Asset(
@@ -1141,7 +1163,7 @@ def _image_asset_from_href(
         )
         asset_id = _mk_asset_id(maybe_res, "scl")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        asset.bands = [_native_band(None, _raster_uint8)]
+        _apply_bands(asset, [_native_band(None, _raster_uint8)])
 
     elif _CLD_PATTERN.search(asset_href):
         asset = pystac.Asset(
@@ -1152,7 +1174,7 @@ def _image_asset_from_href(
         )
         asset_id = _mk_asset_id(maybe_res, "cloud")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        asset.bands = [_native_band(None, _raster_uint8)]
+        _apply_bands(asset, [_native_band(None, _raster_uint8)])
 
     elif _SNW_PATTERN.search(asset_href):
         asset = pystac.Asset(
@@ -1163,7 +1185,7 @@ def _image_asset_from_href(
         )
         asset_id = _mk_asset_id(maybe_res, "snow")
         _set_asset_properties(asset, resolution, shape, proj_bbox)
-        asset.bands = [_native_band(None, _raster_uint8)]
+        _apply_bands(asset, [_native_band(None, _raster_uint8)])
 
     else:
         raise ValueError(f"Unexpected asset: {asset_href}")

@@ -154,6 +154,15 @@
       "assets": {
         "red": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B04.tif",
+          "eo:common_name": "red",
+          "eo:center_wavelength": 0.665,
+          "eo:full_width_half_max": 0.038,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B04",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -177,23 +186,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "red",
-              "eo:center_wavelength": 0.665,
-              "eo:full_width_half_max": 0.038,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B04"
-            }
           ]
         },
         "green": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B03.tif",
+          "eo:common_name": "green",
+          "eo:center_wavelength": 0.56,
+          "eo:full_width_half_max": 0.045,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B03",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -217,23 +222,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "green",
-              "eo:center_wavelength": 0.56,
-              "eo:full_width_half_max": 0.045,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B03"
-            }
           ]
         },
         "blue": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B02.tif",
+          "eo:common_name": "blue",
+          "eo:center_wavelength": 0.49,
+          "eo:full_width_half_max": 0.098,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B02",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -257,19 +258,6 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "blue",
-              "eo:center_wavelength": 0.49,
-              "eo:full_width_half_max": 0.098,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B02"
-            }
           ]
         },
         "visual": {
@@ -329,6 +317,15 @@
         },
         "nir": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B08.tif",
+          "eo:common_name": "nir",
+          "eo:center_wavelength": 0.842,
+          "eo:full_width_half_max": 0.145,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B08",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -352,23 +349,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "nir",
-              "eo:center_wavelength": 0.842,
-              "eo:full_width_half_max": 0.145,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B08"
-            }
           ]
         },
         "swir22": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B12.tif",
+          "eo:common_name": "swir22",
+          "eo:center_wavelength": 2.19,
+          "eo:full_width_half_max": 0.242,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B12",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -392,23 +385,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "swir22",
-              "eo:center_wavelength": 2.19,
-              "eo:full_width_half_max": 0.242,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B12"
-            }
           ]
         },
         "rededge2": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B06.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.74,
+          "eo:full_width_half_max": 0.018,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B06",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -432,23 +421,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "rededge",
-              "eo:center_wavelength": 0.74,
-              "eo:full_width_half_max": 0.018,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B06"
-            }
           ]
         },
         "rededge3": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B07.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.783,
+          "eo:full_width_half_max": 0.028,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B07",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -472,23 +457,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "rededge",
-              "eo:center_wavelength": 0.783,
-              "eo:full_width_half_max": 0.028,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B07"
-            }
           ]
         },
         "rededge1": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B05.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.704,
+          "eo:full_width_half_max": 0.019,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B05",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -512,23 +493,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "rededge",
-              "eo:center_wavelength": 0.704,
-              "eo:full_width_half_max": 0.019,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B05"
-            }
           ]
         },
         "swir16": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B11.tif",
+          "eo:common_name": "swir16",
+          "eo:center_wavelength": 1.61,
+          "eo:full_width_half_max": 0.143,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B11",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -552,19 +529,6 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "swir16",
-              "eo:center_wavelength": 1.61,
-              "eo:full_width_half_max": 0.143,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B11"
-            }
           ]
         },
         "wvp": {
@@ -582,6 +546,12 @@
             -20.0,
             8300020.0
           ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "unit": "cm",
+          "raster:scale": 0.001,
+          "raster:offset": 0,
           "file:checksum": "12205eabb13ae694c694a7c693b24c87c0341f853516cec78e74b7236bdd8f6e780c",
           "file:size": 2933354,
           "storage:refs": [
@@ -591,20 +561,19 @@
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
-          ],
-          "bands": [
-            {
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "unit": "cm",
-              "raster:scale": 0.001,
-              "raster:offset": 0
-            }
           ]
         },
         "nir08": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B8A.tif",
+          "eo:common_name": "nir08",
+          "eo:center_wavelength": 0.865,
+          "eo:full_width_half_max": 0.033,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B8A",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -628,19 +597,6 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "nir08",
-              "eo:center_wavelength": 0.865,
-              "eo:full_width_half_max": 0.033,
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B8A"
-            }
           ]
         },
         "scl": {
@@ -658,6 +614,9 @@
             -20.0,
             8300020.0
           ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
           "file:checksum": "12207c6aea0cd916a8c1f38944eea99474203d44f52ea6687a247d57b40effc418be",
           "file:size": 957655,
           "storage:refs": [
@@ -667,13 +626,6 @@
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
-          ],
-          "bands": [
-            {
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint8"
-            }
           ]
         },
         "aot": {
@@ -691,6 +643,11 @@
             -20.0,
             8300020.0
           ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.001,
+          "raster:offset": 0,
           "file:checksum": "1220315f34f4d7002187ac8463d04d418c13fb17e22bfef24d90aed1d1f36b19353f",
           "file:size": 464951,
           "storage:refs": [
@@ -700,19 +657,19 @@
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data"
-          ],
-          "bands": [
-            {
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint16",
-              "raster:scale": 0.001,
-              "raster:offset": 0
-            }
           ]
         },
         "coastal": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B01.tif",
+          "eo:common_name": "coastal",
+          "eo:center_wavelength": 0.443,
+          "eo:full_width_half_max": 0.027,
+          "nodata": 0,
+          "raster:spatial_resolution": 60,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B01",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -736,23 +693,19 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "coastal",
-              "eo:center_wavelength": 0.443,
-              "eo:full_width_half_max": 0.027,
-              "nodata": 0,
-              "raster:spatial_resolution": 60,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B01"
-            }
           ]
         },
         "nir09": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B09.tif",
+          "eo:common_name": "nir09",
+          "eo:center_wavelength": 0.945,
+          "eo:full_width_half_max": 0.026,
+          "nodata": 0,
+          "raster:spatial_resolution": 60,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B09",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -776,19 +729,6 @@
           "roles": [
             "data",
             "reflectance"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "nir09",
-              "eo:center_wavelength": 0.945,
-              "eo:full_width_half_max": 0.026,
-              "nodata": 0,
-              "raster:spatial_resolution": 60,
-              "data_type": "uint16",
-              "raster:scale": 0.0001,
-              "raster:offset": -0.1,
-              "name": "B09"
-            }
           ]
         },
         "cloud": {
@@ -806,6 +746,9 @@
             -20.0,
             8300020.0
           ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
           "file:checksum": "1220549db4f38e10b169f61d364b35e3baead3d3ecacc5602ad4524f802cec505a22",
           "file:size": 2286172,
           "storage:refs": [
@@ -816,13 +759,6 @@
           "roles": [
             "data",
             "cloud"
-          ],
-          "bands": [
-            {
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint8"
-            }
           ]
         },
         "snow": {
@@ -839,6 +775,9 @@
             -20.0,
             8300020.0
           ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
           "file:checksum": "12208c5997d026984c9b98a6072cf95bc6041cc2a26023b3187a8511ee5d769540ce",
           "file:size": 58259,
           "storage:refs": [
@@ -849,13 +788,6 @@
           "roles": [
             "data",
             "snow-ice"
-          ],
-          "bands": [
-            {
-              "nodata": 0,
-              "raster:spatial_resolution": 20,
-              "data_type": "uint8"
-            }
           ]
         },
         "preview": {
