@@ -13,7 +13,7 @@ from boto3utils import s3
 from botocore.exceptions import ClientError
 from multiformats import multihash
 from PIL import Image
-from pystac import Asset, Item, Link, MediaType, RelType
+from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from rasterio.enums import ColorInterp, Resampling
@@ -30,13 +30,13 @@ from stactask.utils import stac_jsonpath_match
 if not hasattr(Asset, "media_type"):
     Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
 
-from sentinel_2_l2a_to_stac.metadata import (
+from sentinel_2_l2a_to_stac.constants import (
     RASTER_NODATA_KEY,
     RASTER_OFFSET_KEY,
     RASTER_SCALE_KEY,
     RASTER_SPATIAL_RESOLUTION_KEY,
-    create_item,
 )
+from sentinel_2_l2a_to_stac.stac import create_item
 
 # stactask 0.7.0 already prefixes lines with payload id, so the legacy
 # logging change was deliberately left off.
@@ -63,6 +63,10 @@ STORAGE_REGION = "us-west-2"
 
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
+
+# Source-metadata assets stay on local workdir paths through update_item (they're
+# uploaded to earthsearch later); every other asset is rewritten to an S3 href.
+_METADATA_ASSET_KEYS = ("tileinfo_metadata", "granule_metadata", "product_metadata")
 
 EXPECTED_COGIFIED_COUNT = 19
 
@@ -126,20 +130,14 @@ class Sentinel2ToStac(Task):
         if item.datetime is None:
             raise ValueError("Item datetime property cannot be None")
 
-        # stactools writes workdir-relative hrefs when building the item. Rewrite
-        # them: metadata assets stay as local paths (uploaded to earthsearch later
-        # by upload_item_assets_to_s3); all other assets get RODA S3 hrefs. When
-        # create_cogs=True those RODA hrefs are transitional — they're overwritten
-        # again as each JP2 is downloaded, cogified, and uploaded to earthsearch.
-        # With create_cogs=False the RODA hrefs are the final hrefs in the output.
+        # create_item builds every asset with a workdir-relative local href.
+        # Metadata assets keep those local paths (uploaded to earthsearch later by
+        # upload_item_assets_to_s3); all other assets get rewritten to RODA S3
+        # hrefs. When create_cogs=True those RODA hrefs are transitional — they're
+        # overwritten again as each JP2 is downloaded, cogified, and uploaded to
+        # earthsearch. With create_cogs=False they are the final output hrefs.
         for asset_name, asset in item.assets.items():
-            if asset_name == "tileinfo_metadata":
-                asset.href = str(self.tileinfo_path)
-            elif asset_name == "granule_metadata":
-                asset.href = str(self.granule_metadata_xml_path)
-            elif asset_name == "product_metadata":
-                asset.href = str(self.product_metadata_xml_path)
-            else:
+            if asset_name not in _METADATA_ASSET_KEYS:
                 asset.href = f"{s3_path}{asset.href.removeprefix(str(self._workdir))}"
 
         return item
@@ -247,10 +245,12 @@ class Sentinel2ToStac(Task):
     def add_storage_schemes(self, item: Item) -> Item:
         """Add per-bucket storage schemes and asset refs after upload.
 
-        Classifies each asset by its final href: RODA bucket (source metadata
-        that stayed on the public bucket), Earth Search bucket (uploaded COGs
-        and metadata), or local path (--local/test runs). Each group gets its
-        own named scheme so the `bucket` template variable is always defined.
+        Classifies each asset by its final href: Earth Search bucket (uploaded
+        COGs, thumbnail, and the source metadata files, which are re-uploaded
+        rather than referenced in place), RODA bucket (non-cogified JP2 data
+        assets left on the public bucket, only in the create_cogs=False path),
+        or local path (--local/test runs). Each group gets its own named scheme
+        so the `bucket` template variable is always defined.
         """
         roda_keys: list[str] = []
         earthsearch_keys: list[str] = []
@@ -339,9 +339,7 @@ class Sentinel2ToStac(Task):
         # tileInfo metadata, e.g.
         # s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0/tileInfo.json
         if not self.tileinfo_path.exists():
-            self.tileinfo_path.write_bytes(
-                self.read_href(f"{s3_path}/tileInfo.json")
-            )
+            self.tileinfo_path.write_bytes(self.read_href(f"{s3_path}/tileInfo.json"))
 
         try:
             l2a_tileinfo = json.loads(self.tileinfo_path.read_text())
@@ -607,6 +605,7 @@ def write_cog(
             dst.build_overviews(overviews, Resampling[overview_resampling.lower()])
             dst.stats()
 
+
 def get_band_scales_offsets_nodatas_resolutions(
     asset: Asset,
 ) -> tuple[
@@ -659,6 +658,7 @@ def gsd_to_blocksize(gsd: int | float | None) -> tuple[int, int]:
         None if gsd is None else int(gsd),
         GSD_TO_BLOCKSIZE[None],
     )
+
 
 if __name__ == "__main__":
     Sentinel2ToStac.cli()

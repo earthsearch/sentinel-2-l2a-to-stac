@@ -30,6 +30,7 @@ from typing import Any, Optional, cast
 from lxml import etree
 from lxml.etree import _Element as lxmlElement
 
+
 class XmlElement:
     def __init__(self, element: lxmlElement) -> None:
         self.element = element
