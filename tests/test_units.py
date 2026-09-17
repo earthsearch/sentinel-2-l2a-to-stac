@@ -31,12 +31,14 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
-from sentinel_2_l2a_to_stac.task import Sentinel2ToStac, _set_asset_owners, cogify
+from sentinel_2_l2a_to_stac.cogify import cogify
+from sentinel_2_l2a_to_stac.task import Sentinel2ToStac, _set_asset_owners
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _minimal_task(payload_id: str = "test-unit") -> Sentinel2ToStac:
     """Minimal task instance — only needs metadata_href to pass validate()."""
@@ -68,7 +70,9 @@ _EXPECTED_HREFS = {
 }
 
 
-def _make_download_task(tmp_path: Path, metadata_href: str = _METADATA_HREF) -> Sentinel2ToStac:
+def _make_download_task(
+    tmp_path: Path, metadata_href: str = _METADATA_HREF
+) -> Sentinel2ToStac:
     payload = {
         "metadata_href": metadata_href,
         "create_cogs": False,
@@ -88,6 +92,7 @@ def _fake_read_href_factory(calls: list[str]) -> Any:
     def _fake(self: Sentinel2ToStac, href: str) -> bytes:
         calls.append(href)
         return _EXPECTED_HREFS[href]
+
     return _fake
 
 
@@ -117,9 +122,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Sentinel2ToStac, "update_item", lambda self, item, s3_path: item
     )
-    monkeypatch.setattr(
-        Sentinel2ToStac, "add_storage_schemes", lambda self, item: item
-    )
+    monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
 
 
 def test_download_fetches_all_three_files(
@@ -178,7 +181,9 @@ def test_read_href_translates_nosuchkey_to_invalid_input(
 
     monkeypatch.setattr(stac_asset.blocking, "read_href", _raise)
     with pytest.raises(InvalidInput, match="Failed fetching href"):
-        _make_download_task(tmp_path).read_href("s3://sentinel-s2-l2a/does/not/exist.json")
+        _make_download_task(tmp_path).read_href(
+            "s3://sentinel-s2-l2a/does/not/exist.json"
+        )
 
 
 def test_read_href_reraises_other_client_errors(
@@ -257,12 +262,12 @@ def test_existing_newer_skips(baseline_item_dict: dict[str, Any]) -> None:
 # update_item
 # ---------------------------------------------------------------------------
 
+
 def test_collection_and_payload_id(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
     assert item["collection"] == "sentinel-2-c1-l2a"
     assert item["properties"]["earthsearch:payload_id"] == (
-        "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/"
-        "tiles-19-T-DJ-2026-8-23-0"
+        "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0"
     )
 
 
@@ -349,9 +354,9 @@ def test_earthsearch_storage_scheme_after_upload(
     def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
         for key in asset_keys:
             fname = Path(item.assets[key].href).name
-            item.assets[key].href = (
-                f"s3://{ES_BUCKET}/sentinel-2-c1-l2a/S2A_TEST/{fname}"
-            )
+            item.assets[
+                key
+            ].href = f"s3://{ES_BUCKET}/sentinel-2-c1-l2a/S2A_TEST/{fname}"
         return item
 
     monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
@@ -408,6 +413,7 @@ def test_asset_href_rewriting_and_proj_bbox(baseline_item_dict: dict[str, Any]) 
 # get_local_asset_keys
 # ---------------------------------------------------------------------------
 
+
 def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None:
     # Only assets whose href lives under the task workdir count as local. S3
     # hrefs and local paths *outside* the workdir are excluded. This is exactly
@@ -437,6 +443,7 @@ def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None
 # make_cogs / cogify
 # ---------------------------------------------------------------------------
 
+
 def _item_with_baseline(
     baseline_item_dict: dict[str, Any],
     processing_baseline: str,
@@ -451,19 +458,25 @@ def _item_with_baseline(
 
 def test_baseline_below_04_raises(baseline_item_dict: dict[str, Any]) -> None:
     item = _item_with_baseline(baseline_item_dict, "02.13")
-    with pytest.raises(InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"):
+    with pytest.raises(
+        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
+    ):
         _minimal_task("test-make-cogs").make_cogs_for_item(item)
 
 
 def test_baseline_03_raises(baseline_item_dict: dict[str, Any]) -> None:
     item = _item_with_baseline(baseline_item_dict, "03.99")
-    with pytest.raises(InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"):
+    with pytest.raises(
+        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
+    ):
         _minimal_task("test-make-cogs").make_cogs_for_item(item)
 
 
 def test_baseline_0509_raises(baseline_item_dict: dict[str, Any]) -> None:
     item = _item_with_baseline(baseline_item_dict, "05.09")
-    with pytest.raises(InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"):
+    with pytest.raises(
+        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
+    ):
         _minimal_task("test-make-cogs").make_cogs_for_item(item)
 
 
@@ -512,7 +525,7 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={},
     )
-    owner.assets["B01"] =  asset
+    owner.assets["B01"] = asset
     asset.set_owner(owner)
 
     cogify("B01", asset)

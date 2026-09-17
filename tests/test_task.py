@@ -132,12 +132,12 @@ def diff_output(
         if not is_same_centroid:
             # if the centroids are too different we put the
             # properties back in so they get flagged in the diff
-            actual_output["features"][0]["properties"][
-                "proj:centroid"
-            ] = actual_centroid
-            expected_output["features"][0]["properties"][
-                "proj:centroid"
-            ] = expected_centroid
+            actual_output["features"][0]["properties"]["proj:centroid"] = (
+                actual_centroid
+            )
+            expected_output["features"][0]["properties"]["proj:centroid"] = (
+                expected_centroid
+            )
 
     # TODO: need to understand why we have a difference here (probably underlying
     # libs) do this same song and dance to workaround a difference with thumbnail

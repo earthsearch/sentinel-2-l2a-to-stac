@@ -94,8 +94,9 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
         shutil.copy(source / name, workdir / name)
 
     payload = json.loads(
-        (_FIXTURES / "payloads" / "success" / "create-item-baseline" / "in.json")
-        .read_text()
+        (
+            _FIXTURES / "payloads" / "success" / "create-item-baseline" / "in.json"
+        ).read_text()
     )
     payload["create_cogs"] = False
     result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
