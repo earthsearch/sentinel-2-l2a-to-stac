@@ -232,15 +232,37 @@ def get_band_scales_offsets_nodatas_resolutions(
     # attribute access once pystac stabilises the Band field API.
     bands = asset.bands
     if bands:
-        # Multi-band: fields live in each Band's extra_fields.
+        # Multi-band: fields live in each Band's extra_fields, or hoisted to
+        # asset.extra_fields when identical across all bands.
+        asset_fields = asset.extra_fields
         scales, offsets, nodatas, resolutions = [], [], [], []
         for band in bands:
-            ef = band.extra_fields
-            scales.append(ef.get(RASTER_SCALE_KEY) or 1)
-            offsets.append(ef.get(RASTER_OFFSET_KEY) or 0)
-            nodata = ef.get(RASTER_NODATA_KEY)
-            nodatas.append(float(nodata) if nodata is not None else None)
-            resolutions.append(ef.get(RASTER_SPATIAL_RESOLUTION_KEY))
+            bf = band.extra_fields
+            af = asset_fields
+            scale = (
+                bf[RASTER_SCALE_KEY]
+                if RASTER_SCALE_KEY in bf
+                else af.get(RASTER_SCALE_KEY)
+            )
+            offset = (
+                bf[RASTER_OFFSET_KEY]
+                if RASTER_OFFSET_KEY in bf
+                else af.get(RASTER_OFFSET_KEY)
+            )
+            nodata_raw = (
+                bf[RASTER_NODATA_KEY]
+                if RASTER_NODATA_KEY in bf
+                else af.get(RASTER_NODATA_KEY)
+            )
+            resolution = (
+                bf[RASTER_SPATIAL_RESOLUTION_KEY]
+                if RASTER_SPATIAL_RESOLUTION_KEY in bf
+                else af.get(RASTER_SPATIAL_RESOLUTION_KEY)
+            )
+            scales.append(scale or 1)
+            offsets.append(offset or 0)
+            nodatas.append(float(nodata_raw) if nodata_raw is not None else None)
+            resolutions.append(resolution)
         return scales, offsets, nodatas, resolutions
 
     # Single-band: fields are merged directly onto asset.extra_fields.

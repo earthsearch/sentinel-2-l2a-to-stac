@@ -113,13 +113,27 @@ def _apply_bands(asset: pystac.Asset, bands: list[pystac.Band]) -> None:
     """Apply band metadata to an asset.
 
     Single-band assets get fields merged directly into extra_fields (STAC 1.1.0
-    canonical form for single-band). Multi-band assets use asset.bands so each
-    band's position is unambiguous.
+    canonical form for single-band). Multi-band assets hoist fields that are
+    identical across every band to extra_fields; only band-specific fields remain
+    in asset.bands.
     """
     if len(bands) == 1:
         asset.extra_fields.update(bands[0].to_dict())
     else:
-        asset.bands = bands
+        band_dicts = [band.to_dict() for band in bands]
+        first = band_dicts[0]
+        common = {
+            field: value
+            for field, value in first.items()
+            if all(other.get(field) == value for other in band_dicts[1:])
+        }
+        if common:
+            asset.extra_fields.update(common)
+            band_dicts = [
+                {field: value for field, value in bd.items() if field not in common}
+                for bd in band_dicts
+            ]
+        asset.bands = [pystac.Band.from_dict(bd) for bd in band_dicts]
 
 
 def _bump_band_extension_versions(item: pystac.Item) -> None:

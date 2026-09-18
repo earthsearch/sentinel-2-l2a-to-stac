@@ -148,7 +148,7 @@
           }
         },
         "processing:software": {
-          "sentinel-2-l2a-to-stac": "v2026.09.03"
+          "sentinel-2-l2a-to-stac": "v2026.09.18"
         }
       },
       "links": [],
@@ -263,6 +263,9 @@
         },
         "visual": {
           "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/TCI.tif",
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint8",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -291,27 +294,18 @@
               "eo:common_name": "red",
               "eo:center_wavelength": 0.665,
               "eo:full_width_half_max": 0.038,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint8",
               "name": "B04"
             },
             {
               "eo:common_name": "green",
               "eo:center_wavelength": 0.56,
               "eo:full_width_half_max": 0.045,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint8",
               "name": "B03"
             },
             {
               "eo:common_name": "blue",
               "eo:center_wavelength": 0.49,
               "eo:full_width_half_max": 0.098,
-              "nodata": 0,
-              "raster:spatial_resolution": 10,
-              "data_type": "uint8",
               "name": "B02"
             }
           ]
