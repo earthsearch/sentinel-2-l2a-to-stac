@@ -72,18 +72,37 @@ task-scoped config keys — that table is empty, as in the legacy task):
 
 | Field          | Type    | Description |
 | -------------- | ------- | ----------- |
-| `metadata_href`  | string  | **REQUIRED.** Href to the source granule `metadata.xml` on RODA/S3 (e.g. `s3://sentinel-s2-l2a/tiles/.../metadata.xml`). Drives the whole task; the sibling `tileInfo.json` and product-level `metadata.xml` are located relative to it. |
-| `create_cogs`    | boolean | Optional. When `true`, COGify the JP2 imagery assets (enforcing the processing-baseline floor) and generate a JPEG thumbnail; when `false`, skip both and emit the Item with its source asset hrefs. (Default: `true`.) |
+| `metadata_href`  | string  | **REQUIRED.** Href to any file in the source granule prefix on RODA/S3 or the earthsearch bucket (e.g. `s3://sentinel-s2-l2a/tiles/.../tileInfo.json`). Its directory is used as the granule prefix; `tileInfo.json`, granule `metadata.xml`, and product `metadata.xml` are fetched relative to it. |
+| `create_cogs`    | boolean | Optional. When `true` and no existing product doc is found in the output prefix, COGify the JP2 imagery and generate a JPEG thumbnail. When an existing product doc is present in the output prefix the reference path is taken regardless of this flag (see below). When `false` and no existing doc is present, the Item is emitted with its source asset hrefs unchanged. (Default: `false`.) |
 
 The collection each Item is assigned to is resolved from
 `payload['process']['upload_options']['collections']` (a map of collection id →
 JSONPath expression, first match wins), per the standard Cirrus convention.
 
+### Reference path (update-first)
+
+When the output prefix already contains a `{item_id}.json`, the task
+automatically operates in **reference/update mode**, regardless of `create_cogs`:
+
+- Each expected asset is verified to be present in the bucket. An asset that
+  is expected but absent raises `InvalidInput`.
+- `type`,`file:size` and `file:checksum` are reused from the existing doc where
+  available; assets whose info is missing are downloaded and recomputed.
+- All asset hrefs are rewritten to the flat earthsearch prefix layout.
+- The `thumbnail` asset reuses the existing `L2A_PVI.jpg` from the bucket — no
+  re-generation needed.
+- No assets already in the bucket are re-uploaded; only the STAC metadata files
+  are uploaded.
+
+This path is intended for re-ingesting an already-present earthsearch scene
+(for example, upgrading a STAC 1.0 item to 1.1.0) without re-COGifying or
+re-uploading imagery.
+
 ### Environment Variables
 
 | Variable              | Default                                          | Description |
 | --------------------- | ------------------------------------------------ | ----------- |
-| `STAC_API_URL`        | `https://earth-search.aws.element84.com/v1`      | STAC API queried by the `is_newer_than_existing` gate. |
+| `STAC_API_URL`        | `https://earth-search.aws.element84.com/v2`      | STAC API queried by the `is_newer_than_existing` gate. |
 | `AWS_DEFAULT_REGION`  | (none — required)                                | AWS region for the S3 reads/writes (`us-west-2` for the public RODA bucket). Required for any run that touches S3. |
 | `CIRRUS_LOG_LEVEL`    | `WARN`                                            | Root log level. `stactools`/`botocore`/`rasterio` loggers are quieted regardless. |
 | `BIGTIFF`             | `IF_SAFER`                                         | Passed through to the GDAL COG driver during COG creation. |
@@ -119,6 +138,20 @@ item-lookup stays stubbed to 404 so the run is deterministic. Downloaded imagery
 is cached under `tests/external-data/<payload-id>`; delete that directory to
 force a clean re-fetch. The expected `out.json` for each success fixture is
 generated on the first run if absent.
+
+### Update-first tests (`-m upgrade`)
+
+`tests/test_task.py` also contains parity tests for the reference/update path.
+These **hit the network**: they download scene metadata from the earthsearch
+bucket and exercise the full reference path end-to-end. They are marked
+`@pytest.mark.upgrade` and are **excluded by default**. Run them explicitly with:
+
+```
+uv run pytest -m upgrade
+```
+
+Like the `-m system` tests, they never write to S3 and cache downloaded files
+under `tests/external-data`.
 
 Tasks can also be run locally with the built-in CLI.
 
@@ -162,12 +195,6 @@ This will recreate the fixture. `git diff` can be used to examine what has
 changed.
 
 ## Local Dockerized Lambda Testing
-
-> **Note:** The `Dockerfile` currently does not build. It references
-> `ghcr.io/lambgeo/lambda-gdal:3.8-python3.12`, which does not exist — the
-> lambgeo project's GDAL 3.8 images top out at Python 3.11. A base image
-> for Python 3.12 needs to be identified before Docker-based testing is
-> possible.
 
 1. Copy `.env.example` to `.env` and fill in your AWS credentials.
 2. `docker-compose up -d` will build and launch the local Lambda server on port 8080.

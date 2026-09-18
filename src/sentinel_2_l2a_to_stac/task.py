@@ -65,7 +65,7 @@ _METADATA_ASSET_KEYS = ("tileinfo_metadata", "granule_metadata", "product_metada
 
 EXPECTED_COGIFIED_COUNT = 19
 
-# Filename <-> asset key map for the earthsearch flat product-prefix layout. 
+# Filename <-> asset key map for the earthsearch flat product-prefix layout.
 # Every entry is verified against create_item's actual output keys.
 ASSET_FILENAMES: dict[str, str] = {
     "aot": "AOT.tif",
@@ -111,8 +111,7 @@ def _prune_to_canonical_assets(item: Item) -> Item:
 def _resolve_product_metadata_href(
     s3_path: str, bucket_filenames: set[str], bucket: str, product_path: str
 ) -> str:
-    """Resolve product_metadata.xml: flat earthsearch layout first, RODA fallback.
-    """
+    """Resolve product_metadata.xml: flat earthsearch layout first, RODA fallback."""
     if "product_metadata.xml" in bucket_filenames:
         return f"{s3_path}/product_metadata.xml"
     return f"s3://{bucket}/{product_path}/metadata.xml"
@@ -133,7 +132,7 @@ def find_existing_stac_doc_filename(
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
-    version = "v2026.09.03"
+    version = "v2026.09.18"
 
     def validate(self) -> bool:
         # Rewritten for stactask 0.6.1 (requires self._payload instead of

@@ -10,8 +10,8 @@ ratio, centroid threshold, thumbnail size/checksum wobble).
 Network policy
 --------------
 Unlike the rest of the suite, these tests **hit the real network**: they
-download genuine Sentinel-2 imagery from the public RODA/AWS bucket
-(``s3://sentinel-s2-l2a``) so the COG/thumbnail pipeline runs end-to-end for a
+download genuine files from the public RODA/Earthsearch bucket
+so the COG/thumbnail pipeline runs end-to-end for a
 true behavioral comparison with legacy. They are therefore marked
 ``@pytest.mark.system`` and are **opt-in** — ``pyproject.toml``'s ``addopts``
 deselects them by default. Run them explicitly with::

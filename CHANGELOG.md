@@ -9,21 +9,39 @@ used by this project.
 
 ## [Unreleased]
 
+## [v2026.09.18]
+
 ### Added
 
-- Update-first restructure, Slice A (input plumbing, no output behavior
-  change yet — see `UPDATE_FIRST_PLAN.md`): `product_metadata.xml` resolution
-  now prefers the flat earthsearch layout (`{s3_path}/product_metadata.xml`)
-  and falls back to the RODA `productPath` layout only when the flat file
-  isn't present; `list_bucket_filenames`/`find_existing_stac_doc_filename`/
-  `load_existing_stac_doc` add the bucket-prefix listing and existing-doc
-  discovery the reference/update path (Slice B) will branch on; the
-  `ASSET_FILENAMES` map and `_prune_to_canonical_assets` helper (extracted
-  from `make_cogs_for_item`, no behavior change) will be shared by both
-  execution paths.
+- **Reference/update path**: when the output prefix already contains a
+  `{item_id}.json`, the task switches into an update-first mode — it reuses
+  `file:size` and `file:checksum` from the existing doc for assets whose info
+  is already present, downloads only the assets whose info is missing, rewrites
+  all hrefs to the flat earthsearch prefix layout, and skips re-uploading
+  assets that are already in the bucket. An asset that is expected but absent
+  from the bucket raises `InvalidInput` (it cannot be serviced without COG
+  generation). The reference path takes effect regardless of `create_cogs`.
+- **Thumbnail in the reference path**: the existing `L2A_PVI.jpg` in the
+  bucket is referenced directly as the `thumbnail` asset, with no
+  re-generation needed.
+- **Flat-first `product_metadata.xml` resolution**: when a
+  `product_metadata.xml` is found directly in the output prefix, it is used
+  in preference to fetching the RODA `productPath` `metadata.xml`, supporting
+  re-ingestion from an earthsearch-originated prefix.
+- **`-m upgrade` network test suite**: opt-in system tests (run with
+  `uv run pytest -m upgrade`) that exercise the reference path against real
+  earthsearch data, parallel to the existing `-m system` tests. They never
+  write to S3 and cache downloaded files under `tests/external-data`.
 
 ### Changed
 
+- `metadata.py` split into `constants.py` (band definitions and lookup tables),
+  `metadata.py` (XML parsing), and `stac.py` (`create_item`) for clarity and
+  easier maintenance.
+- COG generation, thumbnail creation, and `sha256sum_multihash` moved to
+  `cogify.py`; shared XML utilities extracted to `utils.py`.
+- `create_cogs` payload field now governs COG/thumbnail generation; see the
+  reference path behavior above for how the two interact.
 - Replaced `stactools~=0.5.3` and `stactools-sentinel2==0.8.0` with a
   self-contained `metadata.py` (vendored + pruned granule/S3 path). The public
   interface is unchanged: `create_item(workdir)` returns a `pystac.Item`.
@@ -48,6 +66,15 @@ used by this project.
   `update_item`); the scrub block is removed.
 - `eo:snow_cover` is no longer set on the item (it was always deleted by
   `update_item`); the corresponding delete is removed.
+
+### Fixed
+
+- Existing-doc detection matches exactly on `{item_id}.json` rather than
+  on any `.json` in the prefix, preventing false matches against RODA's own
+  `productInfo.json` when operating on RODA-sourced prefixes.
+- Single-band assets no longer incorrectly wrap the band object in a list.
+- Bucket listing now uses unsigned credentials, fixing access failures when
+  task credentials did not have explicit permissions on public source buckets.
 
 ## [v2026.09.03]
 
@@ -127,7 +154,8 @@ task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline. See
 
 Initial release
 
-[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.03..main
+[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.18..main
+[v2026.09.18]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.03..v2026.09.18
 [v2026.09.03]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.12..v2026.09.03
 [v2025.03.12]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.11..v2025.03.12
 [v2025.03.11]: https://github.com/cirrus-geo/cirrus-task-example/tree/v2025.03.11

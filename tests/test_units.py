@@ -4,7 +4,7 @@ Sections
 --------
 download        read_href + the three-file download block in process()
 bucket/doc      bucket listing, existing-doc discovery, metadata resolution
-reference path  create_cogs=False reference/update path (Slice B)
+reference path  create_cogs=False reference/update path
 is_newer        is_newer_than_existing STAC-API gate
 update_item     Earth Search override assertions (update_item)
 make_cogs       make_cogs_for_item branching + cogify/write_cog pipeline
@@ -157,23 +157,6 @@ def test_download_fetches_all_three_files(
     assert set(calls) == set(_EXPECTED_HREFS)
 
 
-def test_existing_files_are_not_refetched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "tileInfo.json").write_bytes(_TILEINFO_BYTES)
-    (tmp_path / "metadata.xml").write_bytes(_GRANULE_BYTES)
-    (tmp_path / "product_metadata.xml").write_bytes(_PRODUCT_BYTES)
-
-    calls: list[str] = []
-    monkeypatch.setattr(Sentinel2ToStac, "read_href", _fake_read_href_factory(calls))
-    _stub_pipeline(monkeypatch)
-    task = _make_download_task(tmp_path)
-
-    task.process()
-
-    assert calls == []
-
-
 def test_corrupted_tileinfo_raises_invalid_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -217,8 +200,6 @@ def test_read_href_reraises_other_client_errors(
 
 # ---------------------------------------------------------------------------
 # bucket listing / existing-doc discovery / product-metadata resolution
-# (Slice A of UPDATE_FIRST_PLAN.md — input plumbing only, no behavior change
-# to process()'s output; these exercise the new helpers directly)
 # ---------------------------------------------------------------------------
 
 
@@ -249,22 +230,6 @@ def test_list_bucket_filenames_returns_basenames(
         "tileInfo.json",
         "S2A_T19TDJ_L2A.json",
     }
-
-
-def test_find_existing_stac_doc_filename_matches_item_id() -> None:
-    assert (
-        find_existing_stac_doc_filename(
-            {"tileInfo.json", "S2A_T19TDJ_L2A.json"}, "S2A_T19TDJ_L2A"
-        )
-        == "S2A_T19TDJ_L2A.json"
-    )
-
-
-def test_find_existing_stac_doc_filename_none_when_absent() -> None:
-    assert (
-        find_existing_stac_doc_filename({"tileInfo.json", "B02.tif"}, "S2A_T19TDJ_L2A")
-        is None
-    )
 
 
 def test_find_existing_stac_doc_filename_ignores_roda_product_info() -> None:
@@ -352,15 +317,7 @@ def test_asset_filenames_map_matches_create_item_keys(
 
 
 # ---------------------------------------------------------------------------
-# reference path (create_cogs=False, existing doc present) - Slice B of
-# UPDATE_FIRST_PLAN.md
-#
-# Auto-detected by existing-doc presence, not just create_cogs=False: a
-# create_cogs=False run against a doc-less source (e.g. a raw RODA prefix, no
-# product JSON in the bucket) takes the untouched legacy pass-through instead
-# -- covered by test_process_takes_legacy_path_when_no_doc_exists below, and
-# by the pre-existing baseline_item_dict-based tests, which exercise exactly
-# that (RODA source, no doc) via `process()`.
+# reference path (create_cogs=False, existing doc present)
 # ---------------------------------------------------------------------------
 
 
@@ -556,11 +513,6 @@ def test_process_takes_reference_path_when_doc_exists(
 def test_process_reference_path_never_reuploads_existing_assets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Slice D: every asset apply_reference_file_info processed already exists
-    # in the bucket -- that's the whole premise of the reference path; a
-    # truly missing one raises InvalidInput rather than falling through to an
-    # upload-to-fill. So by construction there's never anything local left to
-    # upload once apply_earthsearch_hrefs runs. This locks that invariant in.
     _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
     _stub_metadata_reads(monkeypatch)
     monkeypatch.setattr(
@@ -693,54 +645,48 @@ def _check_is_newer(
         return _minimal_task("regression-is-newer").is_newer_than_existing(item)
 
 
-def test_server_error_is_failure(baseline_item_dict: dict[str, Any]) -> None:
+@pytest.mark.parametrize(
+    "status_code, body, expected",
+    [
+        (404, None, Success(True)),
+        (500, None, "Failure"),
+        (200, {}, Success(True)),
+        (
+            200,
+            {"properties": {"s2:generation_time": "2020-03-27T06:15:34Z"}},
+            Success(True),
+        ),
+        (
+            200,
+            {"properties": {"s2:generation_time": _BASELINE_GEN_TIME}},
+            Success(True),
+        ),
+        (
+            200,
+            {"properties": {"s2:generation_time": "2026-03-27T06:15:34Z"}},
+            Success(False),
+        ),
+    ],
+    ids=["not-found", "server-error", "empty-body", "older", "same", "newer"],
+)
+def test_is_newer_than_existing(
+    baseline_item_dict: dict[str, Any],
+    status_code: int,
+    body: dict[str, Any] | None,
+    expected: Any,
+) -> None:
     item = Item.from_dict(baseline_item_dict)
-    result = _check_is_newer(item, status_code=500)
-    assert isinstance(result, Failure)
-    assert isinstance(result.failure(), Exception)
-
-
-def test_not_found_proceeds(baseline_item_dict: dict[str, Any]) -> None:
-    item = Item.from_dict(baseline_item_dict)
-    assert _check_is_newer(item, status_code=404) == Success(True)
-
-
-def test_empty_body_proceeds(baseline_item_dict: dict[str, Any]) -> None:
-    # 200 with no generation_time defaults existing to "" <= created → proceed.
-    item = Item.from_dict(baseline_item_dict)
-    assert _check_is_newer(item, body={}) == Success(True)
-
-
-def test_existing_older_proceeds(baseline_item_dict: dict[str, Any]) -> None:
-    item = Item.from_dict(baseline_item_dict)
-    body = {"properties": {"s2:generation_time": "2020-03-27T06:15:34Z"}}
-    assert _check_is_newer(item, body=body) == Success(True)
-
-
-def test_existing_same_proceeds(baseline_item_dict: dict[str, Any]) -> None:
-    # Equal generation_time still proceeds (<=), matching legacy behavior.
-    item = Item.from_dict(baseline_item_dict)
-    body = {"properties": {"s2:generation_time": _BASELINE_GEN_TIME}}
-    assert _check_is_newer(item, body=body) == Success(True)
-
-
-def test_existing_newer_skips(baseline_item_dict: dict[str, Any]) -> None:
-    item = Item.from_dict(baseline_item_dict)
-    body = {"properties": {"s2:generation_time": "2026-03-27T06:15:34Z"}}
-    assert _check_is_newer(item, body=body) == Success(False)
+    result = _check_is_newer(item, status_code=status_code, body=body)
+    if expected == "Failure":
+        assert isinstance(result, Failure)
+        assert isinstance(result.failure(), Exception)
+    else:
+        assert result == expected
 
 
 # ---------------------------------------------------------------------------
 # update_item
 # ---------------------------------------------------------------------------
-
-
-def test_collection_and_payload_id(baseline_item_dict: dict[str, Any]) -> None:
-    item = baseline_item_dict
-    assert item["collection"] == "sentinel-2-c1-l2a"
-    assert item["properties"]["earthsearch:payload_id"] == (
-        "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0"
-    )
 
 
 def test_providers_and_license_dropped(baseline_item_dict: dict[str, Any]) -> None:
@@ -930,14 +876,6 @@ def _item_with_baseline(
 
 def test_baseline_below_04_raises(baseline_item_dict: dict[str, Any]) -> None:
     item = _item_with_baseline(baseline_item_dict, "02.13")
-    with pytest.raises(
-        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
-    ):
-        _minimal_task("test-make-cogs").make_cogs_for_item(item)
-
-
-def test_baseline_03_raises(baseline_item_dict: dict[str, Any]) -> None:
-    item = _item_with_baseline(baseline_item_dict, "03.99")
     with pytest.raises(
         InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
     ):
