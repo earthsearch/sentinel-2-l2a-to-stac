@@ -2,13 +2,16 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
+import boto3  # type: ignore[import-untyped]
 import requests
 import stac_asset.blocking
 from boto3utils import s3
+from botocore import UNSIGNED
+from botocore.config import Config as BotoClientConfig
 from botocore.exceptions import ClientError
-from pystac import Asset, Item
+from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from rasterio.errors import CRSError
@@ -17,7 +20,8 @@ from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
-from sentinel_2_l2a_to_stac.cogify import cogify, sha256sum_multihash, make_thumbnail
+
+from sentinel_2_l2a_to_stac.cogify import cogify, make_thumbnail, sha256sum_multihash
 
 # SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
 # 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
@@ -33,6 +37,9 @@ for _noisy_logger in ("botocore", "rasterio"):
     logging.getLogger(_noisy_logger).propagate = False
 
 s3_client = s3(requester_pays=False)
+# list_bucket_names is the only call made through the s3 client,
+# and should only ever hit buckets allowing anonymous access
+s3_client.s3 = boto3.client("s3", config=BotoClientConfig(signature_version=UNSIGNED))
 
 # Storage extension (pystac 1.15.2, schemes/refs model). Two aws-s3 schemes:
 # "roda" for source metadata assets remaining on the RODA public bucket, and
@@ -57,6 +64,70 @@ THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 _METADATA_ASSET_KEYS = ("tileinfo_metadata", "granule_metadata", "product_metadata")
 
 EXPECTED_COGIFIED_COUNT = 19
+
+# Filename <-> asset key map for the earthsearch flat product-prefix layout. 
+# Every entry is verified against create_item's actual output keys.
+ASSET_FILENAMES: dict[str, str] = {
+    "aot": "AOT.tif",
+    "coastal": "B01.tif",
+    "blue": "B02.tif",
+    "green": "B03.tif",
+    "red": "B04.tif",
+    "rededge1": "B05.tif",
+    "rededge2": "B06.tif",
+    "rededge3": "B07.tif",
+    "nir": "B08.tif",
+    "nir09": "B09.tif",
+    "swir16": "B11.tif",
+    "swir22": "B12.tif",
+    "nir08": "B8A.tif",
+    "cloud": "CLD_20m.tif",
+    "snow": "SNW_20m.tif",
+    "visual": "TCI.tif",
+    "wvp": "WVP.tif",
+    "scl": "SCL.tif",
+    "preview": "L2A_PVI.tif",
+    THUMBNAIL_ASSET_NAME: "L2A_PVI.jpg",
+    "granule_metadata": "metadata.xml",
+    "product_metadata": "product_metadata.xml",
+    "tileinfo_metadata": "tileInfo.json",
+}
+
+
+def _prune_to_canonical_assets(item: Item) -> Item:
+    """Drop create_item's non-native-resolution "*m" variants and the thumbnail.
+
+    create_item emits ~40 asset keys, including *m-suffixed duplicates for
+    every resolution other than a band's native one (e.g. red_20m,
+    visual_60m). None of the 23 canonical asset keys end in "m", so filtering
+    on that suffix is safe.
+    """
+    for key in list(item.assets.keys()):
+        if key.endswith("m") or key == THUMBNAIL_ASSET_NAME:
+            del item.assets[key]
+    return item
+
+
+def _resolve_product_metadata_href(
+    s3_path: str, bucket_filenames: set[str], bucket: str, product_path: str
+) -> str:
+    """Resolve product_metadata.xml: flat earthsearch layout first, RODA fallback.
+    """
+    if "product_metadata.xml" in bucket_filenames:
+        return f"{s3_path}/product_metadata.xml"
+    return f"s3://{bucket}/{product_path}/metadata.xml"
+
+
+def find_existing_stac_doc_filename(
+    bucket_filenames: set[str], item_id: str
+) -> Optional[str]:
+    """Locate the existing product STAC doc's filename in a prefix listing.
+
+    The doc is named after the product. Requires
+    item_id, so this can only run after create_item builds the item.
+    """
+    filename = f"{item_id}.json"
+    return filename if filename in bucket_filenames else None
 
 
 class Sentinel2ToStac(Task):
@@ -150,6 +221,87 @@ class Sentinel2ToStac(Task):
                 )
             )
 
+    def list_bucket_filenames(self, s3_path: str) -> set[str]:
+        """List the basenames of every object directly under an S3 prefix."""
+        prefix = s3_path if s3_path.endswith("/") else f"{s3_path}/"
+        return {href.rsplit("/", 1)[-1] for href in s3_client.find(prefix)}
+
+    def load_existing_stac_doc(self, s3_path: str, filename: str) -> dict[str, Any]:
+        result: dict[str, Any] = json.loads(self.read_href(f"{s3_path}/{filename}"))
+        return result
+
+    def apply_earthsearch_hrefs(self, item: Item, s3_path: str) -> Item:
+        """Overwrite every asset href from the flat filename<->key map.
+
+        Reference-path-only. One consistent rule for every asset, whether or
+        not it's already in the existing doc: {prefix}/{FILENAME}. Called
+        after update_item, so it's harmless that update_item already set
+        RODA/local hrefs first.
+        """
+        for key, asset in item.assets.items():
+            asset.href = f"{s3_path}/{ASSET_FILENAMES[key]}"
+        return item
+
+    def add_thumbnail_asset(self, item: Item, s3_path: str) -> Item:
+        """Add the thumbnail asset manually.
+
+        create_item never produces one (make_thumbnail does, but that's
+        cog-creation-path only); the reference path instead reuses the JPEG
+        preview that already exists in the bucket.
+        """
+        asset = Asset(
+            href=f"{s3_path}/{ASSET_FILENAMES[THUMBNAIL_ASSET_NAME]}",
+            type=MediaType.JPEG,
+            roles=["thumbnail"],
+        )
+        item.assets[THUMBNAIL_ASSET_NAME] = asset
+        asset.set_owner(item)
+        return item
+
+    def apply_reference_file_info(
+        self,
+        item: Item,
+        bucket_filenames: set[str],
+        existing_stac_doc: dict[str, Any],
+    ) -> Item:
+        """Populate file:size/file:checksum for every reference-path asset.
+
+        Reuse
+        from the existing doc when it already carries both fields for this
+        asset, otherwise download the object from earthsearch and compute
+        them fresh. An asset missing from the bucket can't be serviced
+        without create_cogs=True, so it's a hard input error here. Any doc
+        asset that isn't one of `item`'s own keys is never consulted, which
+        is what makes an extra doc-only asset a no-op.
+        """
+        doc_assets = existing_stac_doc.get("assets", {})
+        for key, asset in item.assets.items():
+            filename = ASSET_FILENAMES[key]
+            if filename not in bucket_filenames:
+                raise InvalidInput(
+                    f"Expected asset '{key}' ({filename}) not found in the bucket"
+                )
+
+            fext = FileExtension.ext(asset, add_if_missing=True)
+            doc_asset = doc_assets.get(key, {})
+            if doc_type := doc_asset.get("type"):
+                asset.type = doc_type
+            size = doc_asset.get("file:size")
+            checksum = doc_asset.get("file:checksum")
+            if size is not None and checksum is not None:
+                fext.size = size
+                fext.checksum = checksum
+            else:
+                tmp_path = self._workdir / filename
+                tmp_path.write_bytes(self.read_href(asset.href))
+                try:
+                    fext.size = tmp_path.stat().st_size
+                    fext.checksum = sha256sum_multihash(str(tmp_path))
+                finally:
+                    tmp_path.unlink()
+
+        return item
+
     def make_cogs_for_item(self, item: Item) -> Item:
         try:
             processing_baseline = item.properties.get("s2:processing_baseline", "0")
@@ -159,13 +311,13 @@ class Sentinel2ToStac(Task):
                     "only >= 05.00 (not including 5.09) is supported."
                 )
 
-            assets_to_cogify = list()
-            for key, asset in item.assets.copy().items():
-                if key.endswith("m") or key == "thumbnail":
-                    del item.assets[key]
+            item = _prune_to_canonical_assets(item)
+            assets_to_cogify = [
                 # pystac 2.0 renamed Asset.media_type → Asset.type
-                elif asset.type == "image/jp2":
-                    assets_to_cogify.append(key)
+                key
+                for key, asset in item.assets.items()
+                if asset.type == "image/jp2"
+            ]
 
             self.logger.info(f"Downloading assets to cogify: {assets_to_cogify}")
 
@@ -305,8 +457,10 @@ class Sentinel2ToStac(Task):
 
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
         metadata_href = self._payload["metadata_href"]
-        create_cogs = self._payload.get("create_cogs", True)
+        create_cogs = self._payload.get("create_cogs", False)
         s3_path = os.path.dirname(metadata_href)
+
+        bucket_filenames = self.list_bucket_filenames(s3_path)
 
         # Download the three source metadata files into the workdir.
         # Each download is guarded by .exists() so a saved workdir is reused
@@ -324,10 +478,14 @@ class Sentinel2ToStac(Task):
 
         if not self.product_metadata_xml_path.exists():
             parts = s3_client.urlparse(s3_path)
+            product_metadata_href = _resolve_product_metadata_href(
+                s3_path,
+                bucket_filenames,
+                parts["bucket"],
+                l2a_tileinfo["productPath"],
+            )
             self.product_metadata_xml_path.write_bytes(
-                self.read_href(
-                    f"s3://{parts['bucket']}/{l2a_tileinfo['productPath']}/metadata.xml"
-                )
+                self.read_href(product_metadata_href)
             )
 
         if not self.granule_metadata_xml_path.exists():
@@ -354,6 +512,22 @@ class Sentinel2ToStac(Task):
             else:
                 raise Exception(f"Unable to create item: {ex}") from ex
 
+        # Only knowable once the item (and therefore its id) exists: the doc
+        # is named after the product, so this can't run any earlier.
+        existing_doc_filename = find_existing_stac_doc_filename(
+            bucket_filenames, item.id
+        )
+        existing_stac_doc = (
+            self.load_existing_stac_doc(s3_path, existing_doc_filename)
+            if existing_doc_filename is not None
+            else None
+        )
+        if existing_stac_doc is not None:
+            self.logger.info(
+                f"Found existing STAC doc '{existing_doc_filename}' with "
+                f"{len(existing_stac_doc.get('assets', {}))} assets"
+            )
+
         # Apply Earth Search-specific overrides
         try:
             item = self.update_item(item, s3_path)
@@ -371,7 +545,7 @@ class Sentinel2ToStac(Task):
             case _:
                 pass
 
-        if create_cogs:
+        if create_cogs and existing_stac_doc is None:
             self.logger.info("Making COGs for item assets")
             item = self.make_cogs_for_item(item)
 
@@ -381,6 +555,20 @@ class Sentinel2ToStac(Task):
             except Exception:
                 self.logger.exception("Cannot create JPEG thumbnail")
                 raise
+        elif existing_stac_doc is not None:
+            # Reference/update path: an existing product doc means we're
+            # refreshing an already-ingested earthsearch item.
+            # Requires every expected asset to already be in the bucket.
+            item = _prune_to_canonical_assets(item)
+
+            self.logger.info("Applying earthsearch hrefs")
+            item = self.apply_earthsearch_hrefs(item, s3_path)
+            item = self.add_thumbnail_asset(item, s3_path)
+
+            self.logger.info("Reusing/downloading asset file info")
+            item = self.apply_reference_file_info(
+                item, bucket_filenames, existing_stac_doc
+            )
 
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)

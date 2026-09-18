@@ -636,7 +636,9 @@ def parse_metadata(
         geometry=geometry,
         datetime=tileinfo_metadata.datetime,
         platform=granule_metadata.platform,  # type: ignore[arg-type]
-        image_media_type=pystac.MediaType.JPEG2000,
+        image_media_type=product_metadata.image_media_type
+        if product_metadata is not None
+        else pystac.MediaType.JPEG2000,
         image_paths=image_paths,
         sun_zenith=granule_metadata.mean_solar_zenith,
         sun_azimuth=granule_metadata.mean_solar_azimuth,

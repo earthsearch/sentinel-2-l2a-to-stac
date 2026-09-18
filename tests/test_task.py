@@ -79,8 +79,11 @@ def diff_output(
 
     expected_output = None
     if not os.path.exists(filename_out):
-        expected_output = actual_output
+        # First run for this fixture: persist the generated baseline. Use a deep
+        # copy (not an alias) so the shared thumbnail pop-from-both below operates
+        # on two independent dicts rather than popping the same key twice.
         filename_out.write_text(json.dumps(actual_output, indent=2) + "\n")
+        expected_output = json.loads(json.dumps(actual_output))
     else:
         expected_output = json.loads(filename_out.read_text())
 
@@ -181,6 +184,10 @@ def success_cases() -> Generator[Path, None, None]:
     yield from (FIXTURES / "success").iterdir()
 
 
+def upgrade_cases() -> Generator[Path, None, None]:
+    yield from (FIXTURES / "upgrade").iterdir()
+
+
 def _run(payload: dict[str, Any]) -> dict[str, Any]:
     """Run the full pipeline for a payload, caching imagery, never uploading.
 
@@ -211,6 +218,23 @@ def test_failing_files(fixture_dir: Path) -> None:
 @pytest.mark.system
 @pytest.mark.parametrize("fixture_dir", success_cases(), ids=lambda x: x.name)
 def test_successful_payload_to_input_item(fixture_dir: Path) -> None:
+    payload = json.loads((fixture_dir / "in.json").read_text())
+
+    actual_output = _run(payload)
+
+    diff = diff_output(fixture_dir, actual_output)
+
+    if diff:
+        pytest.fail(
+            f"expected output does not match:\n{diff.to_json(indent=4)}", pytrace=False
+        )
+
+
+# Update-first parity tests.
+# They are opt-in with `-m upgrade` and never write to S3 (`upload=False`).
+@pytest.mark.upgrade
+@pytest.mark.parametrize("fixture_dir", upgrade_cases(), ids=lambda x: x.name)
+def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 
     actual_output = _run(payload)

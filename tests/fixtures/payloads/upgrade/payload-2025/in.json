@@ -1,7 +1,7 @@
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/55/G/FL/2025/12/31/0/tileInfo.json",
-  "create_cogs": true,
+  "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T55GFL_20251231T000322_L2A",
+  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/55/G/FL/2025/12/S2A_T55GFL_20251231T000322_L2A/tileInfo.json",
+  "create_cogs": false,
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",

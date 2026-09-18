@@ -1,21 +1,22 @@
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/tileInfo.json",
-  "create_cogs": true,
-  "process": [
-    {
-      "workflow": "sentinel-2-l2a-to-stac",
-      "upload_options": {
-        "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
-        "collections": {
-          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
-        }
-      },
-      "tasks": {
-        "sentinel-2-l2a-to-stac": {}
+  "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-2026",
+  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/tileInfo.json",
+  "create_cogs": false,
+  "process": {
+    "workflow": "sentinel-2-c1-l2a-to-stac",
+    "input_collections": [
+      "roda-sentinel2"
+    ],
+    "upload_options": {
+      "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
+      "collections": {
+        "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
       }
+    },
+    "tasks": {
+      "sentinel-2-c1-l2a-to-stac": {}
     }
-  ],
+  },
   "features": [
     {
       "type": "Feature",
@@ -108,14 +109,14 @@
         "s2:datatake_type": "INS-NOBS",
         "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20260824T030507_S20260823T153829_N05.12",
         "s2:reflectance_conversion_factor": 0.976724304949719,
-        "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
+        "earthsearch:payload_id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-2026",
         "storage:schemes": {
-          "local": {
+          "earthsearch": {
             "type": "aws-s3",
             "platform": "https://{bucket}.s3.{region}.amazonaws.com",
             "region": "us-west-2",
             "requester_pays": false,
-            "bucket": "local"
+            "bucket": "e84-earth-search-sentinel-data"
           }
         },
         "processing:software": {
@@ -125,7 +126,7 @@
       "links": [],
       "assets": {
         "red": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B04.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B04.tif",
           "eo:common_name": "red",
           "eo:center_wavelength": 0.665,
           "eo:full_width_half_max": 0.038,
@@ -148,10 +149,10 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220a79c76f0b0a65790ccec5c0acc175ff45449e575bd6c28634aa05b4e65fd5b11",
-          "file:size": 182499486,
+          "file:size": 182499504,
+          "file:checksum": "1220065a40391c2d0a8b3ee8a4850a5abeb9f95ffe423e0d368c6e2f3be6c5b8ed19",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Red - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -161,7 +162,7 @@
           ]
         },
         "green": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B03.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B03.tif",
           "eo:common_name": "green",
           "eo:center_wavelength": 0.56,
           "eo:full_width_half_max": 0.045,
@@ -184,10 +185,10 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220b144cde29c49c75fff7ca19a7878f2d964fe2ca12ec94352438b502b9f676fb9",
-          "file:size": 182399337,
+          "file:size": 182399355,
+          "file:checksum": "12207fd4e2c2057391a0ab6cdf476d87e7c7d99a4000d8fd04f14560b571c5bac004",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Green - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -197,7 +198,7 @@
           ]
         },
         "blue": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B02.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B02.tif",
           "eo:common_name": "blue",
           "eo:center_wavelength": 0.49,
           "eo:full_width_half_max": 0.098,
@@ -220,10 +221,10 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220de084d252178940fc1f7efd4651683ee0a913ad914b70af3a0ff7948ffe14477",
-          "file:size": 183827915,
+          "file:size": 183827933,
+          "file:checksum": "1220cdad6d367990d0d3bc0654407a96b6b35be6acbf12fc71610b1c857e15a04f33",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Blue - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -233,7 +234,7 @@
           ]
         },
         "visual": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/TCI.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/TCI.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -247,10 +248,10 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "12200e2ab95dbb6ee417cd2f3ca673a89e9f49cfd9abc409d3378409409ac57161da",
           "file:size": 13270626,
+          "file:checksum": "12200e2ab95dbb6ee417cd2f3ca673a89e9f49cfd9abc409d3378409409ac57161da",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "True color image",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -288,7 +289,7 @@
           ]
         },
         "nir": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B08.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B08.tif",
           "eo:common_name": "nir",
           "eo:center_wavelength": 0.842,
           "eo:full_width_half_max": 0.145,
@@ -311,10 +312,10 @@
             -10.0,
             4900020.0
           ],
-          "file:checksum": "1220a413fa40232d6c2e02709337d17f68ff309947803a43f7b0e002cac1bb73c0c8",
-          "file:size": 184599970,
+          "file:size": 184599988,
+          "file:checksum": "122040cad586d0559536010592d5aa5c368ba97285ccfa7d0a25e07f6036f8a7b6be",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "NIR 1 - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -324,7 +325,7 @@
           ]
         },
         "swir22": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B12.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B12.tif",
           "eo:common_name": "swir22",
           "eo:center_wavelength": 2.19,
           "eo:full_width_half_max": 0.242,
@@ -347,10 +348,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220cb45c28d75abcb3adc65b8c759b401391a87aedb5257a575db18f89328df8fa8",
-          "file:size": 50703332,
+          "file:size": 50703350,
+          "file:checksum": "1220bfab6825835cf9f1392bb90f3f59ccf32305e93ed44e2d0421ee4f62e80d5014",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "SWIR 2.2\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -360,7 +361,7 @@
           ]
         },
         "rededge2": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B06.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B06.tif",
           "eo:common_name": "rededge",
           "eo:center_wavelength": 0.74,
           "eo:full_width_half_max": 0.018,
@@ -383,10 +384,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220a07a56cc8c6ea072c0a4e0c36d5a181d46cc1bc07072772555d6ee81168044e3",
-          "file:size": 54406416,
+          "file:size": 54406434,
+          "file:checksum": "12205a8dc9c0d6b7d20c54a6cf091a6702d353664ee4c748be94d43c30f87ee5781f",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Red Edge 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -396,7 +397,7 @@
           ]
         },
         "rededge3": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B07.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B07.tif",
           "eo:common_name": "rededge",
           "eo:center_wavelength": 0.783,
           "eo:full_width_half_max": 0.028,
@@ -419,10 +420,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220b9bfe4a2c2795b2b5f4fd58ff3c501308ed06f3ac0bd0e9ea92b36fb5984d65f",
-          "file:size": 54411301,
+          "file:size": 54411319,
+          "file:checksum": "12200b455116b5b28cdd040d5ea1d05ecdf52fb9af9bb1d5d3996b9401edbe7aecca",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Red Edge 3 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -432,7 +433,7 @@
           ]
         },
         "rededge1": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B05.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B05.tif",
           "eo:common_name": "rededge",
           "eo:center_wavelength": 0.704,
           "eo:full_width_half_max": 0.019,
@@ -455,10 +456,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "122040c849ac006c42b1bdbe52d6158be32fd146bd47a59b8adf83ea4ebda16df352",
-          "file:size": 54318035,
+          "file:size": 54318053,
+          "file:checksum": "1220599ed15f7d664884c05bae6e86b48a83a1795a171dceeee05ab3b6ac76fffd59",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Red Edge 1 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -468,7 +469,7 @@
           ]
         },
         "swir16": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B11.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B11.tif",
           "eo:common_name": "swir16",
           "eo:center_wavelength": 1.61,
           "eo:full_width_half_max": 0.143,
@@ -491,10 +492,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "12204ccf5c2a553a8ee1f6d29b87e2a246c616f8295c18bac40fa42b6ea8a132366a",
-          "file:size": 51533675,
+          "file:size": 51533693,
+          "file:checksum": "1220a2711e646940bee97ab54e42732af90e964420bd641b68d51c4264eadd67eff1",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "SWIR 1.6\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -504,7 +505,7 @@
           ]
         },
         "wvp": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/WVP.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/WVP.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -524,10 +525,10 @@
           "unit": "cm",
           "raster:scale": 0.001,
           "raster:offset": 0,
-          "file:checksum": "12200c612f7c4e66cded6ceee333eee971968b75df0a79c4e85731e19e58933e3b12",
-          "file:size": 95829,
+          "file:size": 95845,
+          "file:checksum": "1220155ef7445fbf489b2d7e7a5face3caab802afc004b98e85a0df9479a93f88588",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Water Vapour (WVP)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -536,7 +537,7 @@
           ]
         },
         "nir08": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B8A.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B8A.tif",
           "eo:common_name": "nir08",
           "eo:center_wavelength": 0.865,
           "eo:full_width_half_max": 0.033,
@@ -559,10 +560,10 @@
             -20.0,
             4900020.0
           ],
-          "file:checksum": "1220cf681d0e57fce41314ca0745be50c8bb46190d6f69c3a9cc7df60643a0225263",
-          "file:size": 54938353,
+          "file:size": 54938371,
+          "file:checksum": "1220401fa8535167a8343f563771002abdbe601b98da38792192fa5a9ef352b5e9a1",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "NIR 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -572,7 +573,7 @@
           ]
         },
         "scl": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/SCL.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/SCL.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -589,10 +590,10 @@
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint8",
-          "file:checksum": "12203bef9303d4582fa53fa2a67abd22d23861b569d57376219c0917f26c77b58022",
-          "file:size": 415419,
+          "file:size": 415424,
+          "file:checksum": "1220f5910710b5fdeb5936b4b6b6d43295274e1ec132f4dc482f3aa280b7cf8634f1",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Scene classification map (SCL)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -601,7 +602,7 @@
           ]
         },
         "aot": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/AOT.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/AOT.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -620,10 +621,10 @@
           "data_type": "uint16",
           "raster:scale": 0.001,
           "raster:offset": 0,
-          "file:checksum": "1220dd2467e2a471f067fc0d457d57d9cf8d905831868a366b5352600f98827ab334",
-          "file:size": 531141,
+          "file:size": 531157,
+          "file:checksum": "122076c350102bacb333b77d8a81ab9b927049c9627fb53e90dbd2351227bb371ff9",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Aerosol optical thickness (AOT)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -632,7 +633,7 @@
           ]
         },
         "coastal": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B01.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B01.tif",
           "eo:common_name": "coastal",
           "eo:center_wavelength": 0.443,
           "eo:full_width_half_max": 0.027,
@@ -655,10 +656,10 @@
             -60.0,
             4900020.0
           ],
-          "file:checksum": "1220d699ecb92cb6b6007543c5160e92c0569ca64660dc1544e1e498e6129b990d7f",
-          "file:size": 6542411,
+          "file:size": 6542429,
+          "file:checksum": "12203c83313d0cda92049f862fa44c9351ba3720b250a1e5f63bde4e894bfa5f3666",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Coastal - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -668,7 +669,7 @@
           ]
         },
         "nir09": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/B09.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B09.tif",
           "eo:common_name": "nir09",
           "eo:center_wavelength": 0.945,
           "eo:full_width_half_max": 0.026,
@@ -691,10 +692,10 @@
             -60.0,
             4900020.0
           ],
-          "file:checksum": "12200dad2af60dc393ebf8e1317188d33b28a41d038769a37d1f22f18c278a0d0023",
-          "file:size": 5984157,
+          "file:size": 5984175,
+          "file:checksum": "1220fab2689b05d92eaaf7860fe7f070543ed3adcfae25f4446a2e67c462e6ec5a5c",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "NIR 3 - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -704,7 +705,7 @@
           ]
         },
         "cloud": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/CLD_20m.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/CLD_20m.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -721,10 +722,10 @@
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint8",
-          "file:checksum": "1220a42e168b7c02dc00ebe508e92348fc79fc5c840b99a03b01cfee23edf05d4f88",
           "file:size": 1264704,
+          "file:checksum": "1220a42e168b7c02dc00ebe508e92348fc79fc5c840b99a03b01cfee23edf05d4f88",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Cloud Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -734,7 +735,7 @@
           ]
         },
         "snow": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/SNW_20m.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/SNW_20m.tif",
           "proj:shape": [
             5490,
             5490
@@ -750,10 +751,10 @@
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint8",
-          "file:checksum": "122022fb64d418ea3648b813a7b898c9c812fbfadfe65ce21245f87648e727aa1228",
           "file:size": 399453,
+          "file:checksum": "122022fb64d418ea3648b813a7b898c9c812fbfadfe65ce21245f87648e727aa1228",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "Snow Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -763,7 +764,7 @@
           ]
         },
         "preview": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/L2A_PVI.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/L2A_PVI.tif",
           "gsd": 320,
           "proj:shape": [
             343,
@@ -777,10 +778,10 @@
             -320.0,
             4900020.0
           ],
-          "file:checksum": "12206dfceae6cf7ff36cbea2757e57ece56922983b2740fef67c27dd61c56fac2ed1",
           "file:size": 23242,
+          "file:checksum": "12206dfceae6cf7ff36cbea2757e57ece56922983b2740fef67c27dd61c56fac2ed1",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "title": "True color preview",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
@@ -809,11 +810,11 @@
           ]
         },
         "granule_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/metadata.xml",
-          "file:checksum": "1220ef782e63401d0e275282bfdad4e3a4d62ba8f7055532034776ce7b61967897e4",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/metadata.xml",
           "file:size": 626353,
+          "file:checksum": "1220ef782e63401d0e275282bfdad4e3a4d62ba8f7055532034776ce7b61967897e4",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "type": "application/xml",
           "roles": [
@@ -821,11 +822,11 @@
           ]
         },
         "tileinfo_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/tileInfo.json",
-          "file:checksum": "1220d0809fc2c49e9632974c20798454bd640d5e9f5f15074028788cb9d08573ca4e",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/tileInfo.json",
           "file:size": 1491,
+          "file:checksum": "1220d0809fc2c49e9632974c20798454bd640d5e9f5f15074028788cb9d08573ca4e",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "type": "application/json",
           "roles": [
@@ -833,11 +834,11 @@
           ]
         },
         "product_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/product_metadata.xml",
-          "file:checksum": "1220c0434eb82e70a0d54ca56d7a688e517727e6b313638d99db63432923ccb297e7",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/product_metadata.xml",
           "file:size": 54957,
+          "file:checksum": "1220c0434eb82e70a0d54ca56d7a688e517727e6b313638d99db63432923ccb297e7",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
           "type": "application/xml",
           "roles": [
@@ -845,13 +846,12 @@
           ]
         },
         "thumbnail": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0/L2A_PVI.jpg",
-          "file:checksum": "12205732d1c1be5e7338d0e0d85a18f1d81891e4f2b1bf89bfd8a15741c002316e33",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/L2A_PVI.jpg",
           "file:size": 5238,
+          "file:checksum": "12205732d1c1be5e7338d0e0d85a18f1d81891e4f2b1bf89bfd8a15741c002316e33",
           "storage:refs": [
-            "local"
+            "earthsearch"
           ],
-          "title": "Thumbnail of preview image",
           "type": "image/jpeg",
           "roles": [
             "thumbnail"

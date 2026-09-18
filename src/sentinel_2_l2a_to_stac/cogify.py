@@ -1,7 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
-from typing import Any, Sequence, Final
+from typing import Any, Sequence
 
 import numpy as np
 import rasterio
@@ -14,18 +14,16 @@ from rasterio.rio.overview import get_maximum_overview_level
 from stactask.exceptions import InvalidInput
 
 from sentinel_2_l2a_to_stac.constants import (
+    RASTER_NODATA_KEY,
+    RASTER_OFFSET_KEY,
     RASTER_SCALE_KEY,
     RASTER_SPATIAL_RESOLUTION_KEY,
-    RASTER_OFFSET_KEY,
-    RASTER_NODATA_KEY,
 )
 
 # SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
 # 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
 if not hasattr(Asset, "media_type"):
     Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
-
-from sentinel_2_l2a_to_stac.stac import create_item
 
 
 THUMBNAIL_ASSET_NAME = "thumbnail"

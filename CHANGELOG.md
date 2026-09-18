@@ -9,6 +9,19 @@ used by this project.
 
 ## [Unreleased]
 
+### Added
+
+- Update-first restructure, Slice A (input plumbing, no output behavior
+  change yet — see `UPDATE_FIRST_PLAN.md`): `product_metadata.xml` resolution
+  now prefers the flat earthsearch layout (`{s3_path}/product_metadata.xml`)
+  and falls back to the RODA `productPath` layout only when the flat file
+  isn't present; `list_bucket_filenames`/`find_existing_stac_doc_filename`/
+  `load_existing_stac_doc` add the bucket-prefix listing and existing-doc
+  discovery the reference/update path (Slice B) will branch on; the
+  `ASSET_FILENAMES` map and `_prune_to_canonical_assets` helper (extracted
+  from `make_cogs_for_item`, no behavior change) will be shared by both
+  execution paths.
+
 ### Changed
 
 - Replaced `stactools~=0.5.3` and `stactools-sentinel2==0.8.0` with a

@@ -16,7 +16,8 @@ Locality contract
   has no effect there.
 
 We use ``setdefault`` so a developer who *deliberately* exports real
-credentials is respected rather than overridden; a plain ``pytest`` run remains hermetic.
+credentials is respected rather than overridden; a plain ``pytest`` run remains
+hermetic.
 """
 
 import json
@@ -99,6 +100,15 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
         ).read_text()
     )
     payload["create_cogs"] = False
+
+    # pytest's `monkeypatch` fixture is function-scoped and can't be depended
+    # on here; this fixture is session-scoped, so it patches directly and
+    # leaves the patch in place for the rest of the run.
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
+    )
+
     result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
     assert len(result) == 1
     return result[0]

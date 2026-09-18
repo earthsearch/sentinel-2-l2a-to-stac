@@ -60,9 +60,10 @@ ignore_missing_imports = true
 # offline. To run them, override the marker expression on the CLI:
 #     uv run pytest -m system
 # The trailing CLI `-m` wins over the `-m "not system"` in addopts.
-addopts = ["-m", "not system"]
+addopts = ["-m", "not system and not upgrade"]
 markers = [
     "system: network-hitting parity tests against real imagery (opt in with -m system)",
+    "upgrade: network-hitting parity tests against earthsearch-hosted products for the update-first path (opt in with -m upgrade)",
 ]
 filterwarnings = [
     # Silence DeprecationWarnings from third-party libraries (already present).
