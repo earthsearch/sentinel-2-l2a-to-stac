@@ -1,25 +1,43 @@
 [project]
-name = "cirrus-task-example"
-version = "0.1.0"
+name = "sentinel-2-l2a-to-stac"
+version = "v2026.09.03"
 authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
-description = "An example Cirrus task that can be used as a template"
+description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
-requires-python = ">=3.10"
+# pystac 2.0-dev requires Python >= 3.12, so 3.11 support is dropped as part of
+# adopting the 2.0 baseline (see MIGRATION_PLAN.md PR 9 / pystac-2.0 adoption).
+requires-python = ">=3.12"
 keywords = ["stac", "workflow", "cirrus"]
 license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "stactask>=0.6.1",
+    "antimeridian>=0.4.8",
+    "boto3-utils>=0.4.2",
+    "lxml>=6.0",
+    "multiformats~=0.3.1",
+    "numpy>=2.4.6",
+    "pillow~=12.0",
+    # pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
+    # per CLAUDE.md — never a floating @main. This is the dev build that carries
+    # the native core `bands` API (Asset.bands / Band); the source override lives
+    # in [tool.uv.sources] below. Bump the SHA deliberately and re-verify.
+    "pyproj>=3.7",
+    "pystac",
+    "rasterio~=1.4",
+    "requests>=2.34.2",
+    "returns~=0.29",
+    "stactask>=0.7.0",
 ]
 
+[tool.uv.sources]
+pystac = { git = "https://github.com/stac-utils/pystac.git", rev = "4f346f2e1a1db00d526ef052800f24e19c72476c" }
+
 [project.scripts]
-cirrus-task-example = "cirrus_task_example.task:CirrusTaskExample.cli"
+sentinel-2-l2a-to-stac = "sentinel_2_l2a_to_stac.task:Sentinel2ToStac.cli"
 
 
 [tool.mypy]
@@ -27,18 +45,55 @@ show_error_codes = true
 strict = true
 warn_unused_ignores = true
 
+# Third-party libraries without type stubs or a py.typed marker. Ships no
+# typing info, so under --strict mypy would emit import-untyped; scope the
+# suppression to just these modules rather than weakening strictness globally.
+[[tool.mypy.overrides]]
+module = ["boto3utils.*", "botocore.*", "deepdiff.*", "lxml.*", "multiformats.*", "numpy.*", "rasterio.*", "shapely.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
-filterwarnings = ["ignore::DeprecationWarning"]
+# The `system` marker flags the network-hitting parity tests in
+# tests/test_task.py (they download real Sentinel-2 imagery from the public
+# RODA/AWS bucket and run the full COG/thumbnail pipeline). They are OPT-IN:
+# `addopts` deselects them by default so `uv run pytest` stays fast and
+# offline. To run them, override the marker expression on the CLI:
+#     uv run pytest -m system
+# The trailing CLI `-m` wins over the `-m "not system"` in addopts.
+addopts = ["-m", "not system and not upgrade"]
+markers = [
+    "system: network-hitting parity tests against real imagery (opt in with -m system)",
+    "upgrade: network-hitting parity tests against earthsearch-hosted products for the update-first path (opt in with -m upgrade)",
+]
+filterwarnings = [
+    # Silence DeprecationWarnings from third-party libraries (already present).
+    "ignore::DeprecationWarning",
+    # Rasterio internally uses the `*` operator for Affine matrix multiplication;
+    # suppress the PendingDeprecationWarning it emits until rasterio fixes this.
+    "ignore::PendingDeprecationWarning:rasterio.*",
+    # antimeridian.FixWindingWarning fires when metadata.py passes a clockwise
+    # exterior ring; it auto-fixes the winding, but the warning is noise from a
+    # third-party call we don't control. Matched by message text + module so
+    # our own code can still raise warnings freely.
+    "ignore:The exterior ring::antimeridian.*",
+    # pystac raises this when any caller sets link.target = <str>; the warning
+    # is issued from pystac.link itself, so the module filter must match there.
+    "ignore:Setting Link.target to href:UserWarning:pystac.*",
+]
 
 [tool.ruff]
 lint.select = ["F", "E", "W", "I", "ERA", "RUF"]
 
-[tool.uv]
-dev-dependencies = [
-    "mypy>=1.15.0",
-    "pre-commit>=4.1.0",
-    "pytest>=8.3.5",
-    "ruff>=0.9.9",
+[dependency-groups]
+dev = [
+    "deepdiff>=8.0",
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "requests-mock>=1.12.1",
+    "ruff>=0.16.5",
+    "shapely>=2.0",
+    "types-requests>=2.33.0.20260712",
 ]
 
 [build-system]

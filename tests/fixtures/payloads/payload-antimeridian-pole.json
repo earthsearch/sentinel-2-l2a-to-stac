@@ -1,0 +1,24 @@
+{
+  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/20240109T184746_L2A",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/60/C/WS/2024/1/9/2/tileInfo.json",
+  "process": [
+    {
+      "workflow": "sentinel-2-l2a-to-stac",
+      "input_collections": [
+        "roda-sentinel-2-c1-l2a"
+      ],
+      "upload_options": {
+        "path_template": "s3://e84-earth-search-sentinel-data/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
+        "collections": {
+          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+        },
+        "headers": {
+          "StorageClass": "INTELLIGENT_TIERING"
+        }
+      },
+      "tasks": {
+        "sentinel-2-l2a-to-stac": {}
+      }
+    }
+  ]
+}

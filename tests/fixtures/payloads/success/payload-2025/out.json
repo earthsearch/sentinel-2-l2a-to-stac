@@ -1,0 +1,861 @@
+{
+  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0",
+  "metadata_href": "s3://sentinel-s2-l2a/tiles/55/G/FL/2025/12/31/0/tileInfo.json",
+  "create_cogs": true,
+  "process": [
+    {
+      "workflow": "sentinel-2-l2a-to-stac",
+      "input_collections": [
+        "roda-sentinel2"
+      ],
+      "upload_options": {
+        "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
+        "collections": {
+          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+        }
+      },
+      "tasks": {
+        "sentinel-2-l2a-to-stac": {}
+      }
+    }
+  ],
+  "features": [
+    {
+      "type": "Feature",
+      "stac_version": "1.1.0",
+      "stac_extensions": [
+        "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+        "https://stac-extensions.github.io/grid/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/mgrs/v1.0.0/schema.json",
+        "https://stac-extensions.github.io/processing/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/sentinel-2/v1.0.0/schema.json",
+        "https://stac-extensions.github.io/storage/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/view/v1.0.0/schema.json"
+      ],
+      "id": "S2A_T55GFL_20251231T000322_L2A",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              148.25248212377664,
+              -44.24601974022607
+            ],
+            [
+              148.25801177667114,
+              -44.504830695209826
+            ],
+            [
+              148.64808431925155,
+              -44.59381840140932
+            ],
+            [
+              148.7656922520007,
+              -44.23923850842457
+            ],
+            [
+              148.25248212377664,
+              -44.24601974022607
+            ]
+          ]
+        ]
+      },
+      "bbox": [
+        148.252482,
+        -44.593818,
+        148.765692,
+        -44.239239
+      ],
+      "properties": {
+        "datetime": "2025-12-31T00:09:26.924000Z",
+        "platform": "sentinel-2a",
+        "constellation": "sentinel-2",
+        "instruments": [
+          "msi"
+        ],
+        "eo:cloud_cover": 65.15674,
+        "proj:code": "EPSG:32755",
+        "proj:centroid": {
+          "lat": -44.39127,
+          "lon": 148.49506
+        },
+        "mgrs:latitude_band": "G",
+        "mgrs:grid_square": "FL",
+        "mgrs:utm_zone": 55,
+        "grid:code": "MGRS-55GFL",
+        "view:azimuth": 288.82998187119364,
+        "view:incidence_angle": 10.5857111741207,
+        "view:sun_azimuth": 57.6658226308671,
+        "view:sun_elevation": 57.7291927052773,
+        "s2:tile_id": "S2A_OPER_MSI_L2A_TL_2APS_20251231T023808_A054968_T55GFL_N05.11",
+        "s2:degraded_msi_data_percentage": 0.0,
+        "s2:nodata_pixel_percentage": 89.555895,
+        "s2:saturated_defective_pixel_percentage": 0.0,
+        "s2:cloud_shadow_percentage": 0.0,
+        "s2:vegetation_percentage": 0.000254,
+        "s2:not_vegetated_percentage": 0.003081,
+        "s2:water_percentage": 34.839922,
+        "s2:unclassified_percentage": 0.0,
+        "s2:medium_proba_clouds_percentage": 14.265583,
+        "s2:high_proba_clouds_percentage": 50.406575,
+        "s2:thin_cirrus_percentage": 0.484583,
+        "s2:snow_ice_percentage": 0.0,
+        "s2:product_type": "S2MSI2A",
+        "s2:processing_baseline": "05.11",
+        "s2:product_uri": "S2A_MSIL2A_20251231T000321_N0511_R030_T55GFL_20251231T023808.SAFE",
+        "s2:generation_time": "2025-12-31T02:38:08.000000Z",
+        "s2:datatake_id": "GS2A_20251231T000321_054968_N05.11",
+        "s2:datatake_type": "INS-NOBS",
+        "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20251231T023808_S20251231T000322_N05.11",
+        "s2:reflectance_conversion_factor": 1.03403342197445,
+        "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0",
+        "storage:schemes": {
+          "local": {
+            "type": "aws-s3",
+            "platform": "https://{bucket}.s3.{region}.amazonaws.com",
+            "region": "us-west-2",
+            "requester_pays": false,
+            "bucket": "local"
+          }
+        },
+        "processing:software": {
+          "sentinel-2-l2a-to-stac": "v2026.09.18"
+        }
+      },
+      "links": [],
+      "assets": {
+        "red": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B04.tif",
+          "eo:common_name": "red",
+          "eo:center_wavelength": 0.665,
+          "eo:full_width_half_max": 0.038,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B04",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            600000.0,
+            0.0,
+            -10.0,
+            5100040.0
+          ],
+          "file:checksum": "12208c1711e447adb80af38e8985ef871f3e209e79dd657f7a4a35221063362181d1",
+          "file:size": 22982076,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Red - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "green": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B03.tif",
+          "eo:common_name": "green",
+          "eo:center_wavelength": 0.56,
+          "eo:full_width_half_max": 0.045,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B03",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            600000.0,
+            0.0,
+            -10.0,
+            5100040.0
+          ],
+          "file:checksum": "1220aae81cc6f2094d8ec57855fe054820fb2ca7542557009decc28b3f1d073a09b2",
+          "file:size": 22959992,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Green - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "blue": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B02.tif",
+          "eo:common_name": "blue",
+          "eo:center_wavelength": 0.49,
+          "eo:full_width_half_max": 0.098,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B02",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            600000.0,
+            0.0,
+            -10.0,
+            5100040.0
+          ],
+          "file:checksum": "12206b43315a195fae783219388585511924bf3b947da345757640b51b6ae33b783a",
+          "file:size": 22941899,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Blue - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "visual": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/TCI.tif",
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint8",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            600000.0,
+            0.0,
+            -10.0,
+            5100040.0
+          ],
+          "file:checksum": "1220210b074489394f531b9ab3a2407ed38c8820cb060cb1bf6baa4963935f6acb0c",
+          "file:size": 19638309,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "True color image",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "visual"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "name": "B04"
+            },
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "name": "B03"
+            },
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "name": "B02"
+            }
+          ]
+        },
+        "nir": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B08.tif",
+          "eo:common_name": "nir",
+          "eo:center_wavelength": 0.842,
+          "eo:full_width_half_max": 0.145,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B08",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            600000.0,
+            0.0,
+            -10.0,
+            5100040.0
+          ],
+          "file:checksum": "1220bb43f89848aba374c97dec6dbac113f7df869b09d52e120b34929c9e95db9e25",
+          "file:size": 22930890,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "NIR 1 - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "swir22": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B12.tif",
+          "eo:common_name": "swir22",
+          "eo:center_wavelength": 2.19,
+          "eo:full_width_half_max": 0.242,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B12",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "1220fe521d2549f066e4e9c357178692a29885e2726268e00cc925ff49fc507be8d4",
+          "file:size": 6181430,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "SWIR 2.2\u03bcm - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "rededge2": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B06.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.74,
+          "eo:full_width_half_max": 0.018,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B06",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "122036485d4ead70d72422603a3eef9054da0cdc182de662163cf409e7b61b3ed246",
+          "file:size": 6400287,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Red Edge 2 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "rededge3": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B07.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.783,
+          "eo:full_width_half_max": 0.028,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B07",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "12202f1bd934b648b1854c80064bbb66df233544f575f6d087fb7ae76f4f76b682be",
+          "file:size": 6385511,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Red Edge 3 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "rededge1": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B05.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.704,
+          "eo:full_width_half_max": 0.019,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B05",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "122079033df0f64f7ec62ca54a23ca5e7051b7c8c7a2b13bd8e1d8fa2eb4f2806f74",
+          "file:size": 6417946,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Red Edge 1 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "swir16": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B11.tif",
+          "eo:common_name": "swir16",
+          "eo:center_wavelength": 1.61,
+          "eo:full_width_half_max": 0.143,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B11",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "12205a4a294cf004b63d0808b18dd4c9d336aeab2cd9fcf257421ea9228c18a3a70f",
+          "file:size": 6204763,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "SWIR 1.6\u03bcm - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "wvp": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/WVP.tif",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "unit": "cm",
+          "raster:scale": 0.001,
+          "raster:offset": 0,
+          "file:checksum": "12200f1b8f96f1e7467ba47122b1b6f7918b06718c5773310f8d4d9de5064efe5303",
+          "file:size": 112895,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Water Vapour (WVP)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data"
+          ]
+        },
+        "nir08": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B8A.tif",
+          "eo:common_name": "nir08",
+          "eo:center_wavelength": 0.865,
+          "eo:full_width_half_max": 0.033,
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B8A",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "file:checksum": "12206d8ab4244e83d3cbdbd25a456145cb14f57193c112ac54ed84e46a4d888d403e",
+          "file:size": 6367803,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "NIR 2 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "scl": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/SCL.tif",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
+          "file:checksum": "1220dbb8179ba4e77f028ab0e41fd3c606e6b104b30feea9eadc1dbdb7709e2befda",
+          "file:size": 261371,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Scene classification map (SCL)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data"
+          ]
+        },
+        "aot": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/AOT.tif",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "raster:scale": 0.001,
+          "raster:offset": 0,
+          "file:checksum": "122030f977988691e967840aa31416925ae92b23f01a834b2493dd0b1db031d78f06",
+          "file:size": 144194,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Aerosol optical thickness (AOT)",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data"
+          ]
+        },
+        "coastal": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B01.tif",
+          "eo:common_name": "coastal",
+          "eo:center_wavelength": 0.443,
+          "eo:full_width_half_max": 0.027,
+          "nodata": 0,
+          "raster:spatial_resolution": 60,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B01",
+          "gsd": 60,
+          "proj:shape": [
+            1830,
+            1830
+          ],
+          "proj:transform": [
+            60.0,
+            0.0,
+            600000.0,
+            0.0,
+            -60.0,
+            5100040.0
+          ],
+          "file:checksum": "12207c55c78390df50cf23aa6709a6da97a971634ce22dd1c38b109ef30327f006b6",
+          "file:size": 734869,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Coastal - 60m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "nir09": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/B09.tif",
+          "eo:common_name": "nir09",
+          "eo:center_wavelength": 0.945,
+          "eo:full_width_half_max": 0.026,
+          "nodata": 0,
+          "raster:spatial_resolution": 60,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B09",
+          "gsd": 60,
+          "proj:shape": [
+            1830,
+            1830
+          ],
+          "proj:transform": [
+            60.0,
+            0.0,
+            600000.0,
+            0.0,
+            -60.0,
+            5100040.0
+          ],
+          "file:checksum": "12206ba59359af2562bddca340e738f1fdf40f222e89c9e0ff939498be6511ddcb0a",
+          "file:size": 750306,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "NIR 3 - 60m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "cloud": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/CLD_20m.tif",
+          "gsd": 20,
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
+          "file:checksum": "1220132daff141d28e3417f34e2e71ba68dc41b3dd28f74ed3521d97e4e29c1dfb63",
+          "file:size": 856927,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Cloud Probabilities",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "cloud"
+          ]
+        },
+        "snow": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/SNW_20m.tif",
+          "proj:shape": [
+            5490,
+            5490
+          ],
+          "proj:transform": [
+            20.0,
+            0.0,
+            600000.0,
+            0.0,
+            -20.0,
+            5100040.0
+          ],
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
+          "file:checksum": "122044d48427a9c50b7c4f0d358a09317333ff31e5cffad4568105ff5385fb20dfa8",
+          "file:size": 53931,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Snow Probabilities",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "snow-ice"
+          ]
+        },
+        "preview": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/L2A_PVI.tif",
+          "gsd": 320,
+          "proj:shape": [
+            343,
+            343
+          ],
+          "proj:transform": [
+            320.0,
+            0.0,
+            600000.0,
+            0.0,
+            -320.0,
+            5100040.0
+          ],
+          "file:checksum": "12202e202f8248f1881b7f7d239ab0d601f02d4dbdd25bf342527f44899b57675767",
+          "file:size": 26294,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "True color preview",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "overview"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "name": "B04"
+            },
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "name": "B03"
+            },
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "name": "B02"
+            }
+          ]
+        },
+        "granule_metadata": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/metadata.xml",
+          "file:checksum": "12206c09de1ee5f114f1d417d40b37a5963c5feb7abea145b5d0cf06c5d566931c76",
+          "file:size": 184056,
+          "storage:refs": [
+            "local"
+          ],
+          "type": "application/xml",
+          "roles": [
+            "metadata"
+          ]
+        },
+        "tileinfo_metadata": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/tileInfo.json",
+          "file:checksum": "1220ca5ee8887f49eb454681c2fd2dea2e480946ed1978119aed1ea4a5cd664476df",
+          "file:size": 2151,
+          "storage:refs": [
+            "local"
+          ],
+          "type": "application/json",
+          "roles": [
+            "metadata"
+          ]
+        },
+        "product_metadata": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/product_metadata.xml",
+          "file:checksum": "1220cb451f6f8d85fb275f0702b5e1d15a759c2d17c5ca623f74867b76995ffdb772",
+          "file:size": 55131,
+          "storage:refs": [
+            "local"
+          ],
+          "type": "application/xml",
+          "roles": [
+            "metadata"
+          ]
+        },
+        "thumbnail": {
+          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-55-G-FL-2025-12-31-0/L2A_PVI.jpg",
+          "file:checksum": "12206d5ad815811d3b37430b8dd65cdd96451a1b3aa0f73921ff2b2ad1be169da236",
+          "file:size": 6996,
+          "storage:refs": [
+            "local"
+          ],
+          "title": "Thumbnail of preview image",
+          "type": "image/jpeg",
+          "roles": [
+            "thumbnail"
+          ]
+        }
+      },
+      "collection": "sentinel-2-c1-l2a"
+    }
+  ]
+}
