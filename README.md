@@ -74,6 +74,7 @@ task-scoped config keys — that table is empty, as in the legacy task):
 | -------------- | ------- | ----------- |
 | `metadata_href`  | string  | **REQUIRED.** Href to any file in the source granule prefix on RODA/S3 or the earthsearch bucket (e.g. `s3://sentinel-s2-l2a/tiles/.../tileInfo.json`). Its directory is used as the granule prefix; `tileInfo.json`, granule `metadata.xml`, and product `metadata.xml` are fetched relative to it. |
 | `create_cogs`    | boolean | Optional. When `true` and no existing product doc is found in the output prefix, COGify the JP2 imagery and generate a JPEG thumbnail. When an existing product doc is present in the output prefix the reference path is taken regardless of this flag (see below). When `false` and no existing doc is present, the Item is emitted with its source asset hrefs unchanged. (Default: `false`.) |
+| `v1_output`      | boolean | Optional. When `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0 format: `stac_version` is set to `1.0.0`, extension schema URLs are rolled back to their v1 versions, `proj:code` becomes `proj:epsg`, storage schemes are collapsed to item-level `storage:platform`/`region`/`requester_pays`, and per-asset `bands` are split back into `eo:bands` and `raster:bands`. (Default: `false`.) |
 
 The collection each Item is assigned to is resolved from
 `payload['process']['upload_options']['collections']` (a map of collection id →

@@ -9,6 +9,15 @@ used by this project.
 
 ## [Unreleased]
 
+### Added
+
+- **`v1_output` flag**: optional boolean payload field (default `false`). When
+  `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0: version
+  and extension schema URLs are rolled back, `proj:code` becomes `proj:epsg`,
+  storage schemes collapse to item-level properties, and per-asset `bands` are
+  split into `eo:bands`/`raster:bands`. Applies after all build modes (full
+  rebuild, reference/update, COGs on or off).
+
 ## [v2026.09.18]
 
 ### Added

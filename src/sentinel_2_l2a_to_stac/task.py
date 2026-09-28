@@ -22,6 +22,7 @@ from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
 from sentinel_2_l2a_to_stac.cogify import cogify, make_thumbnail, sha256sum_multihash
+from sentinel_2_l2a_to_stac.downgrade import downgrade_item
 
 # SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
 # 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
@@ -457,6 +458,7 @@ class Sentinel2ToStac(Task):
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
         metadata_href = self._payload["metadata_href"]
         create_cogs = self._payload.get("create_cogs", False)
+        v1_output = self._payload.get("v1_output", False)
         s3_path = os.path.dirname(metadata_href)
 
         bucket_filenames = self.list_bucket_filenames(s3_path)
@@ -578,7 +580,8 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding storage schemes")
         item = self.add_storage_schemes(item)
 
-        return [self.add_software_version_to_item(item.to_dict())]
+        out = self.add_software_version_to_item(item.to_dict())
+        return [downgrade_item(out) if v1_output else out]
 
 
 def lambda_handler(

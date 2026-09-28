@@ -1,13 +1,11 @@
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/1/L/AC/2026/8/30/0/tileInfo.json",
-  "create_cogs": true,
+  "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-baseline",
+  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/tileInfo.json",
+  "create_cogs": false,
+  "v1_output": true,
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",
-      "input_collections": [
-        "roda-sentinel2"
-      ],
       "upload_options": {
         "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
         "collections": {
@@ -35,112 +33,86 @@
         "https://stac-extensions.github.io/storage/v1.0.0/schema.json",
         "https://stac-extensions.github.io/view/v1.0.0/schema.json"
       ],
-      "id": "S2B_T01LAC_20260830T221935_L2A",
+      "id": "S2A_T19TDJ_20260823T153829_L2A",
       "geometry": {
-        "type": "MultiPolygon",
+        "type": "Polygon",
         "coordinates": [
           [
             [
-              [
-                180.0,
-                -15.3563996
-              ],
-              [
-                179.27518758926522,
-                -15.345462882873894
-              ],
-              [
-                179.2569587036333,
-                -16.335977291297063
-              ],
-              [
-                180.0,
-                -16.347867
-              ],
-              [
-                180.0,
-                -15.3563996
-              ]
-            ]
-          ],
-          [
+              -70.25296903277139,
+              44.24653657735239
+            ],
             [
-              [
-                -180.0,
-                -16.347867
-              ],
-              [
-                -179.71668844839584,
-                -16.351714837199605
-              ],
-              [
-                -179.7034402661909,
-                -15.360199158206754
-              ],
-              [
-                -180.0,
-                -15.3563996
-              ],
-              [
-                -180.0,
-                -16.347867
-              ]
+              -70.23251326535856,
+              43.25815914568144
+            ],
+            [
+              -68.87975240369762,
+              43.26473618104695
+            ],
+            [
+              -68.87775605403671,
+              44.25334317082778
+            ],
+            [
+              -70.25296903277139,
+              44.24653657735239
             ]
           ]
         ]
       },
       "bbox": [
-        179.256959,
-        -16.351715,
-        -179.70344,
-        -15.345463
+        -70.252969,
+        43.258159,
+        -68.877756,
+        44.253343
       ],
       "properties": {
-        "datetime": "2026-08-30T22:20:22.014000Z",
-        "platform": "sentinel-2b",
+        "datetime": "2026-08-23T15:41:11.392000Z",
+        "platform": "sentinel-2a",
         "constellation": "sentinel-2",
         "instruments": [
           "msi"
         ],
-        "eo:cloud_cover": 10.888219,
+        "eo:cloud_cover": 98.602855,
         "proj:centroid": {
-          "lat": -15.84899,
-          "lon": 179.77808
+          "lat": 43.75705,
+          "lon": -69.56075
         },
-        "mgrs:latitude_band": "L",
-        "mgrs:grid_square": "AC",
-        "mgrs:utm_zone": 1,
-        "grid:code": "MGRS-01LAC",
-        "view:azimuth": 139.2123434064226,
-        "view:incidence_angle": 3.1011391611258436,
-        "view:sun_azimuth": 47.2206066533154,
-        "view:sun_elevation": 54.9332111664134,
-        "s2:tile_id": "S2B_OPER_MSI_L2A_TL_2BPS_20260830T235428_A049533_T01LAC_N05.12",
-        "s2:degraded_msi_data_percentage": 0.0165,
+        "mgrs:latitude_band": "T",
+        "mgrs:grid_square": "DJ",
+        "mgrs:utm_zone": 19,
+        "grid:code": "MGRS-19TDJ",
+        "view:azimuth": 166.93177780455332,
+        "view:incidence_angle": 2.811563209646554,
+        "view:sun_azimuth": 153.855193604202,
+        "view:sun_elevation": 55.0579367314227,
+        "s2:tile_id": "S2A_OPER_MSI_L2A_TL_2APS_20260824T030507_A058338_T19TDJ_N05.12",
+        "s2:degraded_msi_data_percentage": 0.0,
         "s2:nodata_pixel_percentage": 0.0,
         "s2:saturated_defective_pixel_percentage": 0.0,
-        "s2:cloud_shadow_percentage": 0.039456,
-        "s2:vegetation_percentage": 4.650233,
-        "s2:not_vegetated_percentage": 0.171997,
-        "s2:water_percentage": 84.169912,
-        "s2:unclassified_percentage": 0.063265,
-        "s2:medium_proba_clouds_percentage": 4.821115,
-        "s2:high_proba_clouds_percentage": 4.289724,
-        "s2:thin_cirrus_percentage": 1.77738,
+        "s2:cloud_shadow_percentage": 0.002113,
+        "s2:vegetation_percentage": 0.0,
+        "s2:not_vegetated_percentage": 0.0,
+        "s2:water_percentage": 1.395032,
+        "s2:unclassified_percentage": 0.0,
+        "s2:medium_proba_clouds_percentage": 6.04359,
+        "s2:high_proba_clouds_percentage": 92.136657,
+        "s2:thin_cirrus_percentage": 0.422606,
         "s2:snow_ice_percentage": 0.0,
         "s2:product_type": "S2MSI2A",
         "s2:processing_baseline": "05.12",
-        "s2:product_uri": "S2B_MSIL2A_20260830T221939_N0512_R029_T01LAC_20260830T235428.SAFE",
-        "s2:generation_time": "2026-08-30T23:54:28.000000Z",
-        "s2:datatake_id": "GS2B_20260830T221939_049533_N05.12",
+        "s2:product_uri": "S2A_MSIL2A_20260823T153711_N0512_R111_T19TDJ_20260824T030507.SAFE",
+        "s2:generation_time": "2026-08-24T03:05:07.000000Z",
+        "s2:datatake_id": "GS2A_20260823T153711_058338_N05.12",
         "s2:datatake_type": "INS-NOBS",
-        "s2:datastrip_id": "S2B_OPER_MSI_L2A_DS_2BPS_20260830T235428_S20260830T221935_N05.12",
-        "s2:reflectance_conversion_factor": 0.97975880663132,
-        "earthsearch:payload_id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0",
+        "s2:datastrip_id": "S2A_OPER_MSI_L2A_DS_2APS_20260824T030507_S20260823T153829_N05.12",
+        "s2:reflectance_conversion_factor": 0.976724304949719,
+        "earthsearch:payload_id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-baseline",
         "processing:software": {
           "sentinel-2-l2a-to-stac": "v2026.09.18"
         },
-        "proj:epsg": 32701,
+        "proj:epsg": 32619,
         "storage:platform": "AWS",
         "storage:region": "us-west-2",
         "storage:requester_pays": false
@@ -148,7 +120,7 @@
       "links": [],
       "assets": {
         "red": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B04.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B04.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -157,13 +129,13 @@
           "proj:transform": [
             10.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -10.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220731434e83e57a14aae89cac29b960dd71e0a317a1628e6103c8866cc7defe7e3",
-          "file:size": 195967205,
+          "file:size": 182499504,
+          "file:checksum": "1220065a40391c2d0a8b3ee8a4850a5abeb9f95ffe423e0d368c6e2f3be6c5b8ed19",
           "title": "Red - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -189,7 +161,7 @@
           ]
         },
         "green": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B03.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B03.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -198,13 +170,13 @@
           "proj:transform": [
             10.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -10.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220f8bacb46fc60d862300b34704c686721d1f6c73fb33c71c389f60665c4ea9180",
-          "file:size": 199766288,
+          "file:size": 182399355,
+          "file:checksum": "12207fd4e2c2057391a0ab6cdf476d87e7c7d99a4000d8fd04f14560b571c5bac004",
           "title": "Green - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -230,7 +202,7 @@
           ]
         },
         "blue": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B02.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B02.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -239,13 +211,13 @@
           "proj:transform": [
             10.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -10.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220aa793e06bbe82110ff05c4afb9616f1ad2d5313514867137a0ed22ff5d061dcf",
-          "file:size": 202116146,
+          "file:size": 183827933,
+          "file:checksum": "1220cdad6d367990d0d3bc0654407a96b6b35be6acbf12fc71610b1c857e15a04f33",
           "title": "Blue - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -271,7 +243,7 @@
           ]
         },
         "visual": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/TCI.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/TCI.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -280,13 +252,13 @@
           "proj:transform": [
             10.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -10.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12200189d8518b2bd46d9e8e269528a7108c9159dfc7b75a3d9fc936d8f408f2f8a1",
-          "file:size": 259777328,
+          "file:size": 13270626,
+          "file:checksum": "12200e2ab95dbb6ee417cd2f3ca673a89e9f49cfd9abc409d3378409409ac57161da",
           "title": "True color image",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -331,7 +303,7 @@
           ]
         },
         "nir": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B08.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B08.tif",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -340,13 +312,13 @@
           "proj:transform": [
             10.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -10.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220546726446e33b642003c979c7ebe2bc59bc440c5cbacf87f79b6845c9221c4d8",
-          "file:size": 194029777,
+          "file:size": 184599988,
+          "file:checksum": "122040cad586d0559536010592d5aa5c368ba97285ccfa7d0a25e07f6036f8a7b6be",
           "title": "NIR 1 - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -372,7 +344,7 @@
           ]
         },
         "swir22": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B12.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B12.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -381,13 +353,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12206e94b4444fdce1f194b49da37dcafa7792f7b2c32c90d97e571b9c52b79c902d",
-          "file:size": 46258864,
+          "file:size": 50703350,
+          "file:checksum": "1220bfab6825835cf9f1392bb90f3f59ccf32305e93ed44e2d0421ee4f62e80d5014",
           "title": "SWIR 2.2\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -413,7 +385,7 @@
           ]
         },
         "rededge2": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B06.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B06.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -422,13 +394,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12203eeb864fba0b9fd90c611da8cc91f4d94ce2c69342b4afc864b2da631bf0f1c5",
-          "file:size": 49007385,
+          "file:size": 54406434,
+          "file:checksum": "12205a8dc9c0d6b7d20c54a6cf091a6702d353664ee4c748be94d43c30f87ee5781f",
           "title": "Red Edge 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -454,7 +426,7 @@
           ]
         },
         "rededge3": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B07.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B07.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -463,13 +435,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220256570d416f7f2e5ca97cec94ee166062cde310ba1dbfc2395d793cba588bbb5",
-          "file:size": 49180240,
+          "file:size": 54411319,
+          "file:checksum": "12200b455116b5b28cdd040d5ea1d05ecdf52fb9af9bb1d5d3996b9401edbe7aecca",
           "title": "Red Edge 3 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -495,7 +467,7 @@
           ]
         },
         "rededge1": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B05.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B05.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -504,13 +476,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220eebca7b79974b7207d02bdbd9a81136b236cd5c5a4e4b97c32583908dd64bdee",
-          "file:size": 49429225,
+          "file:size": 54318053,
+          "file:checksum": "1220599ed15f7d664884c05bae6e86b48a83a1795a171dceeee05ab3b6ac76fffd59",
           "title": "Red Edge 1 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -536,7 +508,7 @@
           ]
         },
         "swir16": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B11.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B11.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -545,13 +517,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220fedc738a6b0d916f13ec231664347eb52315d35c8f478180552cc6e6ab2f8e6b",
-          "file:size": 46554656,
+          "file:size": 51533693,
+          "file:checksum": "1220a2711e646940bee97ab54e42732af90e964420bd641b68d51c4264eadd67eff1",
           "title": "SWIR 1.6\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -577,7 +549,7 @@
           ]
         },
         "wvp": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/WVP.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/WVP.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -586,13 +558,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12205eabb13ae694c694a7c693b24c87c0341f853516cec78e74b7236bdd8f6e780c",
-          "file:size": 2933354,
+          "file:size": 95845,
+          "file:checksum": "1220155ef7445fbf489b2d7e7a5face3caab802afc004b98e85a0df9479a93f88588",
           "title": "Water Vapour (WVP)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -610,7 +582,7 @@
           ]
         },
         "nir08": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B8A.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B8A.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -619,13 +591,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12201f3abda5901a73525b5a9d675e8709bec064864122a0ff1c827540a7af33495c",
-          "file:size": 49023943,
+          "file:size": 54938371,
+          "file:checksum": "1220401fa8535167a8343f563771002abdbe601b98da38792192fa5a9ef352b5e9a1",
           "title": "NIR 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -651,7 +623,7 @@
           ]
         },
         "scl": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/SCL.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/SCL.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -660,13 +632,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12207c6aea0cd916a8c1f38944eea99474203d44f52ea6687a247d57b40effc418be",
-          "file:size": 957655,
+          "file:size": 415424,
+          "file:checksum": "1220f5910710b5fdeb5936b4b6b6d43295274e1ec132f4dc482f3aa280b7cf8634f1",
           "title": "Scene classification map (SCL)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -681,7 +653,7 @@
           ]
         },
         "aot": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/AOT.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/AOT.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -690,13 +662,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220315f34f4d7002187ac8463d04d418c13fb17e22bfef24d90aed1d1f36b19353f",
-          "file:size": 464951,
+          "file:size": 531157,
+          "file:checksum": "122076c350102bacb333b77d8a81ab9b927049c9627fb53e90dbd2351227bb371ff9",
           "title": "Aerosol optical thickness (AOT)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -713,7 +685,7 @@
           ]
         },
         "coastal": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B01.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B01.tif",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -722,13 +694,13 @@
           "proj:transform": [
             60.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -60.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220bd12e1d737b9dbc6b77ee1e3b72f94935e7abede984b29e1d2bed6dfed76f932",
-          "file:size": 5227458,
+          "file:size": 6542429,
+          "file:checksum": "12203c83313d0cda92049f862fa44c9351ba3720b250a1e5f63bde4e894bfa5f3666",
           "title": "Coastal - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -754,7 +726,7 @@
           ]
         },
         "nir09": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/B09.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/B09.tif",
           "gsd": 60,
           "proj:shape": [
             1830,
@@ -763,13 +735,13 @@
           "proj:transform": [
             60.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -60.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "122011f4b8618605d71f7d896ffabfdb31ef61583344365dc20b091d5992e57f4c9a",
-          "file:size": 5526977,
+          "file:size": 5984175,
+          "file:checksum": "1220fab2689b05d92eaaf7860fe7f070543ed3adcfae25f4446a2e67c462e6ec5a5c",
           "title": "NIR 3 - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -795,7 +767,7 @@
           ]
         },
         "cloud": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/CLD_20m.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/CLD_20m.tif",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -804,13 +776,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "1220549db4f38e10b169f61d364b35e3baead3d3ecacc5602ad4524f802cec505a22",
-          "file:size": 2286172,
+          "file:size": 1264704,
+          "file:checksum": "1220a42e168b7c02dc00ebe508e92348fc79fc5c840b99a03b01cfee23edf05d4f88",
           "title": "Cloud Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -826,7 +798,7 @@
           ]
         },
         "snow": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/SNW_20m.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/SNW_20m.tif",
           "proj:shape": [
             5490,
             5490
@@ -834,13 +806,13 @@
           "proj:transform": [
             20.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -20.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12208c5997d026984c9b98a6072cf95bc6041cc2a26023b3187a8511ee5d769540ce",
-          "file:size": 58259,
+          "file:size": 399453,
+          "file:checksum": "122022fb64d418ea3648b813a7b898c9c812fbfadfe65ce21245f87648e727aa1228",
           "title": "Snow Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -856,7 +828,7 @@
           ]
         },
         "preview": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/L2A_PVI.tif",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/L2A_PVI.tif",
           "gsd": 320,
           "proj:shape": [
             343,
@@ -865,13 +837,13 @@
           "proj:transform": [
             320.0,
             0.0,
-            99960.0,
+            399960.0,
             0.0,
             -320.0,
-            8300020.0
+            4900020.0
           ],
-          "file:checksum": "12205cf1c9d70ec4c9028544eea81e5332471cbd21595f0a3e664c4749ce68adee2a",
-          "file:size": 165512,
+          "file:size": 23242,
+          "file:checksum": "12206dfceae6cf7ff36cbea2757e57ece56922983b2740fef67c27dd61c56fac2ed1",
           "title": "True color preview",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -899,37 +871,36 @@
           ]
         },
         "granule_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/metadata.xml",
-          "file:checksum": "1220231fd781517ad421ed2de50e8457954f0a231730b97cbc07f8a7a93ac45d97a1",
-          "file:size": 547932,
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/metadata.xml",
+          "file:size": 626353,
+          "file:checksum": "1220ef782e63401d0e275282bfdad4e3a4d62ba8f7055532034776ce7b61967897e4",
           "type": "application/xml",
           "roles": [
             "metadata"
           ]
         },
         "tileinfo_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/tileInfo.json",
-          "file:checksum": "122071cdc96135315029f8da2aeaf9519f34479d818fbba41d801739a9bb87acece8",
-          "file:size": 1482,
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/tileInfo.json",
+          "file:size": 1491,
+          "file:checksum": "1220d0809fc2c49e9632974c20798454bd640d5e9f5f15074028788cb9d08573ca4e",
           "type": "application/json",
           "roles": [
             "metadata"
           ]
         },
         "product_metadata": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/product_metadata.xml",
-          "file:checksum": "122006c5c9a79435bcc4f4f432621cfe4337c5f914fd611556c793a599450765efb8",
-          "file:size": 54689,
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/product_metadata.xml",
+          "file:size": 54957,
+          "file:checksum": "1220c0434eb82e70a0d54ca56d7a688e517727e6b313638d99db63432923ccb297e7",
           "type": "application/xml",
           "roles": [
             "metadata"
           ]
         },
         "thumbnail": {
-          "href": "/roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-1-L-AC-2026-8-30-0/L2A_PVI.jpg",
-          "file:checksum": "1220a24112801a95b8b50c73cca686122cf6ac6f48bfc73ba033053a267e3f07c5e4",
-          "file:size": 32206,
-          "title": "Thumbnail of preview image",
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/L2A_PVI.jpg",
+          "file:size": 5238,
+          "file:checksum": "12205732d1c1be5e7338d0e0d85a18f1d81891e4f2b1bf89bfd8a15741c002316e33",
           "type": "image/jpeg",
           "roles": [
             "thumbnail"

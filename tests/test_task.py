@@ -3,20 +3,19 @@
 These walk the payload fixtures under ``tests/fixtures/payloads/{success,failure}``
 and run the *entire* ``process()`` pipeline — download, ``create_item``,
 ``update_item``, the ``is_newer_than_existing`` gate, COG generation, thumbnail,
-and checksums — comparing the output against a checked-in ``out.json`` with the
-same tolerant comparators the legacy suite used (geometry symmetric-difference
-ratio, centroid threshold, thumbnail size/checksum wobble).
+and checksums — comparing the output against a checked-in ``out.json`` with tolerant
+comparators (geometry symmetric-difference ratio, centroid threshold,
+thumbnail size/checksum wobble).
 
 Network policy
 --------------
 Unlike the rest of the suite, these tests **hit the real network**: they
 download genuine files from the public RODA/Earthsearch bucket
 so the COG/thumbnail pipeline runs end-to-end for a
-true behavioral comparison with legacy. They are therefore marked
-``@pytest.mark.system`` and are **opt-in** — ``pyproject.toml``'s ``addopts``
-deselects them by default. Run them explicitly with::
+true behavioral comparison with legacy. They are therefore **opt-in**.
+Run them explicitly with::
 
-    uv run pytest -m system
+    uv run pytest -m <system | upgrade | downgrade>
 
 They still never *write* to S3: every call uses ``upload=False``, so the
 base-class ``upload_item_assets_to_s3`` no-ops. The STAC API item-lookup that
@@ -188,6 +187,10 @@ def upgrade_cases() -> Generator[Path, None, None]:
     yield from (FIXTURES / "upgrade").iterdir()
 
 
+def downgrade_cases() -> Generator[Path, None, None]:
+    yield from (FIXTURES / "downgrade").iterdir()
+
+
 def _run(payload: dict[str, Any]) -> dict[str, Any]:
     """Run the full pipeline for a payload, caching imagery, never uploading.
 
@@ -203,6 +206,8 @@ def _run(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+# Full system parity tests.
+# They are opt-in with `-m system` and never write to S3 (`upload=False`).
 @pytest.mark.system
 @pytest.mark.parametrize("fixture_dir", failure_cases(), ids=lambda x: x.name)
 def test_failing_files(fixture_dir: Path) -> None:
@@ -235,6 +240,23 @@ def test_successful_payload_to_input_item(fixture_dir: Path) -> None:
 @pytest.mark.upgrade
 @pytest.mark.parametrize("fixture_dir", upgrade_cases(), ids=lambda x: x.name)
 def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
+    payload = json.loads((fixture_dir / "in.json").read_text())
+
+    actual_output = _run(payload)
+
+    diff = diff_output(fixture_dir, actual_output)
+
+    if diff:
+        pytest.fail(
+            f"expected output does not match:\n{diff.to_json(indent=4)}", pytrace=False
+        )
+
+
+# Downgrade parity tests
+# They are opt-in with `-m downgrade` and never write to S3 (`upload=False`).
+@pytest.mark.downgrade
+@pytest.mark.parametrize("fixture_dir", downgrade_cases(), ids=lambda x: x.name)
+def test_downgrade_payload_to_v1_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 
     actual_output = _run(payload)
