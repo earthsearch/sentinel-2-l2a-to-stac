@@ -1,8 +1,17 @@
 services:
   task:
-    build: .
-    image: cirrus-task-example:latest
-    #env_file: .env
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+    image: sentinel-2-l2a-to-stac:latest
+    env_file: .env
+    platform: linux/amd64
+    ports:
+      - 8080:8080
     volumes:
-      - ./:/task
-    entrypoint: /bin/bash
+      - ./:/work
+    entrypoint:
+      - "/lambda-entrypoint.sh"
+    command:
+      - "sentinel_2_l2a_to_stac.task.lambda_handler"

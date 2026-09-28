@@ -10,9 +10,7 @@
         }
       },
       "tasks": {
-        "cirrus-task-example": {
-          "param1": "value1"
-        }
+        "sentinel-2-l2a-to-stac": {}
       }
     }
   ]
