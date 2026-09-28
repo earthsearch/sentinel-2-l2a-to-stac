@@ -9,7 +9,16 @@ used by this project.
 
 ## [Unreleased]
 
+## [v2026.09.28]
+
 ### Added
+
+- **COG-in-bucket fallback path**: when `create_cogs=False` and no existing
+  STAC doc is found, the task now checks whether all expected COG files are
+  already present in the output prefix. If they are, it applies earthsearch
+  hrefs and downloads each asset to compute `file:size`/`file:checksum`, rather
+  than falling back to RODA JP2 hrefs. A warning is logged with the list of
+  missing files when the fallback to RODA JP2 hrefs does occur.
 
 - **`v1_output` flag**: optional boolean payload field (default `false`). When
   `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0: version
@@ -163,7 +172,8 @@ task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline. See
 
 Initial release
 
-[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.18..main
+[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.28..main
+[v2026.09.28]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.18..v2026.09.28
 [v2026.09.18]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.03..v2026.09.18
 [v2026.09.03]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.12..v2026.09.03
 [v2025.03.12]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.11..v2025.03.12

@@ -570,6 +570,32 @@ class Sentinel2ToStac(Task):
             item = self.apply_reference_file_info(
                 item, bucket_filenames, existing_stac_doc
             )
+        else:
+            cog_filenames = {
+                fname
+                for key, fname in ASSET_FILENAMES.items()
+                if key not in _METADATA_ASSET_KEYS
+            }
+            if cog_filenames.issubset(bucket_filenames):
+                # COGs already in bucket but no existing STAC doc: apply
+                # earthsearch hrefs and compute file info by downloading each
+                # asset (no cached checksums to reuse).
+                item = _prune_to_canonical_assets(item)
+
+                self.logger.info(
+                    "Applying earthsearch hrefs (COGs in bucket, no STAC doc)"
+                )
+                item = self.apply_earthsearch_hrefs(item, s3_path)
+                item = self.add_thumbnail_asset(item, s3_path)
+
+                self.logger.info("Downloading assets to compute file info")
+                item = self.apply_reference_file_info(item, bucket_filenames, {})
+            else:
+                missing = cog_filenames - bucket_filenames
+                self.logger.warning(
+                    f"No existing STAC doc and {len(missing)} COG(s) missing from "
+                    f"the bucket at {s3_path}; falling back to RODA JP2 hrefs: {missing}"
+                )
 
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
