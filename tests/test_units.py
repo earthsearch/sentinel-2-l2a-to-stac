@@ -653,10 +653,15 @@ def test_process_safe_input_always_creates_cogs(
         ),
     )
     cogify_calls: list[dict[str, str]] = []
+
+    def _fake_cogify_source_images(
+        self: Sentinel2ToStac, metadata: Any, image_hrefs: dict[str, str]
+    ) -> dict[str, CogFile]:
+        cogify_calls.append(image_hrefs)
+        return {}
+
     monkeypatch.setattr(
-        Sentinel2ToStac,
-        "cogify_source_images",
-        lambda self, metadata, image_hrefs: cogify_calls.append(image_hrefs) or {},
+        Sentinel2ToStac, "cogify_source_images", _fake_cogify_source_images
     )
     monkeypatch.setattr(task_module, "make_thumbnail", lambda item: item)
 
