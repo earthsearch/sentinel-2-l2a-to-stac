@@ -44,8 +44,6 @@ jobs:
 
   image:
     needs: [validate, test]
-    # skip on pull_request events; only push/tag (auto) or workflow_dispatch (manual) publish images
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -57,7 +55,7 @@ jobs:
       # The push trigger's tag glob is looser than the release regex (it
       # allows trailing junk after the day, e.g. v2026.09.29abcs), so
       # re-validate the full pattern before authenticating/publishing.
-      - if: startsWith(github.ref, 'refs/tags/')
+      - if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
         name: Validate release tag
         env:
           REF_NAME: ${{ github.ref_name }}
@@ -67,18 +65,22 @@ jobs:
             exit 1
           fi
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - id: ecr
+        if: github.event_name != 'pull_request'
         uses: aws-actions/amazon-ecr-login@v2
 
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}
+          # PRs skip ECR login, so fall back to a dummy registry to keep the
+          # generated refs parseable for the build-only path.
+          images: ${{ steps.ecr.outputs.registry || 'local' }}/${{ env.ECR_REPO_NAME }}
           tags: |
             type=sha,prefix=
             type=raw,value=dev,enable={{is_default_branch}}
@@ -87,7 +89,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
