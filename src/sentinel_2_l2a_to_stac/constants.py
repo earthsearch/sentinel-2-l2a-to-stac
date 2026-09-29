@@ -59,7 +59,6 @@ SENTINEL_PROVIDER: Final[pystac.Provider] = pystac.Provider(
 
 PRODUCT_METADATA_ASSET_KEY: Final[str] = "product_metadata"
 GRANULE_METADATA_ASSET_KEY: Final[str] = "granule_metadata"
-TILEINFO_METADATA_ASSET_KEY: Final[str] = "tileinfo_metadata"
 
 DEFAULT_TOLERANCE: Final[float] = 0.01
 COORD_ROUNDING: Final[int] = 6
@@ -238,6 +237,32 @@ L2A_IMAGE_PATHS: Final[list[str]] = [
     "qi/SNW_20m.jp2",
     "qi/L2A_PVI.jp2",
 ]
+
+# The canonical, native-resolution subset of L2A_IMAGE_PATHS: asset key ->
+# granule-relative source path. These are the only images that get COGified and
+# published; every other resolution variant is dropped. The basename of each
+# path is also the filename used in the (flat) workdir and output prefix.
+CANONICAL_L2A_IMAGE_PATHS: Final[dict[str, str]] = {
+    "coastal": "R60m/B01.jp2",
+    "blue": "R10m/B02.jp2",
+    "green": "R10m/B03.jp2",
+    "red": "R10m/B04.jp2",
+    "rededge1": "R20m/B05.jp2",
+    "rededge2": "R20m/B06.jp2",
+    "rededge3": "R20m/B07.jp2",
+    "nir": "R10m/B08.jp2",
+    "nir08": "R20m/B8A.jp2",
+    "nir09": "R60m/B09.jp2",
+    "swir16": "R20m/B11.jp2",
+    "swir22": "R20m/B12.jp2",
+    "aot": "R20m/AOT.jp2",
+    "wvp": "R20m/WVP.jp2",
+    "scl": "R20m/SCL.jp2",
+    "visual": "R10m/TCI.jp2",
+    "cloud": "qi/CLD_20m.jp2",
+    "snow": "qi/SNW_20m.jp2",
+    "preview": "qi/L2A_PVI.jp2",
+}
 
 L1C_IMAGE_PATHS: Final[list[str]] = [
     "B01.jp2",

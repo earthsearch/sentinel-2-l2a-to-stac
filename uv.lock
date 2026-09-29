@@ -1770,6 +1770,19 @@ wheels = [
 ]
 
 [[package]]
+name = "raster-footprint"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "rasterio" },
+    { name = "shapely" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ad/a6/ee503f0391baaf22056cba4dc7f75fdb8db703883bfaba5af5ad50f138dd/raster_footprint-0.3.0.tar.gz", hash = "sha256:2e99be94b85c2ae59dbb1ce98914594bee6ecb06e7b0047fec2aa0a0e457ef00", size = 17586, upload-time = "2026-05-04T01:56:13.999Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/4a/d76c71ec5acdb9a7e912e1f557db1169c669ad28bde1b2b16d011d2a5f7f/raster_footprint-0.3.0-py3-none-any.whl", hash = "sha256:c0ccf25a86e443bc8676f095f22246aa989bd7ed1a0d694688e7f94bf74d90d9", size = 15731, upload-time = "2026-05-04T01:56:12.837Z" },
+]
+
+[[package]]
 name = "rasterio"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1928,13 +1941,13 @@ version = "2026.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "antimeridian" },
-    { name = "boto3-utils" },
     { name = "lxml" },
     { name = "multiformats" },
     { name = "numpy" },
     { name = "pillow" },
     { name = "pyproj" },
     { name = "pystac" },
+    { name = "raster-footprint" },
     { name = "rasterio" },
     { name = "requests" },
     { name = "returns" },
@@ -1956,14 +1969,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "antimeridian", specifier = ">=0.4.8" },
-    { name = "boto3-utils", specifier = ">=0.4.2" },
     { name = "lxml", specifier = ">=6.0" },
     { name = "multiformats", specifier = "~=0.3.1" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pillow", specifier = "~=12.0" },
     { name = "pyproj", specifier = ">=3.7" },
     { name = "pystac", git = "https://github.com/stac-utils/pystac.git?rev=4f346f2e1a1db00d526ef052800f24e19c72476c" },
-    { name = "rasterio", specifier = "~=1.4" },
+    { name = "raster-footprint", specifier = ">=0.3.0" },
+    { name = "rasterio", specifier = "~=1.5" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "returns", specifier = "~=0.29" },
     { name = "stactask", specifier = ">=0.7.0" },

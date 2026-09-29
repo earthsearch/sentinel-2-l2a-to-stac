@@ -1,13 +1,14 @@
 import json
 import logging
 import os
+import shutil
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 import boto3  # type: ignore[import-untyped]
 import requests
-import stac_asset.blocking
-from boto3utils import s3
 from botocore import UNSIGNED
 from botocore.config import Config as BotoClientConfig
 from botocore.exceptions import ClientError
@@ -16,20 +17,31 @@ from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from rasterio.errors import CRSError
 from returns.result import Failure, ResultE, Success
-from stac_asset import Config
 from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
-from sentinel_2_l2a_to_stac.cogify import cogify, make_thumbnail, sha256sum_multihash
+from sentinel_2_l2a_to_stac.cogify import (
+    CogFile,
+    cogify,
+    make_thumbnail,
+    sha256sum_multihash,
+)
+from sentinel_2_l2a_to_stac.constants import (
+    CANONICAL_L2A_IMAGE_PATHS,
+    SENTINEL_BANDS,
+)
 from sentinel_2_l2a_to_stac.downgrade import downgrade_item
+from sentinel_2_l2a_to_stac.footprint import data_footprint
+from sentinel_2_l2a_to_stac.metadata import Metadata, parse_metadata
+from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 
 # SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
 # 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
 if not hasattr(Asset, "media_type"):
     Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
 
-from sentinel_2_l2a_to_stac.stac import create_item
+from sentinel_2_l2a_to_stac.stac import create_image_assets, create_item
 
 # stactask 0.7.0 already prefixes lines with payload id, so the legacy
 # logging change was deliberately left off.
@@ -37,20 +49,40 @@ logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
 for _noisy_logger in ("botocore", "rasterio"):
     logging.getLogger(_noisy_logger).propagate = False
 
-s3_client = s3(requester_pays=False)
-# list_bucket_names is the only call made through the s3 client,
-# and should only ever hit buckets allowing anonymous access
-s3_client.s3 = boto3.client("s3", config=BotoClientConfig(signature_version=UNSIGNED))
+# Every source read (listing, get_object, download_file) goes through this
+# anonymous client: source buckets (earthsearch/sentinel-cogs, RODA) are
+# public, and task credentials are not guaranteed to have explicit grants on
+# them. Uploads (writes) are handled separately by stactask's own
+# authenticated client.
+_anon_s3_client = boto3.client(
+    "s3", config=BotoClientConfig(signature_version=UNSIGNED)
+)
 
-# Storage extension (pystac 1.15.2, schemes/refs model). Two aws-s3 schemes:
-# "roda" for source metadata assets remaining on the RODA public bucket, and
-# "earthsearch" for assets uploaded to the Earth Search output bucket. A
-# "local" placeholder scheme is used in --local/test runs where no upload
-# occurs. In v2 `platform` is the access-endpoint URI/template (provider
-# identity moved to `type`), unlike v1's literal "AWS". `bucket` is an
-# additional property required by the aws-s3 best-practices template.
-RODA_SCHEME_KEY = "roda"
-RODA_BUCKET = "sentinel-s2-l2a"
+
+def _parse_s3_url(url: str) -> tuple[str, str]:
+    """Split an ``s3://bucket/key`` URL into (bucket, key)."""
+    if not url.startswith("s3://"):
+        raise ValueError(f"Not an S3 URL: {url}")
+    bucket, _, key = url.removeprefix("s3://").partition("/")
+    return bucket, key
+
+
+def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
+    """Yield every object key in `bucket` starting with `prefix`, paginated."""
+    for page in client.get_paginator("list_objects_v2").paginate(
+        Bucket=bucket, Prefix=prefix
+    ):
+        for obj in page.get("Contents", []):
+            yield obj["Key"]
+
+
+# Storage extension (pystac 1.15.2, schemes/refs model). One aws-s3 scheme,
+# "earthsearch", for assets uploaded to the Earth Search output bucket or
+# already living there. A "local" placeholder scheme is used in --local/test
+# runs where no upload occurs. In v2 `platform` is the access-endpoint
+# URI/template (provider identity moved to `type`), unlike v1's literal
+# "AWS". `bucket` is an additional property required by the aws-s3
+# best-practices template.
 EARTHSEARCH_SCHEME_KEY = "earthsearch"
 LOCAL_SCHEME_KEY = "local"
 LOCAL_BUCKET = "local"
@@ -60,11 +92,12 @@ STORAGE_REGION = "us-west-2"
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 
-# Source-metadata assets stay on local workdir paths through update_item (they're
-# uploaded to earthsearch later); every other asset is rewritten to an S3 href.
-_METADATA_ASSET_KEYS = ("tileinfo_metadata", "granule_metadata", "product_metadata")
-
 EXPECTED_COGIFIED_COUNT = 19
+
+# Filename of each canonical source image once it is in the (flat) workdir.
+CANONICAL_IMAGE_FILENAMES: dict[str, str] = {
+    key: os.path.basename(path) for key, path in CANONICAL_L2A_IMAGE_PATHS.items()
+}
 
 # Filename <-> asset key map for the earthsearch flat product-prefix layout.
 # Every entry is verified against create_item's actual output keys.
@@ -91,7 +124,6 @@ ASSET_FILENAMES: dict[str, str] = {
     THUMBNAIL_ASSET_NAME: "L2A_PVI.jpg",
     "granule_metadata": "metadata.xml",
     "product_metadata": "product_metadata.xml",
-    "tileinfo_metadata": "tileInfo.json",
 }
 
 
@@ -109,15 +141,6 @@ def _prune_to_canonical_assets(item: Item) -> Item:
     return item
 
 
-def _resolve_product_metadata_href(
-    s3_path: str, bucket_filenames: set[str], bucket: str, product_path: str
-) -> str:
-    """Resolve product_metadata.xml: flat earthsearch layout first, RODA fallback."""
-    if "product_metadata.xml" in bucket_filenames:
-        return f"{s3_path}/product_metadata.xml"
-    return f"s3://{bucket}/{product_path}/metadata.xml"
-
-
 def find_existing_stac_doc_filename(
     bucket_filenames: set[str], item_id: str
 ) -> Optional[str]:
@@ -130,6 +153,57 @@ def find_existing_stac_doc_filename(
     return filename if filename in bucket_filenames else None
 
 
+@dataclass(frozen=True)
+class SourceProduct:
+    """A resolved input product: where its files are and how to process it.
+
+    Produced by resolving either an already-cogified Earth Search granule
+    prefix (`metadata_href`) or a SAFE archive (`safe_href`) into the one
+    shape the rest of the pipeline works in. A granule prefix must already
+    carry the flat Earth Search COG layout, and a missing required file is a
+    hard failure rather than a fallback.
+    """
+
+    prefix: str
+    # Canonical asset key -> href of the raster to read (a COG for a granule
+    # prefix, a JP2 to COGify for a SAFE archive).
+    image_hrefs: dict[str, str]
+    # Basenames present under `prefix`; empty for a SAFE archive.
+    bucket_filenames: set[str]
+    # True only for a SAFE archive, which always needs COGs created.
+    create_cogs: bool
+
+
+def _validate_processing_baseline(processing_baseline: str) -> None:
+    if processing_baseline < "05.00" or processing_baseline == "05.09":
+        raise InvalidInput(
+            f"Processing baseline is {processing_baseline}, "
+            "only >= 05.00 (not including 5.09) is supported."
+        )
+
+
+@contextmanager
+def _item_errors(logger: Any) -> Iterator[None]:
+    """Translate metadata-parsing/item-building failures into InvalidInput."""
+    try:
+        yield
+    except InvalidInput:
+        raise
+    except ValueError as ex:
+        logger.error(ex)
+        raise InvalidInput(f"Invalid input metadata: {ex}")
+    except AssertionError as ex:
+        logger.error(ex)
+        raise InvalidInput(
+            f"Assertion failed, likely because of an invalid geometry: {ex}"
+        )
+    except Exception as ex:
+        logger.error(ex)
+        if "Cannot find granule tile_id granule metadata" in str(ex):
+            raise InvalidInput("Unable to parse older metadata file format")
+        raise Exception(f"Unable to create item: {ex}") from ex
+
+
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
@@ -138,13 +212,9 @@ class Sentinel2ToStac(Task):
     def validate(self) -> bool:
         # Rewritten for stactask 0.6.1 (requires self._payload instead of
         # payload arg)
-        if "metadata_href" not in self._payload:
-            raise InvalidInput("metadata_href required")
+        if "metadata_href" not in self._payload and "safe_href" not in self._payload:
+            raise InvalidInput("metadata_href or safe_href required")
         return True
-
-    @property
-    def tileinfo_path(self) -> Path:
-        return Path(self._workdir.joinpath("tileInfo.json"))
 
     @property
     def granule_metadata_xml_path(self) -> Path:
@@ -154,7 +224,7 @@ class Sentinel2ToStac(Task):
     def product_metadata_xml_path(self) -> Path:
         return Path(self._workdir.joinpath("product_metadata.xml"))
 
-    def update_item(self, item: Item, s3_path: str) -> Item:
+    def update_item(self, item: Item) -> Item:
         """Apply Earth Search-specific overrides to the item from create_item."""
         item_dict = item.to_dict()
         if not (
@@ -177,16 +247,6 @@ class Sentinel2ToStac(Task):
         if item.datetime is None:
             raise ValueError("Item datetime property cannot be None")
 
-        # create_item builds every asset with a workdir-relative local href.
-        # Metadata assets keep those local paths (uploaded to earthsearch later by
-        # upload_item_assets_to_s3); all other assets get rewritten to RODA S3
-        # hrefs. When create_cogs=True those RODA hrefs are transitional — they're
-        # overwritten again as each JP2 is downloaded, cogified, and uploaded to
-        # earthsearch. With create_cogs=False they are the final output hrefs.
-        for asset_name, asset in item.assets.items():
-            if asset_name not in _METADATA_ASSET_KEYS:
-                asset.href = f"{s3_path}{asset.href.removeprefix(str(self._workdir))}"
-
         return item
 
     def is_newer_than_existing(self, item: Item) -> ResultE[bool]:
@@ -199,6 +259,8 @@ class Sentinel2ToStac(Task):
         )
 
         if existing_item_r.status_code == 404:
+            return Success(True)
+        if existing_item_r.status_code == 403:
             return Success(True)
         elif existing_item_r.status_code == 200:
             if (
@@ -222,9 +284,16 @@ class Sentinel2ToStac(Task):
             )
 
     def list_bucket_filenames(self, s3_path: str) -> set[str]:
-        """List the basenames of every object directly under an S3 prefix."""
-        prefix = s3_path if s3_path.endswith("/") else f"{s3_path}/"
-        return {href.rsplit("/", 1)[-1] for href in s3_client.find(prefix)}
+        """List the basenames of every file directly under a prefix, local or S3."""
+        if "://" not in s3_path:
+            return {p.name for p in Path(s3_path).iterdir() if p.is_file()}
+        bucket, prefix = _parse_s3_url(
+            s3_path if s3_path.endswith("/") else f"{s3_path}/"
+        )
+        return {
+            key.rsplit("/", 1)[-1]
+            for key in _list_s3_keys(_anon_s3_client, bucket, prefix)
+        }
 
     def load_existing_stac_doc(self, s3_path: str, filename: str) -> dict[str, Any]:
         result: dict[str, Any] = json.loads(self.read_href(f"{s3_path}/{filename}"))
@@ -235,8 +304,8 @@ class Sentinel2ToStac(Task):
 
         Reference-path-only. One consistent rule for every asset, whether or
         not it's already in the existing doc: {prefix}/{FILENAME}. Called
-        after update_item, so it's harmless that update_item already set
-        RODA/local hrefs first.
+        after update_item, which never touches asset hrefs, so it's harmless
+        that they still point at wherever create_item first put them.
         """
         for key, asset in item.assets.items():
             asset.href = f"{s3_path}/{ASSET_FILENAMES[key]}"
@@ -269,10 +338,9 @@ class Sentinel2ToStac(Task):
         Reuse
         from the existing doc when it already carries both fields for this
         asset, otherwise download the object from earthsearch and compute
-        them fresh. An asset missing from the bucket can't be serviced
-        without create_cogs=True, so it's a hard input error here. Any doc
-        asset that isn't one of `item`'s own keys is never consulted, which
-        is what makes an extra doc-only asset a no-op.
+        them fresh. An asset missing from the bucket is a hard input error.
+        Any doc asset that isn't one of `item`'s own keys is never consulted,
+        which is what makes an extra doc-only asset a no-op.
         """
         doc_assets = existing_stac_doc.get("assets", {})
         for key, asset in item.assets.items():
@@ -302,42 +370,59 @@ class Sentinel2ToStac(Task):
 
         return item
 
-    def make_cogs_for_item(self, item: Item) -> Item:
-        try:
-            processing_baseline = item.properties.get("s2:processing_baseline", "0")
-            if processing_baseline < "05.00" or processing_baseline == "05.09":
-                raise InvalidInput(
-                    f"Processing baseline is {processing_baseline}, "
-                    "only >= 05.00 (not including 5.09) is supported."
-                )
+    def fetch_source_images(self, image_hrefs: dict[str, str]) -> None:
+        """Fetch each canonical source image into the workdir.
 
-            item = _prune_to_canonical_assets(item)
-            assets_to_cogify = [
-                # pystac 2.0 renamed Asset.media_type → Asset.type
-                key
-                for key, asset in item.assets.items()
-                if asset.type == "image/jp2"
-            ]
+        SAFE-archive-only: the existing-COGs path reads its rasters directly
+        by href instead. Every image lands under its canonical flat filename
+        (``B02.jp2``, ``CLD_20m.jp2``, ...) regardless of what it was called in
+        the archive. Already-present files are left alone so a saved workdir is
+        reused.
+        """
+        pending = {
+            key: href
+            for key, href in image_hrefs.items()
+            if not (self._workdir / CANONICAL_IMAGE_FILENAMES[key]).exists()
+        }
+        remote = {k: h for k, h in pending.items() if "://" in h}
 
-            self.logger.info(f"Downloading assets to cogify: {assets_to_cogify}")
+        for key, href in pending.items():
+            if key not in remote:
+                shutil.copy(href, self._workdir / CANONICAL_IMAGE_FILENAMES[key])
 
-            item = stac_asset.blocking.download_item(
-                item,
-                self._workdir,
-                infer_file_name=False,
-                keep_non_downloaded=True,
-                config=Config(s3_requester_pays=False, include=assets_to_cogify),
+        if not remote:
+            return
+
+        self.logger.info(f"Downloading {len(remote)} source images")
+        for key, href in remote.items():
+            bucket, s3_key = _parse_s3_url(href)
+            _anon_s3_client.download_file(
+                bucket, s3_key, str(self._workdir / CANONICAL_IMAGE_FILENAMES[key])
             )
 
-            # pystac 2.0 change (same reason _set_asset_owners is called at the top of
-            # update_item). Idempotent — safe to call again here.
-            _set_asset_owners(item)
+    def cogify_source_images(
+        self, metadata: Metadata, image_hrefs: dict[str, str]
+    ) -> dict[str, CogFile]:
+        """Fetch and COGify the canonical image set, before any Item exists.
 
-            for asset_name in assets_to_cogify:
-                asset = item.assets[asset_name]
+        The COGs are the assets the Item is subsequently built from, so this
+        has to run first. The throwaway assets handed to ``cogify`` come from
+        the same builder ``create_item`` uses, so the COG parameters match the
+        published band metadata exactly.
+        """
+        try:
+            self.fetch_source_images(image_hrefs)
+
+            assets = create_image_assets(
+                str(self._workdir),
+                metadata,
+                [CANONICAL_IMAGE_FILENAMES[key] for key in image_hrefs],
+            )
+
+            cogs: dict[str, CogFile] = {}
+            for asset_name, asset in assets.items():
                 self.logger.info(f"Converting {asset_name} {asset.href} to COG")
-                cogify(asset_name, asset)
-
+                cogs[asset_name] = cogify(asset_name, asset)
         except InvalidInput:
             raise
         except CRSError as err:
@@ -355,14 +440,13 @@ class Sentinel2ToStac(Task):
             self.logger.exception("Failed creating COGs")
             raise
 
-        cogified_count = len(assets_to_cogify)
-        self.logger.info(f"Cogified {cogified_count} assets.")
-        if cogified_count != EXPECTED_COGIFIED_COUNT:
+        self.logger.info(f"Cogified {len(cogs)} assets.")
+        if len(cogs) != EXPECTED_COGIFIED_COUNT:
             self.logger.error(
-                f"Cogified {cogified_count} assets, expected {EXPECTED_COGIFIED_COUNT}"
+                f"Cogified {len(cogs)} assets, expected {EXPECTED_COGIFIED_COUNT}"
             )
 
-        return item
+        return cogs
 
     def is_local_asset(self, asset: Asset) -> bool:
         return bool(asset.href.startswith(str(self._workdir)))
@@ -375,19 +459,16 @@ class Sentinel2ToStac(Task):
 
         Classifies each asset by its final href: Earth Search bucket (uploaded
         COGs, thumbnail, and the source metadata files, which are re-uploaded
-        rather than referenced in place), RODA bucket (non-cogified JP2 data
-        assets left on the public bucket, only in the create_cogs=False path),
-        or local path (--local/test runs). Each group gets its own named scheme
-        so the `bucket` template variable is always defined.
+        rather than referenced in place) or local path (--local/test runs).
+        Each group gets its own named scheme so the `bucket` template variable
+        is always defined.
         """
-        roda_keys: list[str] = []
         earthsearch_keys: list[str] = []
         local_keys: list[str] = []
 
         for key, asset in item.assets.items():
             if asset.href.startswith("s3://"):
-                bucket = s3_client.urlparse(asset.href)["bucket"]
-                (roda_keys if bucket == RODA_BUCKET else earthsearch_keys).append(key)
+                earthsearch_keys.append(key)
             else:
                 local_keys.append(key)
 
@@ -409,12 +490,8 @@ class Sentinel2ToStac(Task):
                     scheme_key
                 )
 
-        if roda_keys:
-            _add(RODA_SCHEME_KEY, RODA_BUCKET, roda_keys)
         if earthsearch_keys:
-            es_bucket = s3_client.urlparse(item.assets[earthsearch_keys[0]].href)[
-                "bucket"
-            ]
+            es_bucket, _ = _parse_s3_url(item.assets[earthsearch_keys[0]].href)
             _add(EARTHSEARCH_SCHEME_KEY, es_bucket, earthsearch_keys)
         if local_keys:
             _add(LOCAL_SCHEME_KEY, LOCAL_BUCKET, local_keys)
@@ -441,12 +518,12 @@ class Sentinel2ToStac(Task):
         return item
 
     def read_href(self, href: str) -> bytes:
+        if "://" not in href:
+            return Path(href).read_bytes()
+        bucket, key = _parse_s3_url(href)
         try:
-            return bytes(
-                stac_asset.blocking.read_href(
-                    href, config=Config(s3_requester_pays=False)
-                )
-            )
+            response = _anon_s3_client.get_object(Bucket=bucket, Key=key)
+            return bytes(response["Body"].read())
         except ClientError as err:
             if err.response["Error"]["Code"] == "NoSuchKey":
                 msg = f"Failed fetching href '{href}' ({err})"
@@ -455,89 +532,163 @@ class Sentinel2ToStac(Task):
             else:
                 raise
 
-    def process(self, **kwargs: Any) -> list[dict[str, Any]]:
-        metadata_href = self._payload["metadata_href"]
-        create_cogs = self._payload.get("create_cogs", False)
-        v1_output = self._payload.get("v1_output", False)
-        s3_path = os.path.dirname(metadata_href)
+    def list_files(self, prefix: str) -> list[str]:
+        """List every file href underneath a prefix, local or S3."""
+        if "://" in prefix:
+            bucket, key_prefix = _parse_s3_url(f"{prefix}/")
+            return [
+                f"s3://{bucket}/{key}"
+                for key in _list_s3_keys(_anon_s3_client, bucket, key_prefix)
+            ]
+        return [str(p) for p in Path(prefix).rglob("*") if p.is_file()]
 
-        bucket_filenames = self.list_bucket_filenames(s3_path)
+    def resolve_source(self) -> SourceProduct:
+        if safe_href := self._payload.get("safe_href"):
+            return self.resolve_safe_source(safe_href)
+        return self.resolve_granule_source(self._payload["metadata_href"])
 
-        # Download the three source metadata files into the workdir.
-        # Each download is guarded by .exists() so a saved workdir is reused
-        # without re-fetching.
+    def resolve_granule_source(self, metadata_href: str) -> SourceProduct:
+        """Resolve an already-cogified Earth Search granule prefix.
 
-        # tileInfo metadata, e.g.
-        # s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0/tileInfo.json
-        if not self.tileinfo_path.exists():
-            self.tileinfo_path.write_bytes(self.read_href(f"{s3_path}/tileInfo.json"))
-
-        try:
-            l2a_tileinfo = json.loads(self.tileinfo_path.read_text())
-        except json.JSONDecodeError:
-            raise InvalidInput("Corrupted tileInfo.json")
+        Product/granule metadata and every canonical COG are required
+        directly under `prefix`; any of them missing is a hard failure, not a
+        fallback. Each download is guarded by .exists() so a saved workdir is
+        reused without re-fetching.
+        """
+        prefix = os.path.dirname(metadata_href)
+        bucket_filenames = self.list_bucket_filenames(prefix)
 
         if not self.product_metadata_xml_path.exists():
-            parts = s3_client.urlparse(s3_path)
-            product_metadata_href = _resolve_product_metadata_href(
-                s3_path,
-                bucket_filenames,
-                parts["bucket"],
-                l2a_tileinfo["productPath"],
-            )
             self.product_metadata_xml_path.write_bytes(
-                self.read_href(product_metadata_href)
+                self.read_href(f"{prefix}/product_metadata.xml")
             )
 
         if not self.granule_metadata_xml_path.exists():
             self.granule_metadata_xml_path.write_bytes(
-                self.read_href(f"{s3_path}/metadata.xml")
+                self.read_href(f"{prefix}/metadata.xml")
             )
 
-        # Build the STAC Item from the downloaded metadata. stactools-sentinel2
-        # reads all three files out of the workdir.
-        try:
-            item = create_item(str(self._workdir))
-        except ValueError as ex:
-            self.logger.error(ex)
-            raise InvalidInput(f"Invalid input metadata: {ex}")
-        except AssertionError as ex:
-            self.logger.error(ex)
+        return SourceProduct(
+            prefix=prefix,
+            image_hrefs=self.resolve_image_hrefs(prefix, bucket_filenames),
+            bucket_filenames=bucket_filenames,
+            create_cogs=False,
+        )
+
+    @staticmethod
+    def resolve_image_hrefs(prefix: str, bucket_filenames: set[str]) -> dict[str, str]:
+        """Locate the canonical COGs at the flat Earth Search product prefix.
+
+        Every one of them is required; a granule prefix with any missing is
+        not a supported input, so this fails rather than falling back to
+        anything else.
+        """
+        missing = sorted(
+            ASSET_FILENAMES[key]
+            for key in CANONICAL_L2A_IMAGE_PATHS
+            if ASSET_FILENAMES[key] not in bucket_filenames
+        )
+        if missing:
             raise InvalidInput(
-                f"Assertion failed, likely because of an invalid geometry: {ex}"
+                f"Expected COG(s) not found at {prefix}: {', '.join(missing)}"
             )
+        return {
+            key: f"{prefix}/{ASSET_FILENAMES[key]}" for key in CANONICAL_L2A_IMAGE_PATHS
+        }
+
+    def resolve_safe_source(self, safe_href: str) -> SourceProduct:
+        """Resolve a SAFE archive and copy its metadata into the workdir.
+
+        A SAFE archive carries no COGs, so COG creation is the only way to get
+        publishable assets out of it and is always on.
+        """
+        prefix = safe_href.rstrip("/")
+        layout = resolve_safe_layout(prefix, self.list_files(prefix))
+
+        if not self.product_metadata_xml_path.exists():
+            self.product_metadata_xml_path.write_bytes(
+                self.read_href(layout.product_metadata_href)
+            )
+        if not self.granule_metadata_xml_path.exists():
+            self.granule_metadata_xml_path.write_bytes(
+                self.read_href(layout.granule_metadata_href)
+            )
+
+        return SourceProduct(
+            prefix=prefix,
+            image_hrefs=layout.image_hrefs,
+            bucket_filenames=set(),
+            create_cogs=True,
+        )
+
+    def data_geometry(self, source: SourceProduct) -> Optional[dict[str, Any]]:
+        """Union the valid-data footprints of the product's reflectance bands.
+
+        Only the spectral bands (B01, B02, ... not AOT/WVP/SCL/TCI/PVI/cloud/
+        snow) are used; the derived/aux products don't represent the actual
+        data extent. Returns None when no raster could be read.
+        """
+        hrefs = [
+            str(local)
+            if (local := self._workdir / CANONICAL_IMAGE_FILENAMES[key]).exists()
+            else href
+            for key, href in source.image_hrefs.items()
+            if key in SENTINEL_BANDS
+        ]
+        self.logger.info(f"Computing the data footprint from {len(hrefs)} rasters")
+        return data_footprint(hrefs)
+
+    def build_item(self, metadata: Metadata) -> Item:
+        """Build the Item from the workdir and apply the Earth Search overrides."""
+        with _item_errors(self.logger):
+            item = create_item(str(self._workdir), metadata=metadata)
+
+        try:
+            return self.update_item(item)
         except Exception as ex:
             self.logger.error(ex)
-            if "Cannot find granule tile_id granule metadata" in str(ex):
-                raise InvalidInput("Unable to parse older metadata file format")
-            else:
-                raise Exception(f"Unable to create item: {ex}") from ex
+            raise Exception(f"Unable to update item: {ex}")
 
-        # Only knowable once the item (and therefore its id) exists: the doc
-        # is named after the product, so this can't run any earlier.
+    def process(self, **kwargs: Any) -> list[dict[str, Any]]:
+        v1_output = self._payload.get("v1_output", False)
+        source = self.resolve_source()
+
+        with _item_errors(self.logger):
+            metadata = parse_metadata(str(self._workdir))
+
+        if source.create_cogs:
+            _validate_processing_baseline(
+                metadata.metadata_dict.get("s2:processing_baseline", "0")
+            )
+
+        # Fetched up front, for both source kinds, so the footprint reads are
+        # local rather than full-band reads straight off the remote bucket
+        # (which GDAL has no retry logic for). The COG step reuses whatever
+        # landed in the workdir.
+        self.fetch_source_images(source.image_hrefs)
+
+        if (geometry := self.data_geometry(source)) is not None:
+            metadata = replace(metadata, geometry=geometry)
+
+        # Build the Item up front to run the two cheap gates: the collection
+        # lookup needs a whole Item dict, and COGifying is far too expensive to
+        # do before knowing whether this scene will be emitted at all.
+        item = self.build_item(metadata)
+
         existing_doc_filename = find_existing_stac_doc_filename(
-            bucket_filenames, item.id
+            source.bucket_filenames, item.id
         )
-        existing_stac_doc = (
-            self.load_existing_stac_doc(s3_path, existing_doc_filename)
+        existing_stac_doc: dict[str, Any] = (
+            self.load_existing_stac_doc(source.prefix, existing_doc_filename)
             if existing_doc_filename is not None
-            else None
+            else {}
         )
-        if existing_stac_doc is not None:
+        if existing_doc_filename is not None:
             self.logger.info(
                 f"Found existing STAC doc '{existing_doc_filename}' with "
                 f"{len(existing_stac_doc.get('assets', {}))} assets"
             )
 
-        # Apply Earth Search-specific overrides
-        try:
-            item = self.update_item(item, s3_path)
-        except Exception as ex:
-            self.logger.error(ex)
-            raise Exception(f"Unable to update item: {ex}")
-
-        # id and collection are set, so look up in the live STAC API to avoid
-        # regressing an already-ingested item.
         match self.is_newer_than_existing(item):
             case Failure(e):
                 raise e
@@ -546,9 +697,23 @@ class Sentinel2ToStac(Task):
             case _:
                 pass
 
-        if create_cogs and existing_stac_doc is None:
-            self.logger.info("Making COGs for item assets")
-            item = self.make_cogs_for_item(item)
+        if source.create_cogs:
+            self.logger.info("Making COGs for the canonical image set")
+            cogs = self.cogify_source_images(metadata, source.image_hrefs)
+
+            # Rebuild the Item over the COGs just written to the workdir.
+            self.logger.info("Rebuilding item from the created COGs")
+            item = self.build_item(
+                replace(
+                    metadata,
+                    image_paths=[cog.filename for cog in cogs.values()],
+                    image_media_type=MediaType.COG,
+                )
+            )
+            for key, cog in cogs.items():
+                FileExtension.ext(item.assets[key], add_if_missing=True).apply(
+                    checksum=cog.checksum, size=cog.size
+                )
 
             self.logger.info("Making preview thumbnail")
             try:
@@ -556,46 +721,19 @@ class Sentinel2ToStac(Task):
             except Exception:
                 self.logger.exception("Cannot create JPEG thumbnail")
                 raise
-        elif existing_stac_doc is not None:
-            # Reference/update path: an existing product doc means we're
-            # refreshing an already-ingested earthsearch item.
-            # Requires every expected asset to already be in the bucket.
+        else:
+            # The item references the already-cogified assets on Earth Search;
+            # reuse file info from a prior STAC doc when one was found above.
             item = _prune_to_canonical_assets(item)
 
             self.logger.info("Applying earthsearch hrefs")
-            item = self.apply_earthsearch_hrefs(item, s3_path)
-            item = self.add_thumbnail_asset(item, s3_path)
+            item = self.apply_earthsearch_hrefs(item, source.prefix)
+            item = self.add_thumbnail_asset(item, source.prefix)
 
             self.logger.info("Reusing/downloading asset file info")
             item = self.apply_reference_file_info(
-                item, bucket_filenames, existing_stac_doc
+                item, source.bucket_filenames, existing_stac_doc
             )
-        else:
-            cog_filenames = {
-                fname
-                for key, fname in ASSET_FILENAMES.items()
-                if key not in _METADATA_ASSET_KEYS
-            }
-            if cog_filenames.issubset(bucket_filenames):
-                # COGs already in bucket but no existing STAC doc: apply
-                # earthsearch hrefs and compute file info by downloading each
-                # asset (no cached checksums to reuse).
-                item = _prune_to_canonical_assets(item)
-
-                self.logger.info(
-                    "Applying earthsearch hrefs (COGs in bucket, no STAC doc)"
-                )
-                item = self.apply_earthsearch_hrefs(item, s3_path)
-                item = self.add_thumbnail_asset(item, s3_path)
-
-                self.logger.info("Downloading assets to compute file info")
-                item = self.apply_reference_file_info(item, bucket_filenames, {})
-            else:
-                missing = cog_filenames - bucket_filenames
-                self.logger.warning(
-                    f"No existing STAC doc and {len(missing)} COG(s) missing from "
-                    f"the bucket at {s3_path}; falling back to RODA JP2 hrefs: {missing}"
-                )
 
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)

@@ -15,3 +15,6 @@ wheels/
 
 #tests
 tests/external-data
+
+# stacktask local folder
+local-output/

@@ -1,7 +1,6 @@
 {
-  "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-2026",
-  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/metadata.xml",
-  "create_cogs": false,
+  "id": "earthsearch-sentinel-2-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-2026",
+  "safe_href": "/Users/tanderson/Documents/GitHub/sentinel-2-l2a-to-stac/S2C_MSIL2A_20260512T105621_N0512_R094_T30UXB_20260512T145556.SAFE",
   "process": {
     "workflow": "sentinel-2-l2a-to-stac",
     "upload_options": {

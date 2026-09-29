@@ -31,22 +31,17 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from re import Pattern
 from typing import Any, Final, Optional
 
 import pystac
-from pyproj import Transformer
 from pystac.utils import map_opt, str_to_datetime
 from shapely.geometry import Polygon
 from shapely.geometry import mapping as shapely_mapping
-from shapely.geometry import shape as shapely_shape
-from shapely.ops import transform as shapely_transform
 
 from sentinel_2_l2a_to_stac.constants import (
     COORD_ROUNDING,
@@ -54,7 +49,6 @@ from sentinel_2_l2a_to_stac.constants import (
     L1C_IMAGE_PATHS,
     L2A_IMAGE_PATHS,
     PRODUCT_METADATA_ASSET_KEY,
-    TILEINFO_METADATA_ASSET_KEY,
     s2_prefix,
 )
 from sentinel_2_l2a_to_stac.utils import ViewingAngle, XmlElement
@@ -87,6 +81,15 @@ class GranuleMetadata:
             lambda _: GranuleMetadataError(
                 f"Cannot find granule tile_id granule metadata at {self.href}"
             ),
+        )
+
+        self.datetime = str_to_datetime(
+            self._root.find_text_or_throw(
+                "n1:General_Info/SENSING_TIME",
+                lambda _: GranuleMetadataError(
+                    f"Cannot find sensing time in granule metadata at {self.href}"
+                ),
+            )
         )
 
         self._geocoding_node = self._root.find_or_throw(
@@ -496,52 +499,6 @@ class ProductMetadata:
         return PRODUCT_METADATA_ASSET_KEY, asset
 
 
-class TileInfoMetadata:
-    def __init__(self, href: str) -> None:
-        self.href = href
-        self.tileinfo: dict[str, Any] = json.loads(Path(href).read_text())
-
-        self._datetime = str_to_datetime(self.tileinfo["timestamp"])
-        self._geometry: Optional[dict[str, Any]] = self.tileinfo.get("tileDataGeometry")
-        self._bbox: Optional[tuple[float, float, float, float]] = (
-            shapely_shape(self._geometry).bounds if self._geometry else None
-        )
-        self._product_path: str = self.tileinfo["productPath"]
-
-    @property
-    def product_path(self) -> str:
-        return self._product_path
-
-    @property
-    def geometry(self) -> Optional[dict[str, Any]]:
-        return self._geometry
-
-    @property
-    def bbox(self) -> Optional[tuple[float, float, float, float]]:
-        return self._bbox
-
-    @property
-    def datetime(self) -> datetime:
-        return self._datetime
-
-    @property
-    def metadata_dict(self) -> dict[str, Any]:
-        product_type = None
-        product_name = self.tileinfo.get("productName")
-        if product_name and "_MSIL2A_" in product_name:
-            product_type = "S2MSI2A"
-        elif product_name and "_MSIL1C_" in product_name:
-            product_type = "S2MSI1C"
-        result = {f"{s2_prefix}:product_type": product_type}
-        return {k: v for k, v in result.items() if v is not None}
-
-    def create_asset(self) -> tuple[str, pystac.Asset]:
-        asset = pystac.Asset(
-            href=self.href, type=pystac.MediaType.JSON, roles=["metadata"]
-        )
-        return TILEINFO_METADATA_ASSET_KEY, asset
-
-
 @dataclass(frozen=True)
 class Metadata:
     scene_id: str
@@ -568,43 +525,34 @@ class Metadata:
 
 def parse_metadata(
     granule_href: str,
-    tolerance: float,
-    allow_fallback_geometry: bool,
+    geometry: Optional[dict[str, Any]] = None,
 ) -> Metadata:
+    """Parse the ESA metadata in `granule_href` into a :class:`Metadata`.
+
+    Args:
+        granule_href: Local directory holding metadata.xml and
+            product_metadata.xml.
+        geometry: The scene footprint, in WGS84. Normally the union of the
+            raster footprints (see :mod:`sentinel_2_l2a_to_stac.footprint`);
+            when omitted, the coarse product metadata footprint is used.
+    """
     granule_metadata = GranuleMetadata(os.path.join(granule_href, "metadata.xml"))
-    tileinfo_metadata = TileInfoMetadata(os.path.join(granule_href, "tileInfo.json"))
 
     product_metadata: Optional[ProductMetadata] = None
     f = os.path.join(granule_href, "product_metadata.xml")
     if os.path.exists(f):
         product_metadata = ProductMetadata(f)
 
-    if tileinfo_metadata.geometry and (
-        (cs := tileinfo_metadata.geometry.get("coordinates")) and (all(cs))
-    ):
-        transformer = Transformer.from_crs(
-            granule_metadata.epsg, 4326, force_over=True, always_xy=True
-        )
-        geometry: dict[str, Any] = shapely_mapping(
-            shapely_transform(
-                transformer.transform, shapely_shape(tileinfo_metadata.geometry)
-            ).simplify(tolerance)
-        )
-    elif allow_fallback_geometry and product_metadata:
+    if geometry is None:
+        if product_metadata is None:
+            raise ValueError(
+                f"No raster footprint was computed for {granule_href} and there "
+                "is no product_metadata.xml to fall back on."
+            )
         geometry = product_metadata.geometry
-    else:
-        raise ValueError(
-            f"Metadata does not contain geometry for {granule_href}. "
-            "Perhaps there is no data in the scene?"
-        )
 
-    extra_assets: dict[str, pystac.Asset] = dict(
-        [
-            granule_metadata.create_asset(),
-            tileinfo_metadata.create_asset(),
-        ]
-    )
-    if product_metadata:
+    extra_assets: dict[str, pystac.Asset] = dict([granule_metadata.create_asset()])
+    if product_metadata is not None:
         key, asset = product_metadata.create_asset()
         extra_assets[key] = asset
 
@@ -614,7 +562,6 @@ def parse_metadata(
 
     metadata_dict: dict[str, Any] = {
         **granule_metadata.metadata_dict,
-        **tileinfo_metadata.metadata_dict,
         f"{s2_prefix}:processing_baseline": granule_metadata.processing_baseline,
     }
     if product_metadata is not None:
@@ -634,7 +581,7 @@ def parse_metadata(
         proj_bbox=granule_metadata.proj_bbox,
         resolution_to_shape=granule_metadata.resolution_to_shape,
         geometry=geometry,
-        datetime=tileinfo_metadata.datetime,
+        datetime=granule_metadata.datetime,
         platform=granule_metadata.platform,  # type: ignore[arg-type]
         image_media_type=product_metadata.image_media_type
         if product_metadata is not None

@@ -20,7 +20,6 @@ credentials is respected rather than overridden; a plain ``pytest`` run remains
 hermetic.
 """
 
-import json
 import os
 import re
 import shutil
@@ -50,7 +49,7 @@ for _key, _value in _HERMETIC_AWS_ENV.items():
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _BASELINE_TILE = "tiles-19-T-DJ-2023-4-19-0"
-_SOURCE_FILES = ("tileInfo.json", "metadata.xml", "product_metadata.xml")
+_SOURCE_FILES = ("metadata.xml", "product_metadata.xml")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -72,42 +71,54 @@ def _stub_stac_api() -> Any:
 def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     """Run the full local process() over the baseline fixture, once.
 
-    Seeds a workdir with the checked-in source metadata so the PR 2 download
-    block is a no-op (fully local, no S3), then returns the single item dict
+    Seeds a workdir with the checked-in source metadata so the download block
+    is a no-op (fully local, no S3), then returns the single item dict
     produced by create_item + update_item. Session-scoped because create_item
     parsing the ~600 KB granule metadata is the slow part; tests treat the
     result as read-only.
 
-    ``create_cogs`` is forced off. This fixture is the *pre-COG* baseline that
-    PR 3/4/5 tests assert against (asset hrefs still pointing at RODA, no
-    file:checksum, etc.). With PR 6, process() runs make_cogs_for_item inside
-    the ``if create_cogs:`` block; the baseline tile's processing_baseline
-    (05.09) passes the gate, so leaving COGs on would (a) rewrite those hrefs to
-    local ``.tif`` paths and (b) download the real JP2s from live S3 — violating
-    the no-network constraint. The make_cogs branching is exercised directly in
-    test_make_cogs.py; the full COG e2e path lands in PR 8.
+    ``metadata_href`` is overridden to an Earth Search-style prefix, and
+    ``list_bucket_filenames`` is faked to report every canonical COG already
+    present there -- the only input shape a granule ``metadata_href``
+    supports. ``read_href`` is faked too, since the existing-COGs path
+    re-downloads each asset to compute file:size/file:checksum when (as here)
+    there's no prior STAC doc to reuse them from.
     """
-    from sentinel_2_l2a_to_stac.task import Sentinel2ToStac
+    from sentinel_2_l2a_to_stac.task import ASSET_FILENAMES, Sentinel2ToStac
 
     source = _FIXTURES / "source-metadata" / _BASELINE_TILE
     workdir = Path(tempfile.mkdtemp())
     for name in _SOURCE_FILES:
         shutil.copy(source / name, workdir / name)
 
-    payload = json.loads(
-        (
-            _FIXTURES / "payloads" / "success" / "create-item-baseline" / "in.json"
-        ).read_text()
-    )
-    payload["create_cogs"] = False
+    # Must match tests/test_units.py's _BASELINE_BUCKET.
+    payload = {
+        "id": "baseline-item-dict-fixture",
+        "metadata_href": "s3://es-test-bucket/prefix/metadata.xml",
+        "process": [
+            {
+                "workflow": "sentinel-2-l2a-to-stac",
+                "upload_options": {
+                    "collections": {"sentinel-2-l2a": "$[?(@.id =~ '.*')]"}
+                },
+                "tasks": {"sentinel-2-l2a-to-stac": {}},
+            }
+        ],
+    }
 
     # pytest's `monkeypatch` fixture is function-scoped and can't be depended
     # on here; this fixture is session-scoped, so it patches directly and
     # leaves the patch in place for the rest of the run.
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
+        Sentinel2ToStac,
+        "list_bucket_filenames",
+        lambda self, s3_path: set(ASSET_FILENAMES.values()),
     )
+    # No imagery is seeded, so there is nothing to measure a footprint from;
+    # returning None falls back to the product metadata footprint.
+    monkeypatch.setattr(Sentinel2ToStac, "data_geometry", lambda self, source: None)
+    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"fake-bytes")
 
     result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
     assert len(result) == 1
