@@ -120,6 +120,18 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     monkeypatch.setattr(Sentinel2ToStac, "data_geometry", lambda self, source: None)
     monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"fake-bytes")
 
-    result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
+    # process() now fetches source images up front (for the footprint reads)
+    # regardless of source kind; nothing here needs the actual rasters. Scoped
+    # to just this call (unlike the patches above) so it doesn't leak into
+    # later tests -- e.g. test_fetch_source_images_renames_to_canonical_filenames
+    # exercises the real implementation.
+    fetch_patch = pytest.MonkeyPatch()
+    fetch_patch.setattr(
+        Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
+    )
+    try:
+        result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()
+    finally:
+        fetch_patch.undo()
     assert len(result) == 1
     return result[0]
