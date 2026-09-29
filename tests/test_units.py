@@ -41,11 +41,11 @@ from sentinel_2_l2a_to_stac.constants import (
 )
 from sentinel_2_l2a_to_stac.metadata import parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
+from sentinel_2_l2a_to_stac.stac import _is_native_resolution
 from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
-    _prune_to_canonical_assets,
     _set_asset_owners,
     _validate_processing_baseline,
     find_existing_stac_doc_filename,
@@ -308,37 +308,41 @@ def test_resolve_image_hrefs_returns_flat_earthsearch_layout() -> None:
     assert set(image_hrefs) == set(CANONICAL_L2A_IMAGE_PATHS)
 
 
-def test_prune_to_canonical_assets_drops_m_suffixed_and_thumbnail(
-    baseline_item_dict: dict[str, Any],
-) -> None:
-    item = Item.from_dict(baseline_item_dict)
-    # Simulate create_item's raw, unpruned output plus a thumbnail asset.
-    item.assets["red_20m"] = Asset(href="x", type="image/jp2")
-    item.assets["visual_60m"] = Asset(href="x", type="image/jp2")
-    item.assets["thumbnail"] = Asset(href="x", type="image/jpeg")
-    _set_asset_owners(item)
-
-    before_canonical_keys = {
-        k for k in item.assets if not k.endswith("m") and k != "thumbnail"
-    }
-
-    result = _prune_to_canonical_assets(item)
-
-    assert "red_20m" not in result.assets
-    assert "visual_60m" not in result.assets
-    assert "thumbnail" not in result.assets
-    assert set(result.assets.keys()) == before_canonical_keys
+@pytest.mark.parametrize(
+    "image_path,expected",
+    [
+        # Native-resolution bands — keep
+        ("R10m/B02_10m.jp2", True),   # blue native 10m
+        ("R10m/B04_10m.jp2", True),   # red native 10m
+        ("R20m/B05_20m.jp2", True),   # rededge1 native 20m
+        ("R60m/B01_60m.jp2", True),   # coastal native 60m
+        # Non-native duplicates — drop
+        ("R20m/B04_20m.jp2", False),  # red at non-native 20m
+        ("R60m/B04_60m.jp2", False),  # red at non-native 60m
+        ("R10m/B05_10m.jp2", False),  # rededge1 at non-native 10m
+        # TCI: canonical at 10m, duplicate at 60m
+        ("R10m/TCI_10m.jp2", True),
+        ("R60m/TCI_60m.jp2", False),
+        # Spectral-index assets: canonical at 20m
+        ("R20m/CLD_20m.tif", True),
+        ("R60m/CLD_60m.tif", False),
+        # PVI (preview) — always kept regardless of resolution token
+        ("L2A_PVI.jp2", True),
+        # No resolution token in path — always kept
+        ("metadata.xml", True),
+    ],
+)
+def test_is_native_resolution(image_path: str, expected: bool) -> None:
+    assert _is_native_resolution(image_path) == expected
 
 
 def test_asset_filenames_map_matches_create_item_keys(
     baseline_item_dict: dict[str, Any],
 ) -> None:
-    # ASSET_FILENAMES must cover exactly the canonical keys create_item
-    # produces after pruning (thumbnail is added manually in the reference
-    # path, not produced by create_item, so it's expected here too).
+    # ASSET_FILENAMES must cover exactly the canonical keys create_item produces
+    # (thumbnail is added manually in the reference path, not by create_item).
     item = Item.from_dict(baseline_item_dict)
-    canonical_keys = {k for k in item.assets if not k.endswith("m")}
-    assert set(ASSET_FILENAMES.keys()) == canonical_keys | {"thumbnail"}
+    assert set(ASSET_FILENAMES.keys()) == set(item.assets.keys()) | {"thumbnail"}
 
 
 # ---------------------------------------------------------------------------

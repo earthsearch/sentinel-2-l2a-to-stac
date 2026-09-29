@@ -218,18 +218,6 @@ ASSET_FILENAMES: dict[str, str] = {
 }
 
 
-def _prune_to_canonical_assets(item: Item) -> Item:
-    """Drop create_item's non-native-resolution "*m" variants and the thumbnail.
-
-    create_item emits ~40 asset keys, including *m-suffixed duplicates for
-    every resolution other than a band's native one (e.g. red_20m,
-    visual_60m). None of the 23 canonical asset keys end in "m", so filtering
-    on that suffix is safe.
-    """
-    for key in list(item.assets.keys()):
-        if key.endswith("m") or key == THUMBNAIL_ASSET_NAME:
-            del item.assets[key]
-    return item
 
 
 def find_existing_stac_doc_filename(
@@ -819,8 +807,6 @@ class Sentinel2ToStac(Task):
         else:
             # The item references the already-cogified assets on Earth Search;
             # reuse file info from a prior STAC doc when one was found above.
-            item = _prune_to_canonical_assets(item)
-
             self.logger.info("Applying earthsearch hrefs")
             item = self.apply_earthsearch_hrefs(item, source.prefix)
             item = self.add_thumbnail_asset(item, source.prefix)
