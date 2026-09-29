@@ -312,10 +312,10 @@ def test_resolve_image_hrefs_returns_flat_earthsearch_layout() -> None:
     "image_path,expected",
     [
         # Native-resolution bands — keep
-        ("R10m/B02_10m.jp2", True),   # blue native 10m
-        ("R10m/B04_10m.jp2", True),   # red native 10m
-        ("R20m/B05_20m.jp2", True),   # rededge1 native 20m
-        ("R60m/B01_60m.jp2", True),   # coastal native 60m
+        ("R10m/B02_10m.jp2", True),  # blue native 10m
+        ("R10m/B04_10m.jp2", True),  # red native 10m
+        ("R20m/B05_20m.jp2", True),  # rededge1 native 20m
+        ("R60m/B01_60m.jp2", True),  # coastal native 60m
         # Non-native duplicates — drop
         ("R20m/B04_20m.jp2", False),  # red at non-native 20m
         ("R60m/B04_60m.jp2", False),  # red at non-native 60m
@@ -842,9 +842,7 @@ def test_earthsearch_storage_scheme_after_upload(
     def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
         for key in asset_keys:
             fname = Path(item.assets[key].href).name
-            item.assets[
-                key
-            ].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
+            item.assets[key].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
         return item
 
     monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
