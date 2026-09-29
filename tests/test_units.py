@@ -312,10 +312,10 @@ def test_resolve_image_hrefs_returns_flat_earthsearch_layout() -> None:
     "image_path,expected",
     [
         # Native-resolution bands — keep
-        ("R10m/B02_10m.jp2", True),   # blue native 10m
-        ("R10m/B04_10m.jp2", True),   # red native 10m
-        ("R20m/B05_20m.jp2", True),   # rededge1 native 20m
-        ("R60m/B01_60m.jp2", True),   # coastal native 60m
+        ("R10m/B02_10m.jp2", True),  # blue native 10m
+        ("R10m/B04_10m.jp2", True),  # red native 10m
+        ("R20m/B05_20m.jp2", True),  # rededge1 native 20m
+        ("R60m/B01_60m.jp2", True),  # coastal native 60m
         # Non-native duplicates — drop
         ("R20m/B04_20m.jp2", False),  # red at non-native 20m
         ("R60m/B04_60m.jp2", False),  # red at non-native 60m

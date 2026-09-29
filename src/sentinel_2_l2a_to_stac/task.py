@@ -221,8 +221,6 @@ ASSET_FILENAMES: dict[str, str] = {
 }
 
 
-
-
 def find_existing_stac_doc_filename(
     bucket_filenames: set[str], item_id: str
 ) -> Optional[str]:
