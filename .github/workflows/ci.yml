@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      # approximates the release regex `^v\d{4}\.\d{2}\.\d{2}(\.\d+)?(-[.\d\w]+)?$`
+      # as a glob, since GitHub ref filters don't support full regex.
+      - "v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ROLE_ARN: arn:aws:iam::608149789419:role/es-v2-ecr-ci
+  ECR_REPO_NAME: es-v2/cirrus-task-sentinel-2-l2a-to-stac
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pre-commit run --all-files
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest
+
+  image:
+    needs: [validate, test]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # The push trigger's tag glob is looser than the release regex (it
+      # allows trailing junk after the day, e.g. v2026.09.29abcs), so
+      # re-validate the full pattern before authenticating/publishing.
+      - if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
+        name: Validate release tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$REF_NAME" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?(-[.0-9A-Za-z]+)?$ ]]; then
+            echo "::error::Tag '$REF_NAME' does not match release pattern ^v\d{4}\.\d{2}\.\d{2}(\.\d+)?(-[.\d\w]+)?\$"
+            exit 1
+          fi
+
+      - if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # PRs skip ECR login, so fall back to a dummy registry to keep the
+          # generated refs parseable for the build-only path.
+          images: ${{ steps.ecr.outputs.registry || 'local' }}/${{ env.ECR_REPO_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=dev,enable={{is_default_branch}}
+            type=ref,event=tag
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

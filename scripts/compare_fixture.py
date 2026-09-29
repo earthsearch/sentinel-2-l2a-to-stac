@@ -21,6 +21,7 @@ arrays) don't show — only genuine added/removed/changed values do.
 
 import json
 import sys
+from typing import Any
 
 from deepdiff import DeepDiff
 
@@ -34,7 +35,7 @@ if not KEEP_HREF:
     ASSET_NOISE.add("href")
 
 
-def scrub(doc: dict) -> dict:
+def scrub(doc: dict[str, Any]) -> dict[str, Any]:
     doc = json.loads(json.dumps(doc))  # deep copy + type-normalize
     for feat in doc.get("features", [doc]):
         props = feat.get("properties", {})
