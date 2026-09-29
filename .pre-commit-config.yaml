@@ -12,10 +12,6 @@ repos:
       - id: check-merge-conflict
       - id: detect-aws-credentials
       - id: end-of-file-fixer
-  # Local hook (not mirrors-mypy): third-party deps here include a git-pinned
-  # pystac fork and packages without PyPI stubs, which additional_dependencies
-  # can't replicate. Running mypy inside the project's own uv-managed venv
-  # keeps it in sync with `uv run mypy` and avoids spurious Any-typed imports.
   - repo: local
     hooks:
       - id: mypy
