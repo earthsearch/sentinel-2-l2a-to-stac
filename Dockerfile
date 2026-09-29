@@ -49,8 +49,8 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 # Uncomment one of the following:
 
 # 1. for lambda task, use CMD
-CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
+# CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
 
 # 2. for batch task, use ENTRYPOINT
-#ENV PYTHONPATH="/var/task"
-#ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]
+ENV PYTHONPATH="/var/task"
+ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]
