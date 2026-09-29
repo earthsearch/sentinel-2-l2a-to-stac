@@ -22,9 +22,11 @@ from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
 from sentinel_2_l2a_to_stac.cogify import (
+    THUMBNAIL_TITLE,
     CogFile,
     cogify,
     make_thumbnail,
+    sha256_multihash_bytes,
     sha256sum_multihash,
 )
 from sentinel_2_l2a_to_stac.constants import (
@@ -167,7 +169,8 @@ def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
             yield obj["Key"]
 
 
-# Storage extension (pystac 1.15.2, schemes/refs model). One aws-s3 scheme,
+# Storage extension (schemes/refs model, from the pinned pystac 2.0-dev build;
+# see [tool.uv.sources] in pyproject.toml). One aws-s3 scheme,
 # "earthsearch", for assets uploaded to the Earth Search output bucket or
 # already living there. A "local" placeholder scheme is used in --local/test
 # runs where no upload occurs. In v2 `platform` is the access-endpoint
@@ -287,7 +290,7 @@ def _item_errors(logger: Any) -> Iterator[None]:
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
-    version = "v2026.09.18"
+    version = "v2026.09.18"  # keep in sync with pyproject.toml and CHANGELOG.md
 
     def validate(self) -> bool:
         # Rewritten for stactask 0.6.1 (requires self._payload instead of
@@ -401,6 +404,7 @@ class Sentinel2ToStac(Task):
             href=f"{s3_path}/{ASSET_FILENAMES[THUMBNAIL_ASSET_NAME]}",
             type=MediaType.JPEG,
             roles=["thumbnail"],
+            title=THUMBNAIL_TITLE,
         )
         item.assets[THUMBNAIL_ASSET_NAME] = asset
         asset.set_owner(item)
@@ -414,11 +418,12 @@ class Sentinel2ToStac(Task):
     ) -> Item:
         """Populate file:size/file:checksum for every reference-path asset.
 
-        Reuse
-        from the existing doc when it already carries both fields for this
-        asset, otherwise download the object from earthsearch and compute
-        them fresh. An asset missing from the bucket is a hard input error.
-        Any doc asset that isn't one of `item`'s own keys is never consulted,
+        Reuse them from the existing doc when it already carries both fields
+        for this asset, otherwise download the object from earthsearch and
+        compute them fresh (in memory: the workdir holds cached source
+        metadata files under the same names as some assets, so nothing is
+        written there). An asset missing from the bucket is a hard input
+        error. Any doc asset that isn't one of `item`'s own keys is never consulted,
         which is what makes an extra doc-only asset a no-op.
         """
         doc_assets = existing_stac_doc.get("assets", {})
@@ -439,13 +444,9 @@ class Sentinel2ToStac(Task):
                 fext.size = size
                 fext.checksum = checksum
             else:
-                tmp_path = self._workdir / filename
-                tmp_path.write_bytes(self.read_href(asset.href))
-                try:
-                    fext.size = tmp_path.stat().st_size
-                    fext.checksum = sha256sum_multihash(str(tmp_path))
-                finally:
-                    tmp_path.unlink()
+                data = self.read_href(asset.href)
+                fext.size = len(data)
+                fext.checksum = sha256_multihash_bytes(data)
 
         return item
 

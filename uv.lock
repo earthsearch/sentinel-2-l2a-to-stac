@@ -1990,10 +1990,11 @@ wheels = [
 
 [[package]]
 name = "sentinel-2-l2a-to-stac"
-version = "2026.9.3"
+version = "2026.9.18"
 source = { editable = "." }
 dependencies = [
     { name = "antimeridian" },
+    { name = "boto3" },
     { name = "lxml" },
     { name = "multiformats" },
     { name = "numpy" },
@@ -2004,6 +2005,7 @@ dependencies = [
     { name = "rasterio" },
     { name = "requests" },
     { name = "returns" },
+    { name = "shapely" },
     { name = "stactask" },
 ]
 
@@ -2016,13 +2018,13 @@ dev = [
     { name = "pytest" },
     { name = "requests-mock" },
     { name = "ruff" },
-    { name = "shapely" },
     { name = "types-requests" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "antimeridian", specifier = ">=0.4.8" },
+    { name = "boto3", specifier = ">=1.43.56" },
     { name = "lxml", specifier = ">=6.0" },
     { name = "multiformats", specifier = "~=0.3.1" },
     { name = "numpy", specifier = ">=2.4.6" },
@@ -2033,6 +2035,7 @@ requires-dist = [
     { name = "rasterio", specifier = "~=1.5" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "returns", specifier = "~=0.29" },
+    { name = "shapely", specifier = ">=2.0" },
     { name = "stactask", specifier = ">=0.7.0" },
 ]
 
@@ -2045,7 +2048,6 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "requests-mock", specifier = ">=1.12.1" },
     { name = "ruff", specifier = ">=0.16.5" },
-    { name = "shapely", specifier = ">=2.0" },
     { name = "types-requests", specifier = ">=2.33.0.20260712" },
 ]
 

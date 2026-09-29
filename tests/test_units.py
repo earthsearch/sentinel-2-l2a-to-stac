@@ -383,6 +383,7 @@ def test_add_thumbnail_asset() -> None:
     assert thumb.href == "s3://bucket/prefix/L2A_PVI.jpg"
     assert thumb.roles == ["thumbnail"]
     assert thumb.type == MediaType.JPEG
+    assert thumb.title == "Thumbnail of preview image"
 
 
 def test_apply_reference_file_info_reuses_from_doc(
@@ -428,8 +429,30 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == len(b"fake-cog-bytes")
     assert fext.checksum is not None
-    # The downloaded file is only needed to compute size/checksum.
-    assert not (tmp_path / "B02.tif").exists()
+    # Size/checksum are computed in memory; nothing is written to the workdir.
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_apply_reference_file_info_preserves_cached_metadata_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A metadata asset with no file info in the doc must not clobber or delete
+    # the cached source file of the same name in the workdir.
+    item = _synthetic_item(["granule_metadata"])
+    item.assets["granule_metadata"].href = "s3://bucket/prefix/metadata.xml"
+    cached = tmp_path / "metadata.xml"
+    cached.write_bytes(b"cached-original")
+    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"from-s3")
+    task = Sentinel2ToStac(
+        {"id": "test-cache", "metadata_href": "s3://bucket/prefix/x"},
+        workdir=tmp_path,
+        upload=False,
+    )
+
+    result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}})
+
+    assert cached.read_bytes() == b"cached-original"
+    assert FileExtension.ext(result.assets["granule_metadata"]).size == len(b"from-s3")
 
 
 def test_apply_reference_file_info_ignores_extra_doc_asset(

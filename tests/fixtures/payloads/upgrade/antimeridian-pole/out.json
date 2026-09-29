@@ -1511,7 +1511,8 @@
           "type": "image/jpeg",
           "roles": [
             "thumbnail"
-          ]
+          ],
+          "title": "Thumbnail of preview image"
         }
       },
       "collection": "sentinel-2-l2a"
