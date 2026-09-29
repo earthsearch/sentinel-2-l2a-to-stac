@@ -20,4 +20,4 @@ To use this template as a repository:
 ## Deployment
 
 The built Docker image from this code should be published to a registry that is accessible
-from the Cirrus deployment. Ideally the image is in the same region as where the task will be run. 
+from the Cirrus deployment. Ideally the image is in the same region as where the task will be run.
