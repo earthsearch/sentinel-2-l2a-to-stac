@@ -22,6 +22,7 @@ from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
 from sentinel_2_l2a_to_stac.cogify import cogify, make_thumbnail, sha256sum_multihash
+from sentinel_2_l2a_to_stac.downgrade import downgrade_item
 
 # SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
 # 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
@@ -457,6 +458,7 @@ class Sentinel2ToStac(Task):
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
         metadata_href = self._payload["metadata_href"]
         create_cogs = self._payload.get("create_cogs", False)
+        v1_output = self._payload.get("v1_output", False)
         s3_path = os.path.dirname(metadata_href)
 
         bucket_filenames = self.list_bucket_filenames(s3_path)
@@ -568,6 +570,32 @@ class Sentinel2ToStac(Task):
             item = self.apply_reference_file_info(
                 item, bucket_filenames, existing_stac_doc
             )
+        else:
+            cog_filenames = {
+                fname
+                for key, fname in ASSET_FILENAMES.items()
+                if key not in _METADATA_ASSET_KEYS
+            }
+            if cog_filenames.issubset(bucket_filenames):
+                # COGs already in bucket but no existing STAC doc: apply
+                # earthsearch hrefs and compute file info by downloading each
+                # asset (no cached checksums to reuse).
+                item = _prune_to_canonical_assets(item)
+
+                self.logger.info(
+                    "Applying earthsearch hrefs (COGs in bucket, no STAC doc)"
+                )
+                item = self.apply_earthsearch_hrefs(item, s3_path)
+                item = self.add_thumbnail_asset(item, s3_path)
+
+                self.logger.info("Downloading assets to compute file info")
+                item = self.apply_reference_file_info(item, bucket_filenames, {})
+            else:
+                missing = cog_filenames - bucket_filenames
+                self.logger.warning(
+                    f"No existing STAC doc and {len(missing)} COG(s) missing from "
+                    f"the bucket at {s3_path}; falling back to RODA JP2 hrefs: {missing}"
+                )
 
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
@@ -578,7 +606,8 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding storage schemes")
         item = self.add_storage_schemes(item)
 
-        return [self.add_software_version_to_item(item.to_dict())]
+        out = self.add_software_version_to_item(item.to_dict())
+        return [downgrade_item(out) if v1_output else out]
 
 
 def lambda_handler(
