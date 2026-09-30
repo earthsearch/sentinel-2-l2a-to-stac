@@ -202,12 +202,12 @@ def test_download_fetches_both_files(
 def test_read_href_translates_nosuchkey_to_invalid_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _raise(Bucket: str, Key: str) -> Any:
+    def _raise(Bucket: str, Key: str, **kwargs: Any) -> Any:
         raise ClientError(
             {"Error": {"Code": "NoSuchKey", "Message": "not found"}}, "GetObject"
         )
 
-    monkeypatch.setattr(task_module._anon_s3_client, "get_object", _raise)
+    monkeypatch.setattr(task_module._s3_client, "get_object", _raise)
     with pytest.raises(InvalidInput, match="Failed fetching href"):
         _make_download_task(tmp_path).read_href(
             "s3://example-bucket/does/not/exist.json"
@@ -217,12 +217,12 @@ def test_read_href_translates_nosuchkey_to_invalid_input(
 def test_read_href_reraises_other_client_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _raise(Bucket: str, Key: str) -> Any:
+    def _raise(Bucket: str, Key: str, **kwargs: Any) -> Any:
         raise ClientError(
             {"Error": {"Code": "AccessDenied", "Message": "nope"}}, "GetObject"
         )
 
-    monkeypatch.setattr(task_module._anon_s3_client, "get_object", _raise)
+    monkeypatch.setattr(task_module._s3_client, "get_object", _raise)
     with pytest.raises(ClientError):
         _make_download_task(tmp_path).read_href("s3://example-bucket/denied.json")
 
@@ -232,7 +232,7 @@ def test_read_href_reraises_other_client_errors(
 # ---------------------------------------------------------------------------
 
 
-def _fake_anon_s3_client(keys: list[str]) -> Any:
+def _fake_s3_client(keys: list[str]) -> Any:
     class _FakePaginator:
         def paginate(self, **kwargs: Any) -> Any:
             return [{"Contents": [{"Key": k} for k in keys]}]
@@ -250,8 +250,8 @@ def test_list_bucket_filenames_returns_basenames(
 ) -> None:
     monkeypatch.setattr(
         task_module,
-        "_anon_s3_client",
-        _fake_anon_s3_client(
+        "_s3_client",
+        _fake_s3_client(
             [
                 "prefix/B02.tif",
                 "prefix/tileInfo.json",
@@ -978,12 +978,18 @@ def test_resolve_safe_layout_raises_on_missing_file() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("processing_baseline", ["02.13", "05.09"])
+@pytest.mark.parametrize("processing_baseline", ["02.13", "04.99", "05.09", "06.00"])
 def test_unsupported_baseline_raises(processing_baseline: str) -> None:
     with pytest.raises(
-        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
+        InvalidInput,
+        match=rf"Invalid processing baseline \({processing_baseline}\)",
     ):
         _validate_processing_baseline(processing_baseline)
+
+
+@pytest.mark.parametrize("processing_baseline", ["05.00", "05.08", "05.10", "05.99"])
+def test_supported_baseline_does_not_raise(processing_baseline: str) -> None:
+    _validate_processing_baseline(processing_baseline)
 
 
 def test_cogify_source_images_covers_the_canonical_set(

@@ -4,12 +4,9 @@ Replaces the Sinergise ``tileInfo.json`` ``tileDataGeometry``, which this task
 no longer has access to. Each raster contributes the polygon surrounding its
 valid (non-nodata) pixels and the product footprint is the union of them all.
 
-The per-raster extraction is a port of the Sinergise footprint tool: polygonize
-the data mask, simplify it in the projected CRS, and subtract the convex hull
-of each concavity to shed the jagged edges that the pixel staircase leaves
-behind. Union, densification and reprojection to WGS84 happen once, at the end,
-so the antimeridian is crossed exactly once (by
-``antimeridian.fix_shape`` downstream) rather than per raster.
+Polygonize the data mask, simplify it in the projected CRS. Union, densification
+and reprojection to WGS84 happen once, at the end, so the antimeridian is crossed
+exactly once (by ``antimeridian.fix_shape`` downstream) rather than per raster.
 """
 
 from __future__ import annotations
@@ -21,7 +18,6 @@ import rasterio
 import shapely
 from raster_footprint import densify_geometry, footprint_from_data, reproject_geometry
 from rasterio.crs import CRS
-from shapely.geometry import Polygon
 from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry import shape as shapely_shape
 from shapely.geometry.base import BaseGeometry
@@ -44,20 +40,12 @@ DENSIFY_DISTANCE: Final[float] = 10_000.0
 DEFAULT_NODATA: Final[int] = 0
 
 
-def _remove_jagged_edges(geometry: BaseGeometry) -> BaseGeometry:
-    """Subtract the convex hull of every concavity from the footprint."""
-    for part in shapely.get_parts(geometry.convex_hull.difference(geometry)):
-        if isinstance(part, Polygon):
-            geometry = geometry.difference(part.convex_hull)
-    return geometry
-
-
 def raster_footprint(href: str) -> tuple[Optional[BaseGeometry], Optional[CRS]]:
     """Extract one raster's valid-data footprint, in that raster's own CRS."""
-    # GDAL's own S3 reader (not boto3) handles `s3://` hrefs here; the source
-    # buckets are public, so skip GDAL's request-signing to match the
-    # anonymous boto3 client used for the rest of the source reads.
-    with rasterio.Env(AWS_NO_SIGN_REQUEST="YES"), rasterio.open(href) as src:
+    with (
+        rasterio.Env(NUM_THREADS="ALL_CPUS"),
+        rasterio.open(href) as src,
+    ):
         data = src.read(1)
         footprint = footprint_from_data(
             data,

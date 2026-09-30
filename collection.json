@@ -1,0 +1,367 @@
+{
+  "type": "Collection",
+  "id": "sentinel-2-l2a",
+  "stac_version": "1.1.0",
+  "description": "Global Sentinel-2 data from the Multispectral Instrument (MSI) onboard Sentinel-2, processed to Level-2A (Bottom-of-Atmosphere) and reorganized as Cloud-Optimized GeoTIFFs.",
+  "title": "Sentinel-2 Level-2A",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/view/v1.0.0/schema.json"
+  ],
+  "license": "proprietary",
+  "keywords": [
+    "sentinel",
+    "earth observation",
+    "esa"
+  ],
+  "providers": [
+    {
+      "name": "ESA",
+      "roles": ["producer", "licensor"],
+      "url": "https://earth.esa.int/web/guest/home"
+    },
+    {
+      "name": "Element 84",
+      "roles": ["processor", "host"],
+      "url": "https://element84.com"
+    },
+    {
+      "name": "AWS",
+      "roles": ["host"],
+      "url": "https://registry.opendata.aws/sentinel-2-l2a-cogs/"
+    }
+  ],
+  "extent": {
+    "spatial": {
+      "bbox": [[-180, -90, 180, 90]]
+    },
+    "temporal": {
+      "interval": [["2015-06-27T10:25:31.456000Z", null]]
+    }
+  },
+  "summaries": {
+    "platform": ["sentinel-2a", "sentinel-2b", "sentinel-2c"],
+    "constellation": ["sentinel-2"],
+    "instruments": ["msi"],
+    "gsd": [10, 20, 60, 320],
+    "sci:doi": ["10.5270/S2_-742ikth"],
+    "eo:bands": [
+      { "name": "coastal", "common_name": "coastal", "center_wavelength": 0.443, "full_width_half_max": 0.027 },
+      { "name": "blue", "common_name": "blue", "center_wavelength": 0.49, "full_width_half_max": 0.098 },
+      { "name": "green", "common_name": "green", "center_wavelength": 0.56, "full_width_half_max": 0.045 },
+      { "name": "red", "common_name": "red", "center_wavelength": 0.665, "full_width_half_max": 0.038 },
+      { "name": "rededge1", "common_name": "rededge", "center_wavelength": 0.704, "full_width_half_max": 0.019 },
+      { "name": "rededge2", "common_name": "rededge", "center_wavelength": 0.74, "full_width_half_max": 0.018 },
+      { "name": "rededge3", "common_name": "rededge", "center_wavelength": 0.783, "full_width_half_max": 0.028 },
+      { "name": "nir", "common_name": "nir", "center_wavelength": 0.842, "full_width_half_max": 0.145 },
+      { "name": "nir08", "common_name": "nir08", "center_wavelength": 0.865, "full_width_half_max": 0.033 },
+      { "name": "nir09", "common_name": "nir09", "center_wavelength": 0.945, "full_width_half_max": 0.026 },
+      { "name": "swir16", "common_name": "swir16", "center_wavelength": 1.61, "full_width_half_max": 0.143 },
+      { "name": "swir22", "common_name": "swir22", "center_wavelength": 2.19, "full_width_half_max": 0.242 }
+    ]
+  },
+  "item_assets": {
+    "coastal": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Coastal - 60m",
+      "gsd": 60,
+      "proj:shape": [1830, 1830],
+      "eo:common_name": "coastal",
+      "eo:center_wavelength": 0.443,
+      "eo:full_width_half_max": 0.027,
+      "name": "B01",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 60,
+      "roles": ["data", "reflectance"]
+    },
+    "blue": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Blue - 10m",
+      "gsd": 10,
+      "proj:shape": [10980, 10980],
+      "eo:common_name": "blue",
+      "eo:center_wavelength": 0.49,
+      "eo:full_width_half_max": 0.098,
+      "name": "B02",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 10,
+      "roles": ["data", "reflectance"]
+    },
+    "green": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Green - 10m",
+      "gsd": 10,
+      "proj:shape": [10980, 10980],
+      "eo:common_name": "green",
+      "eo:center_wavelength": 0.56,
+      "eo:full_width_half_max": 0.045,
+      "name": "B03",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 10,
+      "roles": ["data", "reflectance"]
+    },
+    "red": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Red - 10m",
+      "gsd": 10,
+      "proj:shape": [10980, 10980],
+      "eo:common_name": "red",
+      "eo:center_wavelength": 0.665,
+      "eo:full_width_half_max": 0.038,
+      "name": "B04",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 10,
+      "roles": ["data", "reflectance"]
+    },
+    "rededge1": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Red Edge 1 - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "rededge",
+      "eo:center_wavelength": 0.704,
+      "eo:full_width_half_max": 0.019,
+      "name": "B05",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "rededge2": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Red Edge 2 - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "rededge",
+      "eo:center_wavelength": 0.74,
+      "eo:full_width_half_max": 0.018,
+      "name": "B06",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "rededge3": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Red Edge 3 - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "rededge",
+      "eo:center_wavelength": 0.783,
+      "eo:full_width_half_max": 0.028,
+      "name": "B07",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "nir": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "NIR 1 - 10m",
+      "gsd": 10,
+      "proj:shape": [10980, 10980],
+      "eo:common_name": "nir",
+      "eo:center_wavelength": 0.842,
+      "eo:full_width_half_max": 0.145,
+      "name": "B08",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 10,
+      "roles": ["data", "reflectance"]
+    },
+    "nir08": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "NIR 2 - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "nir08",
+      "eo:center_wavelength": 0.865,
+      "eo:full_width_half_max": 0.033,
+      "name": "B8A",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "nir09": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "NIR 3 - 60m",
+      "gsd": 60,
+      "proj:shape": [1830, 1830],
+      "eo:common_name": "nir09",
+      "eo:center_wavelength": 0.945,
+      "eo:full_width_half_max": 0.026,
+      "name": "B09",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 60,
+      "roles": ["data", "reflectance"]
+    },
+    "swir16": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "SWIR 1.6\u03bcm - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "swir16",
+      "eo:center_wavelength": 1.61,
+      "eo:full_width_half_max": 0.143,
+      "name": "B11",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "swir22": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "SWIR 2.2\u03bcm - 20m",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "eo:common_name": "swir22",
+      "eo:center_wavelength": 2.19,
+      "eo:full_width_half_max": 0.242,
+      "name": "B12",
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.0001,
+      "raster:offset": -0.1,
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "reflectance"]
+    },
+    "aot": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Aerosol optical thickness (AOT)",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "nodata": 0,
+      "data_type": "uint16",
+      "raster:scale": 0.001,
+      "raster:offset": 0,
+      "raster:spatial_resolution": 20,
+      "roles": ["data"]
+    },
+    "wvp": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Water Vapour (WVP)",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "nodata": 0,
+      "data_type": "uint16",
+      "unit": "cm",
+      "raster:scale": 0.001,
+      "raster:offset": 0,
+      "raster:spatial_resolution": 20,
+      "roles": ["data"]
+    },
+    "scl": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Scene classification map (SCL)",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "nodata": 0,
+      "data_type": "uint8",
+      "raster:spatial_resolution": 20,
+      "roles": ["data"]
+    },
+    "cloud": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Cloud Probabilities",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "nodata": 0,
+      "data_type": "uint8",
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "cloud"]
+    },
+    "snow": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Snow Probabilities",
+      "gsd": 20,
+      "proj:shape": [5490, 5490],
+      "nodata": 0,
+      "data_type": "uint8",
+      "raster:spatial_resolution": 20,
+      "roles": ["data", "snow-ice"]
+    },
+    "visual": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "True color image",
+      "gsd": 10,
+      "proj:shape": [10980, 10980],
+      "nodata": 0,
+      "data_type": "uint8",
+      "raster:spatial_resolution": 10,
+      "roles": ["visual"],
+      "bands": [
+        { "eo:common_name": "red", "eo:center_wavelength": 0.665, "eo:full_width_half_max": 0.038, "name": "B04" },
+        { "eo:common_name": "green", "eo:center_wavelength": 0.56, "eo:full_width_half_max": 0.045, "name": "B03" },
+        { "eo:common_name": "blue", "eo:center_wavelength": 0.49, "eo:full_width_half_max": 0.098, "name": "B02" }
+      ]
+    },
+    "preview": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "True color preview",
+      "gsd": 320,
+      "proj:shape": [343, 343],
+      "roles": ["overview"],
+      "bands": [
+        { "eo:common_name": "red", "eo:center_wavelength": 0.665, "eo:full_width_half_max": 0.038, "name": "B04" },
+        { "eo:common_name": "green", "eo:center_wavelength": 0.56, "eo:full_width_half_max": 0.045, "name": "B03" },
+        { "eo:common_name": "blue", "eo:center_wavelength": 0.49, "eo:full_width_half_max": 0.098, "name": "B02" }
+      ]
+    },
+    "granule_metadata": {
+      "type": "application/xml",
+      "roles": ["metadata"]
+    },
+    "product_metadata": {
+      "type": "application/xml",
+      "roles": ["metadata"]
+    },
+    "thumbnail": {
+      "type": "image/jpeg",
+      "roles": ["thumbnail"]
+    }
+  },
+  "links": [
+    {
+      "rel": "cite-as",
+      "href": "https://doi.org/10.5270/S2_-742ikth",
+      "title": "Copernicus Sentinel-2 MSI Level-2A (L2A) Bottom-of-Atmosphere Radiance"
+    },
+    {
+      "rel": "license",
+      "href": "https://sentinels.copernicus.eu/documents/247904/690755/Sentinel_Data_Legal_Notice",
+      "title": "proprietary"
+    }
+  ]
+}

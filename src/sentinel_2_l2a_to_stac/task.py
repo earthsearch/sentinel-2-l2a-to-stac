@@ -9,12 +9,12 @@ from typing import Any, Iterator, Optional
 
 import boto3  # type: ignore[import-untyped]
 import requests
-from botocore import UNSIGNED
-from botocore.config import Config as BotoClientConfig
 from botocore.exceptions import ClientError
-from pystac import Asset, Item, MediaType
+from pystac import Asset, Item, MediaType, STACObject
+from pystac.errors import TemplateError
 from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
+from pystac.layout import LayoutTemplate
 from rasterio.errors import CRSError
 from returns.result import Failure, ResultE, Success
 from stactask import Task
@@ -43,6 +43,99 @@ if not hasattr(Asset, "media_type"):
 
 from sentinel_2_l2a_to_stac.stac import create_image_assets, create_item
 
+
+def _patched_get_template_value(
+    self: "LayoutTemplate", stac_object: "STACObject", template_var: str
+) -> Any:
+    """Fixed copy of ``LayoutTemplate._get_template_value``.
+
+    SHIM(pystac-2.0): upstream does ``if prop in v`` without guarding against
+    ``v`` being a plain object (e.g. the Item itself, reached whenever
+    template_var matches one of the object's own attribute names, such as
+    ``id``). That raises ``TypeError: argument of type 'Item' is not
+    iterable`` instead of falling through to the ``hasattr``/``getattr``
+    branch. Remove once fixed upstream.
+    """
+    if template_var in self.ITEM_TEMPLATE_VARS:
+        if isinstance(stac_object, Item):
+            dt = stac_object.datetime
+            if dt is None:
+                dt = stac_object.common_metadata.start_datetime
+            if dt is None:
+                raise TemplateError(
+                    f"Item {stac_object} does not have a datetime or "
+                    f"datetime range set; cannot template {template_var} "
+                    f"in {self.template}"
+                )
+
+            if template_var == "year":
+                return dt.year
+            if template_var == "month":
+                return dt.month
+            if template_var == "day":
+                return dt.day
+            if template_var == "date":
+                return dt.date().isoformat()
+
+            if template_var == "collection":
+                if stac_object.collection_id is not None:
+                    return stac_object.collection_id
+                raise TemplateError(
+                    f"Item {stac_object} does not have a collection ID set; "
+                    f"cannot template {template_var} in {self.template}"
+                )
+        else:
+            raise TemplateError(
+                f'"{template_var}" cannot be used to template non-Item '
+                f"{stac_object} in {self.template}"
+            )
+
+    props = template_var.split(".")
+    prop_source: STACObject | dict[str, Any] | None = None
+    error = TemplateError(
+        f"Cannot find property {template_var} on {stac_object} for template "
+        f"{self.template}"
+    )
+
+    try:
+        if hasattr(stac_object, props[0]):
+            prop_source = stac_object
+
+        if prop_source is None and hasattr(stac_object, "properties"):
+            obj_props: dict[str, Any] | None = stac_object.properties
+            if obj_props is not None and props[0] in obj_props:
+                prop_source = obj_props
+
+        if prop_source is None and hasattr(stac_object, "extra_fields"):
+            extra_fields: dict[str, Any] | None = stac_object.extra_fields
+            if extra_fields is not None and props[0] in extra_fields:
+                prop_source = extra_fields
+
+        if prop_source is None:
+            raise error
+
+        v: Any = prop_source
+        for prop in template_var.split("."):
+            try:
+                is_member = prop in v
+            except TypeError:
+                is_member = False
+            if is_member:
+                v = v[prop]
+            elif hasattr(v, prop):
+                v = getattr(v, prop)
+            else:
+                raise error
+    except TemplateError as e:
+        if template_var in self.defaults:
+            return self.defaults[template_var]
+        raise e
+
+    return v
+
+
+LayoutTemplate._get_template_value = _patched_get_template_value  # type: ignore[method-assign]
+
 # stactask 0.7.0 already prefixes lines with payload id, so the legacy
 # logging change was deliberately left off.
 logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
@@ -50,13 +143,11 @@ for _noisy_logger in ("botocore", "rasterio"):
     logging.getLogger(_noisy_logger).propagate = False
 
 # Every source read (listing, get_object, download_file) goes through this
-# anonymous client: source buckets (earthsearch/sentinel-cogs, RODA) are
-# public, and task credentials are not guaranteed to have explicit grants on
-# them. Uploads (writes) are handled separately by stactask's own
-# authenticated client.
-_anon_s3_client = boto3.client(
-    "s3", config=BotoClientConfig(signature_version=UNSIGNED)
-)
+# client with RequestPayer="requester", since some source buckets (e.g. the
+# AWS Open Data Sentinel-2 archive) are requester-pays. Uploads (writes) are
+# handled separately by stactask's own authenticated client.
+_s3_client = boto3.client("s3")
+S3_REQUEST_PAYER = "requester"
 
 
 def _parse_s3_url(url: str) -> tuple[str, str]:
@@ -70,7 +161,7 @@ def _parse_s3_url(url: str) -> tuple[str, str]:
 def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
     """Yield every object key in `bucket` starting with `prefix`, paginated."""
     for page in client.get_paginator("list_objects_v2").paginate(
-        Bucket=bucket, Prefix=prefix
+        Bucket=bucket, Prefix=prefix, RequestPayer=S3_REQUEST_PAYER
     ):
         for obj in page.get("Contents", []):
             yield obj["Key"]
@@ -175,11 +266,12 @@ class SourceProduct:
 
 
 def _validate_processing_baseline(processing_baseline: str) -> None:
-    if processing_baseline < "05.00" or processing_baseline == "05.09":
-        raise InvalidInput(
-            f"Processing baseline is {processing_baseline}, "
-            "only >= 05.00 (not including 5.09) is supported."
-        )
+    if (
+        processing_baseline < "05.00"
+        or processing_baseline == "05.09"
+        or processing_baseline > "05.99"
+    ):
+        raise InvalidInput(f"Invalid processing baseline ({processing_baseline})")
 
 
 @contextmanager
@@ -291,8 +383,7 @@ class Sentinel2ToStac(Task):
             s3_path if s3_path.endswith("/") else f"{s3_path}/"
         )
         return {
-            key.rsplit("/", 1)[-1]
-            for key in _list_s3_keys(_anon_s3_client, bucket, prefix)
+            key.rsplit("/", 1)[-1] for key in _list_s3_keys(_s3_client, bucket, prefix)
         }
 
     def load_existing_stac_doc(self, s3_path: str, filename: str) -> dict[str, Any]:
@@ -396,8 +487,11 @@ class Sentinel2ToStac(Task):
         self.logger.info(f"Downloading {len(remote)} source images")
         for key, href in remote.items():
             bucket, s3_key = _parse_s3_url(href)
-            _anon_s3_client.download_file(
-                bucket, s3_key, str(self._workdir / CANONICAL_IMAGE_FILENAMES[key])
+            _s3_client.download_file(
+                bucket,
+                s3_key,
+                str(self._workdir / CANONICAL_IMAGE_FILENAMES[key]),
+                ExtraArgs={"RequestPayer": S3_REQUEST_PAYER},
             )
 
     def cogify_source_images(
@@ -522,7 +616,9 @@ class Sentinel2ToStac(Task):
             return Path(href).read_bytes()
         bucket, key = _parse_s3_url(href)
         try:
-            response = _anon_s3_client.get_object(Bucket=bucket, Key=key)
+            response = _s3_client.get_object(
+                Bucket=bucket, Key=key, RequestPayer=S3_REQUEST_PAYER
+            )
             return bytes(response["Body"].read())
         except ClientError as err:
             if err.response["Error"]["Code"] == "NoSuchKey":
@@ -538,7 +634,7 @@ class Sentinel2ToStac(Task):
             bucket, key_prefix = _parse_s3_url(f"{prefix}/")
             return [
                 f"s3://{bucket}/{key}"
-                for key in _list_s3_keys(_anon_s3_client, bucket, key_prefix)
+                for key in _list_s3_keys(_s3_client, bucket, key_prefix)
             ]
         return [str(p) for p in Path(prefix).rglob("*") if p.is_file()]
 
@@ -656,10 +752,9 @@ class Sentinel2ToStac(Task):
         with _item_errors(self.logger):
             metadata = parse_metadata(str(self._workdir))
 
-        if source.create_cogs:
-            _validate_processing_baseline(
-                metadata.metadata_dict.get("s2:processing_baseline", "0")
-            )
+        _validate_processing_baseline(
+            metadata.metadata_dict.get("s2:processing_baseline", "0")
+        )
 
         # Fetched up front, for both source kinds, so the footprint reads are
         # local rather than full-band reads straight off the remote bucket

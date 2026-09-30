@@ -121,6 +121,7 @@ def write_cog(
     config = {
         "GDAL_TIFF_INTERNAL_MASK": os.getenv("GDAL_TIFF_INTERNAL_MASK", True),
         "GDAL_TIFF_OVR_BLOCKSIZE": str(overview_blocksize),
+        "NUM_THREADS": "ALL_CPUS",
     }
 
     tags = {
