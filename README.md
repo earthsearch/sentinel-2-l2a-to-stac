@@ -144,19 +144,21 @@ explicitly with:
 uv run pytest -m system
 ```
 
-### Update-first tests (`-m upgrade`)
+### Upgrade/Downgrade tests (`-m upgrade`, `-m downgrade`)
 
-`tests/test_task.py` also contains parity tests for the reference/update path.
-These **hit the network**: they download scene metadata from the earthsearch
-bucket and exercise the full reference path end-to-end. They are marked
-`@pytest.mark.upgrade` and are **excluded by default**. Run them explicitly with:
+`tests/test_task.py` also contains parity tests for both the reference/update path
+and the v1 downgrade path. These **hit the network**: they download scene metadata
+from the earthsearch bucket and exercise the full path end-to-end. They are marked
+`@pytest.mark.upgrade`/`pytest.mark.downgrade` and are **excluded by default**.
+Run them explicitly with:
 
 ```
 uv run pytest -m upgrade
+uv run pytest -m downgrade
 ```
 
-Like the `-m system` tests, they never write to S3 and cache downloaded files
-under `tests/external-data`.
+Like the `-m system` tests, upgrade and downgrade tests never write to S3 and cache
+downloaded files under `tests/external-data`.
 
 Tasks can also be run locally with the built-in CLI.
 

@@ -43,10 +43,10 @@ task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline.
   from STAC 1.1 to STAC 1.0 (schema/version rollback, `proj:code` →
   `proj:epsg`, storage schemes collapsed to item-level properties, `bands`
   split back into `eo:bands`/`raster:bands`). Applies after all build modes.
-- Test suite: offline fixture-driven tests; opt-in `-m system` and
-  `-m upgrade` network-parity tests that download real imagery and compare
-  against the legacy task / exercise the reference path against real Earth
-  Search data (neither writes to S3; both cache downloads under
+- Test suite: offline fixture-driven tests; opt-in `-m system`, `-m upgrade`
+  and `-m downgrade` network-parity tests that download real imagery and
+  exercise the various data paths against real Earth
+  Search data (none write to S3; all cache downloads under
   `tests/external-data`); a hermetic `conftest.py`; local dockerized Lambda
   testing (`tests/run_tests.sh`, `.env.example`); `scripts/compare_fixture.py`
   for legacy↔destination parity diffing.
