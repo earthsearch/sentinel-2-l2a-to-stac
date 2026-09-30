@@ -38,7 +38,7 @@ import re
 from itertools import chain
 from re import Pattern
 from statistics import mean
-from typing import Any, Final, Optional
+from typing import Any, Final, Iterable, Optional
 
 import antimeridian
 import pystac
@@ -64,7 +64,6 @@ from sentinel_2_l2a_to_stac.constants import (
     BANDS_TO_ASSET_NAME,
     COORD_ROUNDING,
     DEFAULT_SCALE,
-    DEFAULT_TOLERANCE,
     EO_BAND_RENAME,
     EO_EXT_V2,
     RASTER_BAND_RENAME,
@@ -75,7 +74,7 @@ from sentinel_2_l2a_to_stac.constants import (
     SENTINEL_INSTRUMENTS,
     UNSUFFIXED_BAND_RESOLUTION,
 )
-from sentinel_2_l2a_to_stac.metadata import parse_metadata
+from sentinel_2_l2a_to_stac.metadata import Metadata, parse_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +255,12 @@ def _image_asset_from_href(
             resolution = 10
         elif _IS_PVI_PATTERN.search(asset_href):
             resolution = 320
+        elif any(
+            p.search(asset_href) for p in (_AOT_PATTERN, _WVP_PATTERN, _SCL_PATTERN)
+        ):
+            # Unsuffixed AOT/WVP/SCL names only occur in the flat COG workdir
+            # layout, where 20m is the resolution that gets published.
+            resolution = 20
         else:
             raise ValueError(f"Could not determine resolution for {asset_href}")
 
@@ -324,7 +329,7 @@ def _image_asset_from_href(
             asset, [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS]
         )
         asset_id = f"visual_{maybe_res}m" if maybe_res and maybe_res != 10 else "visual"
-        _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
+        _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
 
     elif _AOT_PATTERN.search(asset_href):
         asset = pystac.Asset(
@@ -334,7 +339,7 @@ def _image_asset_from_href(
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "aot")
-        _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
+        _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
         _apply_bands(
             asset,
             [
@@ -359,7 +364,7 @@ def _image_asset_from_href(
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "wvp")
-        _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
+        _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
         _apply_bands(
             asset,
             [
@@ -385,7 +390,7 @@ def _image_asset_from_href(
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "scl")
-        _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
+        _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
         _apply_bands(asset, [_native_band(None, _raster_uint8)])
 
     elif _CLD_PATTERN.search(asset_href):
@@ -433,32 +438,56 @@ def _make_valid_geometry(input_geometry: dict[str, Any]) -> Polygon | MultiPolyg
     return geometry
 
 
+def create_image_assets(
+    granule_href: str, metadata: Metadata, image_paths: Iterable[str]
+) -> dict[str, pystac.Asset]:
+    """Build the image assets for `image_paths` without building a whole Item.
+
+    Used by the COGify step, so the COG parameters (scale/offset/nodata/
+    resolution) come from exactly the same code path as the published Item.
+    """
+    return dict(
+        _image_asset_from_href(
+            asset_href=os.path.join(granule_href, image_path),
+            resolution_to_shape=metadata.resolution_to_shape,
+            proj_bbox=metadata.proj_bbox,
+            media_type=metadata.image_media_type,
+            processing_baseline=metadata.processing_baseline,
+            boa_add_offsets=metadata.boa_add_offsets,
+        )
+        for image_path in image_paths
+    )
+
+
 def create_item(
     granule_href: str,
-    tolerance: float = DEFAULT_TOLERANCE,
-    allow_fallback_geometry: bool = True,
+    metadata: Optional[Metadata] = None,
+    geometry: Optional[dict[str, Any]] = None,
 ) -> pystac.Item:
-    """Create a STAC Item from a Sentinel-2 L2A granule (Sinergise S3 layout).
+    """Create a STAC Item from a Sentinel-2 L2A granule.
 
     Args:
-        granule_href: Local path to the directory containing metadata.xml,
-            tileInfo.json, and product_metadata.xml.
-        tolerance: Geometry simplification tolerance.
-        allow_fallback_geometry: Use product_metadata.xml footprint when
-            tileInfo.json has no data geometry.
+        granule_href: Local path to the directory containing metadata.xml and
+            product_metadata.xml. Asset hrefs are resolved relative to it.
+        metadata: Already-parsed metadata. Lets the caller re-issue the Item
+            over a different image set (e.g. the created COGs) without
+            re-parsing the granule XML.
+        geometry: The scene footprint, in WGS84. Ignored when `metadata` is
+            given, which already carries one.
 
     Returns:
         A pystac.Item representing the Sentinel-2 scene.
     """
-    metadata = parse_metadata(granule_href, tolerance, allow_fallback_geometry)
+    if metadata is None:
+        metadata = parse_metadata(granule_href, geometry)
 
-    geometry = _make_valid_geometry(metadata.geometry)
+    valid_geometry = _make_valid_geometry(metadata.geometry)
 
-    bbox = [round(v, COORD_ROUNDING) for v in antimeridian.bbox(geometry)]
+    bbox = [round(v, COORD_ROUNDING) for v in antimeridian.bbox(valid_geometry)]
 
     item = pystac.Item(
         id=metadata.scene_id,
-        geometry=shapely_mapping(geometry),
+        geometry=shapely_mapping(valid_geometry),
         bbox=bbox,
         datetime=metadata.datetime,
         properties={"created": now_to_rfc3339_str()},
@@ -538,19 +567,7 @@ def create_item(
         item.stac_extensions.append(SENTINEL2_EXTENSION_SCHEMA)
     item.properties.update(metadata.metadata_dict)
 
-    image_assets = dict(
-        [
-            _image_asset_from_href(
-                asset_href=os.path.join(granule_href, image_path),
-                resolution_to_shape=metadata.resolution_to_shape,
-                proj_bbox=metadata.proj_bbox,
-                media_type=metadata.image_media_type,
-                processing_baseline=metadata.processing_baseline,
-                boa_add_offsets=metadata.boa_add_offsets,
-            )
-            for image_path in metadata.image_paths
-        ]
-    )
+    image_assets = create_image_assets(granule_href, metadata, metadata.image_paths)
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):
         assert key not in item.assets

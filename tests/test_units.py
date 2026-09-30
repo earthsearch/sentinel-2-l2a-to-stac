@@ -2,20 +2,23 @@
 
 Sections
 --------
-download        read_href + the three-file download block in process()
+download        read_href + the metadata download block in resolve_source()
 bucket/doc      bucket listing, existing-doc discovery, metadata resolution
 reference path  create_cogs=False reference/update path
 is_newer        is_newer_than_existing STAC-API gate
 update_item     Earth Search override assertions (update_item)
-make_cogs       make_cogs_for_item branching + cogify/write_cog pipeline
+safe            SAFE archive layout resolution
+cogify          up-front COG creation + the cogify/write_cog pipeline
 
 All tests are local-only: no network, no live S3.  The session-wide
 ``_stub_stac_api`` fixture in conftest.py intercepts every STAC-API request;
-read_href / stac_asset.blocking are monkeypatched where needed.
+``read_href`` and the module-level boto3 S3 clients are monkeypatched where
+needed.
 """
 
 import json
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, ClassVar
@@ -24,7 +27,6 @@ import numpy as np
 import pytest
 import rasterio
 import requests_mock as requests_mock_module
-import stac_asset.blocking
 from botocore.exceptions import ClientError
 from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
@@ -33,16 +35,29 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
-from sentinel_2_l2a_to_stac.cogify import cogify
+from sentinel_2_l2a_to_stac.cogify import CogFile, cogify
+from sentinel_2_l2a_to_stac.constants import (
+    CANONICAL_L2A_IMAGE_PATHS,
+)
+from sentinel_2_l2a_to_stac.metadata import parse_metadata
+from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
     _prune_to_canonical_assets,
-    _resolve_product_metadata_href,
     _set_asset_owners,
+    _validate_processing_baseline,
     find_existing_stac_doc_filename,
 )
+
+_BASELINE_SOURCE_METADATA = (
+    Path(__file__).parent / "fixtures" / "source-metadata" / "tiles-19-T-DJ-2023-4-19-0"
+)
+
+# The Earth Search-style bucket the baseline_item_dict fixture (conftest.py)
+# resolves its metadata_href against -- must match the literal there.
+_BASELINE_BUCKET = "es-test-bucket"
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -54,7 +69,7 @@ def _minimal_task(payload_id: str = "test-unit") -> Sentinel2ToStac:
     return Sentinel2ToStac(
         {
             "id": payload_id,
-            "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2023/4/19/0/metadata.xml",
+            "metadata_href": "s3://example-bucket/prefix/metadata.xml",
         },
         upload=False,
     )
@@ -64,17 +79,14 @@ def _minimal_task(payload_id: str = "test-unit") -> Sentinel2ToStac:
 # download
 # ---------------------------------------------------------------------------
 
-_S3_DIR = "s3://sentinel-s2-l2a/tiles/35/M/PP/2023/5/27/0"
+_S3_DIR = "s3://example-bucket/prefix"
 _METADATA_HREF = f"{_S3_DIR}/metadata.xml"
-_PRODUCT_PATH = "products/2023/5/27/S2A_MSIL2A_EXAMPLE"
 
-_TILEINFO_BYTES = json.dumps({"productPath": _PRODUCT_PATH}).encode()
 _GRANULE_BYTES = b"<granule-metadata/>"
 _PRODUCT_BYTES = b"<product-metadata/>"
 
 _EXPECTED_HREFS = {
-    f"{_S3_DIR}/tileInfo.json": _TILEINFO_BYTES,
-    f"s3://sentinel-s2-l2a/{_PRODUCT_PATH}/metadata.xml": _PRODUCT_BYTES,
+    f"{_S3_DIR}/product_metadata.xml": _PRODUCT_BYTES,
     f"{_S3_DIR}/metadata.xml": _GRANULE_BYTES,
 }
 
@@ -84,7 +96,6 @@ def _make_download_task(
 ) -> Sentinel2ToStac:
     payload = {
         "metadata_href": metadata_href,
-        "create_cogs": False,
         "process": [
             {
                 "id": "collection-0/workflow-workflow-1/item-1",
@@ -121,24 +132,58 @@ class _StubItem:
         return {"id": "stub-item"}
 
 
+@dataclass(frozen=True)
+class _StubMetadata:
+    """Just enough of Metadata for process()'s processing-baseline gate and,
+    for a SAFE (create_cogs=True) input, the post-cogify replace() rebuild.
+    """
+
+    metadata_dict: dict[str, str] = field(
+        default_factory=lambda: {"s2:processing_baseline": "05.00"}
+    )
+    image_paths: list[str] = field(default_factory=list)
+    image_media_type: str = "image/tiff"
+
+
 def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Neutralize create_item + update_item + add_storage_schemes so download tests stay
-    focused.
+    """Neutralize metadata parsing + create_item + update_item +
+    add_storage_schemes so download tests stay focused.
 
     The canned bytes above are not real Sentinel-2 metadata; those stages are
     covered by the update_item / storage tests below against genuine local metadata.
     """
-    monkeypatch.setattr(task_module, "create_item", lambda _workdir: _StubItem())
+    monkeypatch.setattr(task_module, "parse_metadata", lambda *a, **k: _StubMetadata())
     monkeypatch.setattr(
-        Sentinel2ToStac, "update_item", lambda self, item, s3_path: item
+        task_module, "create_item", lambda _workdir, metadata=None: _StubItem()
     )
+    monkeypatch.setattr(Sentinel2ToStac, "data_geometry", lambda self, source: None)
+    monkeypatch.setattr(
+        Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
+    )
+    monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
+    # _StubItem is a bare stand-in, not a real pystac Item -- the reference-path
+    # asset-rewriting helpers are exercised for real in the dedicated process()
+    # tests below (against _synthetic_full_item), so no-op them here.
     monkeypatch.setattr(
-        Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
+        Sentinel2ToStac, "apply_earthsearch_hrefs", lambda self, item, s3_path: item
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac, "add_thumbnail_asset", lambda self, item, s3_path: item
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "apply_reference_file_info",
+        lambda self, item, bucket_filenames, doc: item,
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "list_bucket_filenames",
+        lambda self, s3_path: set(ASSET_FILENAMES.values()),
     )
 
 
-def test_download_fetches_all_three_files(
+def test_download_fetches_both_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
@@ -148,54 +193,38 @@ def test_download_fetches_all_three_files(
 
     task.process()
 
-    assert task.tileinfo_path.read_bytes() == _TILEINFO_BYTES
     assert task.granule_metadata_xml_path.read_bytes() == _GRANULE_BYTES
     assert task.product_metadata_xml_path.read_bytes() == _PRODUCT_BYTES
-    # Product metadata is fetched from the productPath-derived href, not next
-    # to the granule metadata — the non-obvious behavior this port preserves.
-    assert f"s3://sentinel-s2-l2a/{_PRODUCT_PATH}/metadata.xml" in calls
+    # Fetched directly from the granule prefix -- never a fallback elsewhere.
     assert set(calls) == set(_EXPECTED_HREFS)
-
-
-def test_corrupted_tileinfo_raises_invalid_input(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        Sentinel2ToStac, "read_href", lambda self, href: b"not valid json{"
-    )
-    monkeypatch.setattr(
-        Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
-    )
-    with pytest.raises(InvalidInput, match=r"Corrupted tileInfo\.json"):
-        _make_download_task(tmp_path).process()
 
 
 def test_read_href_translates_nosuchkey_to_invalid_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _raise(href: str, config: Any = None, clients: Any = None) -> bytes:
+    def _raise(Bucket: str, Key: str, **kwargs: Any) -> Any:
         raise ClientError(
             {"Error": {"Code": "NoSuchKey", "Message": "not found"}}, "GetObject"
         )
 
-    monkeypatch.setattr(stac_asset.blocking, "read_href", _raise)
+    monkeypatch.setattr(task_module._s3_client, "get_object", _raise)
     with pytest.raises(InvalidInput, match="Failed fetching href"):
         _make_download_task(tmp_path).read_href(
-            "s3://sentinel-s2-l2a/does/not/exist.json"
+            "s3://example-bucket/does/not/exist.json"
         )
 
 
 def test_read_href_reraises_other_client_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _raise(href: str, config: Any = None, clients: Any = None) -> bytes:
+    def _raise(Bucket: str, Key: str, **kwargs: Any) -> Any:
         raise ClientError(
             {"Error": {"Code": "AccessDenied", "Message": "nope"}}, "GetObject"
         )
 
-    monkeypatch.setattr(stac_asset.blocking, "read_href", _raise)
+    monkeypatch.setattr(task_module._s3_client, "get_object", _raise)
     with pytest.raises(ClientError):
-        _make_download_task(tmp_path).read_href("s3://sentinel-s2-l2a/denied.json")
+        _make_download_task(tmp_path).read_href("s3://example-bucket/denied.json")
 
 
 # ---------------------------------------------------------------------------
@@ -203,24 +232,30 @@ def test_read_href_reraises_other_client_errors(
 # ---------------------------------------------------------------------------
 
 
-def _fake_s3_find(urls: list[str]) -> Any:
-    def _fake(url: str, suffix: str = "") -> Any:
-        return iter(urls)
+def _fake_s3_client(keys: list[str]) -> Any:
+    class _FakePaginator:
+        def paginate(self, **kwargs: Any) -> Any:
+            return [{"Contents": [{"Key": k} for k in keys]}]
 
-    return _fake
+    class _FakeClient:
+        def get_paginator(self, name: str) -> Any:
+            assert name == "list_objects_v2"
+            return _FakePaginator()
+
+    return _FakeClient()
 
 
 def test_list_bucket_filenames_returns_basenames(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        task_module.s3_client,
-        "find",
-        _fake_s3_find(
+        task_module,
+        "_s3_client",
+        _fake_s3_client(
             [
-                "s3://bucket/prefix/B02.tif",
-                "s3://bucket/prefix/tileInfo.json",
-                "s3://bucket/prefix/S2A_T19TDJ_L2A.json",
+                "prefix/B02.tif",
+                "prefix/tileInfo.json",
+                "prefix/S2A_T19TDJ_L2A.json",
             ]
         ),
     )
@@ -232,12 +267,12 @@ def test_list_bucket_filenames_returns_basenames(
     }
 
 
-def test_find_existing_stac_doc_filename_ignores_roda_product_info() -> None:
-    # productInfo.json is Sinergise's own RODA product-info file, present at
-    # every RODA granule prefix -- it must never be mistaken for the doc.
+def test_find_existing_stac_doc_filename_ignores_non_doc_files() -> None:
+    # Only an exact `{item_id}.json` counts as the doc; any other JSON file
+    # sitting alongside the COGs must never be mistaken for it.
     assert (
         find_existing_stac_doc_filename(
-            {"tileInfo.json", "productInfo.json"}, "S2A_T19TDJ_L2A"
+            {"metadata.xml", "some-other-file.json"}, "S2A_T19TDJ_L2A"
         )
         is None
     )
@@ -259,28 +294,18 @@ def test_load_existing_stac_doc_reads_via_read_href(
     assert calls == ["s3://bucket/prefix/S2A_T19TDJ_L2A.json"]
 
 
-def test_resolve_product_metadata_href_prefers_flat_layout() -> None:
-    assert (
-        _resolve_product_metadata_href(
-            "s3://bucket/prefix",
-            {"product_metadata.xml", "tileInfo.json"},
-            "bucket",
-            "products/2023/5/27/S2A_MSIL2A_EXAMPLE",
-        )
-        == "s3://bucket/prefix/product_metadata.xml"
-    )
+def test_resolve_image_hrefs_raises_when_cog_missing() -> None:
+    bucket_filenames = set(ASSET_FILENAMES.values()) - {"B02.tif"}
+    with pytest.raises(InvalidInput, match="Expected COG\\(s\\) not found"):
+        Sentinel2ToStac.resolve_image_hrefs("s3://bucket/prefix", bucket_filenames)
 
 
-def test_resolve_product_metadata_href_falls_back_to_roda() -> None:
-    assert (
-        _resolve_product_metadata_href(
-            "s3://bucket/prefix",
-            {"tileInfo.json", "metadata.xml"},
-            "sentinel-s2-l2a",
-            "products/2023/5/27/S2A_MSIL2A_EXAMPLE",
-        )
-        == "s3://sentinel-s2-l2a/products/2023/5/27/S2A_MSIL2A_EXAMPLE/metadata.xml"
+def test_resolve_image_hrefs_returns_flat_earthsearch_layout() -> None:
+    image_hrefs = Sentinel2ToStac.resolve_image_hrefs(
+        "s3://bucket/prefix", set(ASSET_FILENAMES.values())
     )
+    assert image_hrefs["blue"] == "s3://bucket/prefix/B02.tif"
+    assert set(image_hrefs) == set(CANONICAL_L2A_IMAGE_PATHS)
 
 
 def test_prune_to_canonical_assets_drops_m_suffixed_and_thumbnail(
@@ -308,7 +333,7 @@ def test_prune_to_canonical_assets_drops_m_suffixed_and_thumbnail(
 def test_asset_filenames_map_matches_create_item_keys(
     baseline_item_dict: dict[str, Any],
 ) -> None:
-    # ASSET_FILENAMES must cover exactly the 23 canonical keys create_item
+    # ASSET_FILENAMES must cover exactly the canonical keys create_item
     # produces after pruning (thumbnail is added manually in the reference
     # path, not produced by create_item, so it's expected here too).
     item = Item.from_dict(baseline_item_dict)
@@ -454,7 +479,7 @@ def _synthetic_full_item() -> Item:
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={"s2:generation_time": "2023-04-19T22:08:59.000000Z"},
     )
-    item.set_collection("sentinel-2-c1-l2a")
+    item.set_collection("sentinel-2-l2a")
     # create_item never produces a "thumbnail" asset -- only the reference
     # path (via add_thumbnail_asset) or the cog path (via make_thumbnail) do.
     for key, filename in ASSET_FILENAMES.items():
@@ -466,21 +491,20 @@ def _synthetic_full_item() -> Item:
 
 
 def _stub_pipeline_with_item(monkeypatch: pytest.MonkeyPatch, item: Item) -> None:
-    monkeypatch.setattr(task_module, "create_item", lambda _workdir: item)
+    monkeypatch.setattr(task_module, "parse_metadata", lambda *a, **k: _StubMetadata())
     monkeypatch.setattr(
-        Sentinel2ToStac, "update_item", lambda self, item, s3_path: item
+        task_module, "create_item", lambda _workdir, metadata=None: item
     )
+    monkeypatch.setattr(Sentinel2ToStac, "data_geometry", lambda self, source: None)
+    monkeypatch.setattr(
+        Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
+    )
+    monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
 
 
 def _stub_metadata_reads(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        Sentinel2ToStac,
-        "read_href",
-        lambda self, href: (
-            b'{"productPath": "p"}' if href.endswith("tileInfo.json") else b"<x/>"
-        ),
-    )
+    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"<x/>")
 
 
 def test_process_takes_reference_path_when_doc_exists(
@@ -543,32 +567,28 @@ def test_process_reference_path_never_reuploads_existing_assets(
     assert upload_calls == [[]]
 
 
-def test_process_takes_legacy_path_when_no_doc_exists(
+def test_process_raises_when_granule_missing_cogs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # A granule metadata_href is always the "existing COGs" flow -- there is
+    # no create-COGs fallback, so a bucket without the full flat
+    # COG layout is a hard failure, not a legacy pass-through.
     _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
     _stub_metadata_reads(monkeypatch)
     monkeypatch.setattr(
         Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
     )
 
-    result = _make_download_task(tmp_path).process()
-
-    assert len(result) == 1
-    out_item = result[0]
-    # Legacy pass-through: hrefs untouched by the reference-path map, no
-    # thumbnail added, no forced file info.
-    assert out_item["assets"]["blue"]["href"] == "local-B02.tif"
-    assert "thumbnail" not in out_item["assets"]
-    assert "file:size" not in out_item["assets"]["blue"]
+    with pytest.raises(InvalidInput, match=r"Expected COG\(s\) not found"):
+        _make_download_task(tmp_path).process()
 
 
-def test_process_raises_when_reference_asset_missing_from_bucket(
+def test_process_raises_when_thumbnail_missing_from_bucket(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
     _stub_metadata_reads(monkeypatch)
-    bucket_filenames = set(ASSET_FILENAMES.values()) - {"B02.tif"}
+    bucket_filenames = set(ASSET_FILENAMES.values()) - {"L2A_PVI.jpg"}
     monkeypatch.setattr(
         Sentinel2ToStac,
         "list_bucket_filenames",
@@ -584,25 +604,18 @@ def test_process_raises_when_reference_asset_missing_from_bucket(
         _make_download_task(tmp_path).process()
 
 
-def test_process_create_cogs_true_noops_with_stac_item(
+def test_process_ignores_create_cogs_payload_for_granule_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # create_cogs=True must never consult the bucket-presence guard -- an
-    # empty bucket (or one missing every expected COG) is exactly the normal
-    # case for this path, since it's the one generating those COGs.
+    # A stray create_cogs=true from a legacy caller must not change anything
+    # for a granule metadata_href: it's still the existing-COGs flow, and a
+    # bucket without the full flat layout still fails.
     _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
     _stub_metadata_reads(monkeypatch)
-    monkeypatch.setattr(Sentinel2ToStac, "make_cogs_for_item", lambda self, item: item)
-    monkeypatch.setattr(task_module, "make_thumbnail", lambda item: item)
     monkeypatch.setattr(
         Sentinel2ToStac,
         "list_bucket_filenames",
         lambda self, s3_path: {_FULL_ITEM_DOC_FILENAME},
-    )
-    monkeypatch.setattr(
-        Sentinel2ToStac,
-        "load_existing_stac_doc",
-        lambda self, s3_path, filename: {"assets": {}},
     )
 
     payload = {
@@ -619,8 +632,49 @@ def test_process_create_cogs_true_noops_with_stac_item(
     }
     task = Sentinel2ToStac(payload, workdir=tmp_path, upload=False)
 
-    with pytest.raises(InvalidInput):
+    with pytest.raises(InvalidInput, match=r"Expected COG\(s\) not found"):
         task.process()
+
+
+def test_process_safe_input_always_creates_cogs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A SAFE archive is never checked against a bucket listing at all -- COG
+    # creation is unconditional, regardless of what (if anything) exists there.
+    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "resolve_source",
+        lambda self: task_module.SourceProduct(
+            prefix="/safe/root",
+            image_hrefs={"blue": "/safe/root/B02.jp2"},
+            bucket_filenames=set(),
+            create_cogs=True,
+        ),
+    )
+    cogify_calls: list[dict[str, str]] = []
+
+    def _fake_cogify_source_images(
+        self: Sentinel2ToStac, metadata: Any, image_hrefs: dict[str, str]
+    ) -> dict[str, CogFile]:
+        cogify_calls.append(image_hrefs)
+        return {}
+
+    monkeypatch.setattr(
+        Sentinel2ToStac, "cogify_source_images", _fake_cogify_source_images
+    )
+    monkeypatch.setattr(task_module, "make_thumbnail", lambda item: item)
+
+    task = Sentinel2ToStac(
+        {"id": "test-safe-cogs", "safe_href": "/safe/root"},
+        workdir=tmp_path,
+        upload=False,
+    )
+
+    result = task.process()
+
+    assert len(result) == 1
+    assert cogify_calls == [{"blue": "/safe/root/B02.jp2"}]
 
 
 # ---------------------------------------------------------------------------
@@ -629,7 +683,7 @@ def test_process_create_cogs_true_noops_with_stac_item(
 
 _ITEM_URL = (
     "https://earth-search.aws.element84.com/v2"
-    "/collections/sentinel-2-c1-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
+    "/collections/sentinel-2-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
 )
 _BASELINE_GEN_TIME = "2023-04-19T22:08:59.000000Z"
 
@@ -696,10 +750,9 @@ def test_providers_and_license_dropped(baseline_item_dict: dict[str, Any]) -> No
 
 
 def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
-    # baseline runs with create_cogs=False, upload=False:
-    #   - data assets keep their RODA S3 hrefs → "roda" scheme
-    #   - metadata assets keep local workdir paths → "local" placeholder scheme
-    #   - no "earthsearch" scheme because nothing was uploaded
+    # The baseline fixture simulates the existing-COGs flow: every asset is
+    # rewritten to the Earth Search prefix, so only the "earthsearch" scheme
+    # is ever produced -- this task never references any other bucket.
     item = baseline_item_dict
     assert (
         "https://stac-extensions.github.io/storage/v2.0.0/schema.json"
@@ -712,24 +765,15 @@ def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
         "requester_pays": False,
     }
     assert item["properties"]["storage:schemes"] == {
-        "roda": {**_S3_SCHEME, "bucket": "sentinel-s2-l2a"},
-        "local": {**_S3_SCHEME, "bucket": "local"},
+        "earthsearch": {**_S3_SCHEME, "bucket": _BASELINE_BUCKET},
     }
     assert "storage:platform" not in item["properties"]
-    assert "earthsearch" not in item["properties"]["storage:schemes"]
     for name, asset in item["assets"].items():
-        expected_ref = (
-            "roda" if asset["href"].startswith("s3://sentinel-s2-l2a/") else "local"
-        )
-        assert asset.get("storage:refs") == [expected_ref], name
+        assert asset.get("storage:refs") == ["earthsearch"], name
 
 
 def test_add_storage_schemes_classification() -> None:
-    """add_storage_schemes assigns refs by href: RODA, Earth Search, or local."""
-    from datetime import datetime, timezone
-
-    from pystac import Asset, Item
-
+    """add_storage_schemes assigns refs by href: Earth Search or local."""
     item = Item(
         id="test",
         geometry=None,
@@ -737,8 +781,8 @@ def test_add_storage_schemes_classification() -> None:
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["roda_asset"] = Asset(href="s3://sentinel-s2-l2a/tiles/x/y.jp2")
     item.assets["es_asset"] = Asset(href="s3://earth-search-output/collection/x.tif")
+    item.assets["es_asset_2"] = Asset(href="s3://earth-search-output/collection/y.tif")
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
@@ -746,15 +790,14 @@ def test_add_storage_schemes_classification() -> None:
     result_dict = result.to_dict()
 
     schemes = result_dict["properties"]["storage:schemes"]
-    assert set(schemes.keys()) == {"roda", "earthsearch", "local"}
-    assert schemes["roda"]["bucket"] == "sentinel-s2-l2a"
+    assert set(schemes.keys()) == {"earthsearch", "local"}
     assert schemes["earthsearch"]["bucket"] == "earth-search-output"
     assert schemes["local"]["bucket"] == "local"
     assert all(s["type"] == "aws-s3" for s in schemes.values())
 
     assets = result_dict["assets"]
-    assert assets["roda_asset"]["storage:refs"] == ["roda"]
     assert assets["es_asset"]["storage:refs"] == ["earthsearch"]
+    assert assets["es_asset_2"]["storage:refs"] == ["earthsearch"]
     assert assets["local_asset"]["storage:refs"] == ["local"]
 
     assert any("storage" in ext for ext in result_dict["stac_extensions"])
@@ -774,7 +817,7 @@ def test_earthsearch_storage_scheme_after_upload(
             fname = Path(item.assets[key].href).name
             item.assets[
                 key
-            ].href = f"s3://{ES_BUCKET}/sentinel-2-c1-l2a/S2A_TEST/{fname}"
+            ].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
         return item
 
     monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
@@ -788,12 +831,12 @@ def test_earthsearch_storage_scheme_after_upload(
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={},
     )
-    item.set_collection("sentinel-2-c1-l2a")
+    item.set_collection("sentinel-2-l2a")
     item.assets["blue"] = Asset(href=str(local_file), type=MediaType.COG)
     _set_asset_owners(item)
 
     task = Sentinel2ToStac(
-        {"id": "test-es-scheme", "metadata_href": "s3://sentinel-s2-l2a/x"},
+        {"id": "test-es-scheme", "metadata_href": "s3://example-bucket/x"},
         workdir=tmp_path,
         upload=False,
     )
@@ -819,11 +862,13 @@ def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
 
 def test_asset_href_rewriting_and_proj_bbox(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
-    assert item["assets"]["blue"]["href"] == (
-        "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/R10m/B02.jp2"
+    assert item["assets"]["blue"]["href"] == f"s3://{_BASELINE_BUCKET}/prefix/B02.tif"
+    # apply_earthsearch_hrefs rewrites every asset, including metadata files --
+    # this task never leaves an asset pointing at a source bucket in place.
+    assert (
+        item["assets"]["granule_metadata"]["href"]
+        == f"s3://{_BASELINE_BUCKET}/prefix/metadata.xml"
     )
-    assert item["assets"]["granule_metadata"]["href"].endswith("/metadata.xml")
-    assert not item["assets"]["granule_metadata"]["href"].startswith("s3://")
     assert "proj:bbox" not in item["assets"]["blue"]
 
 
@@ -838,7 +883,7 @@ def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None
     # the key list handed to upload_item_assets_to_s3, so a misclassification
     # would upload (or skip) the wrong assets.
     task = Sentinel2ToStac(
-        {"id": "test-local-keys", "metadata_href": "s3://sentinel-s2-l2a/x"},
+        {"id": "test-local-keys", "metadata_href": "s3://example-bucket/x"},
         workdir=tmp_path,
         upload=False,
     )
@@ -851,56 +896,153 @@ def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None
     )
     item.assets["local_meta"] = Asset(href=str(tmp_path / "metadata.xml"))
     item.assets["local_cog"] = Asset(href=str(tmp_path / "R10m" / "B02.tif"))
-    item.assets["roda"] = Asset(href="s3://sentinel-s2-l2a/tiles/x/B02.jp2")
+    item.assets["remote"] = Asset(href="s3://example-bucket/prefix/B02.tif")
     item.assets["outside"] = Asset(href="/some/other/dir/B01.tif")
 
     assert task.get_local_asset_keys(item) == ["local_meta", "local_cog"]
 
 
 # ---------------------------------------------------------------------------
-# make_cogs / cogify
+# safe
+# ---------------------------------------------------------------------------
+
+_SAFE_ROOT = "/data/S2B_MSIL2A_20190704T103029_N0500_R108_T31SGV_20230624T153438.SAFE"
+_SAFE_GRANULE = f"{_SAFE_ROOT}/GRANULE/L2A_T31SGV_A012146_20190704T103317"
+_SAFE_LISTING = [
+    f"{_SAFE_ROOT}/MTD_MSIL2A.xml",
+    f"{_SAFE_ROOT}/INSPIRE.xml",
+    f"{_SAFE_GRANULE}/MTD_TL.xml",
+    f"{_SAFE_GRANULE}/QI_DATA/MSK_CLDPRB_20m.jp2",
+    f"{_SAFE_GRANULE}/QI_DATA/MSK_CLDPRB_60m.jp2",
+    f"{_SAFE_GRANULE}/QI_DATA/MSK_SNWPRB_20m.jp2",
+    f"{_SAFE_GRANULE}/QI_DATA/MSK_DETFOO_B02.jp2",
+    f"{_SAFE_GRANULE}/QI_DATA/T31SGV_20190704T103029_PVI.jp2",
+] + [
+    f"{_SAFE_GRANULE}/IMG_DATA/R{res}m/T31SGV_20190704T103029_{name}_{res}m.jp2"
+    for res, names in (
+        (10, ["AOT", "B02", "B03", "B04", "B08", "TCI", "WVP"]),
+        (
+            20,
+            [
+                "AOT",
+                "B01",
+                "B02",
+                "B03",
+                "B04",
+                "B05",
+                "B06",
+                "B07",
+                "B8A",
+                "B11",
+                "B12",
+                "SCL",
+                "TCI",
+                "WVP",
+            ],
+        ),
+        (60, ["AOT", "B01", "B09", "SCL", "TCI", "WVP"]),
+    )
+    for name in names
+]
+
+
+def test_resolve_safe_layout_maps_every_canonical_asset() -> None:
+    layout = resolve_safe_layout(_SAFE_ROOT, _SAFE_LISTING)
+
+    assert layout.product_metadata_href == f"{_SAFE_ROOT}/MTD_MSIL2A.xml"
+    assert layout.granule_metadata_href == f"{_SAFE_GRANULE}/MTD_TL.xml"
+    assert set(layout.image_hrefs) == set(CANONICAL_L2A_IMAGE_PATHS)
+    # Native resolution wins where a band exists at several: B01 is 60m and
+    # B02 is 10m, and TCI/SCL come from their published resolution.
+    assert layout.image_hrefs["coastal"].endswith(
+        "R60m/T31SGV_20190704T103029_B01_60m.jp2"
+    )
+    assert layout.image_hrefs["blue"].endswith(
+        "R10m/T31SGV_20190704T103029_B02_10m.jp2"
+    )
+    assert layout.image_hrefs["visual"].endswith("_TCI_10m.jp2")
+    assert layout.image_hrefs["scl"].endswith("_SCL_20m.jp2")
+    assert layout.image_hrefs["cloud"].endswith("QI_DATA/MSK_CLDPRB_20m.jp2")
+    assert layout.image_hrefs["snow"].endswith("QI_DATA/MSK_SNWPRB_20m.jp2")
+    assert layout.image_hrefs["preview"].endswith("_PVI.jp2")
+
+
+def test_resolve_safe_layout_raises_on_missing_file() -> None:
+    listing = [h for h in _SAFE_LISTING if "MSK_SNWPRB_20m" not in h]
+    with pytest.raises(InvalidInput, match="No file matching"):
+        resolve_safe_layout(_SAFE_ROOT, listing)
+
+
+# ---------------------------------------------------------------------------
+# cogify_source_images / cogify
 # ---------------------------------------------------------------------------
 
 
-def _item_with_baseline(
-    baseline_item_dict: dict[str, Any],
-    processing_baseline: str,
-    grid_code: str | None = None,
-) -> Item:
-    item = Item.from_dict(baseline_item_dict)
-    item.properties["s2:processing_baseline"] = processing_baseline
-    if grid_code is not None:
-        item.properties["grid:code"] = grid_code
-    return item
-
-
-def test_baseline_below_04_raises(baseline_item_dict: dict[str, Any]) -> None:
-    item = _item_with_baseline(baseline_item_dict, "02.13")
+@pytest.mark.parametrize("processing_baseline", ["02.13", "04.99", "05.09", "06.00"])
+def test_unsupported_baseline_raises(processing_baseline: str) -> None:
     with pytest.raises(
-        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
+        InvalidInput,
+        match=rf"Invalid processing baseline \({processing_baseline}\)",
     ):
-        _minimal_task("test-make-cogs").make_cogs_for_item(item)
+        _validate_processing_baseline(processing_baseline)
 
 
-def test_baseline_0509_raises(baseline_item_dict: dict[str, Any]) -> None:
-    item = _item_with_baseline(baseline_item_dict, "05.09")
-    with pytest.raises(
-        InvalidInput, match=r"only >= 05.00 \(not including 5.09\) is supported"
-    ):
-        _minimal_task("test-make-cogs").make_cogs_for_item(item)
+@pytest.mark.parametrize("processing_baseline", ["05.00", "05.08", "05.10", "05.99"])
+def test_supported_baseline_does_not_raise(processing_baseline: str) -> None:
+    _validate_processing_baseline(processing_baseline)
 
 
-def test_baseline_05_proceeds(
-    baseline_item_dict: dict[str, Any],
+def test_cogify_source_images_covers_the_canonical_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    item = _item_with_baseline(baseline_item_dict, "05.00")
+    metadata = parse_metadata(str(_BASELINE_SOURCE_METADATA))
+    metadata.metadata_dict["s2:processing_baseline"] = "05.00"
+
     monkeypatch.setattr(
-        stac_asset.blocking, "download_item", lambda *args, **kwargs: item
+        Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
     )
-    monkeypatch.setattr(task_module, "cogify", lambda asset_name, asset: None)
-    result = _minimal_task("test-make-cogs").make_cogs_for_item(item)
-    assert isinstance(result, Item)
+    monkeypatch.setattr(
+        task_module,
+        "cogify",
+        lambda asset_name, asset: CogFile(Path(asset.href).with_suffix(".tif"), 1, "a"),
+    )
+
+    cogs = _minimal_task("test-cogify").cogify_source_images(
+        metadata, {k: f"s3://bucket/{v}" for k, v in CANONICAL_L2A_IMAGE_PATHS.items()}
+    )
+
+    assert set(cogs) == set(CANONICAL_L2A_IMAGE_PATHS)
+    assert cogs["blue"].filename == "B02.tif"
+    assert cogs["cloud"].filename == "CLD_20m.tif"
+
+
+def test_fetch_source_images_renames_to_canonical_filenames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A SAFE archive names its images after the tile and sensing time; they
+    # must land in the workdir under the canonical flat filenames.
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+    (safe_dir / "T31SGV_20190704T103029_B02_10m.jp2").write_bytes(b"blue")
+    (safe_dir / "MSK_CLDPRB_20m.jp2").write_bytes(b"cloud")
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    task = Sentinel2ToStac(
+        {"id": "test-fetch", "safe_href": str(safe_dir)},
+        workdir=workdir,
+        upload=False,
+    )
+
+    task.fetch_source_images(
+        {
+            "blue": str(safe_dir / "T31SGV_20190704T103029_B02_10m.jp2"),
+            "cloud": str(safe_dir / "MSK_CLDPRB_20m.jp2"),
+        }
+    )
+
+    assert (workdir / "B02.jp2").read_bytes() == b"blue"
+    assert (workdir / "CLD_20m.jp2").read_bytes() == b"cloud"
 
 
 def _make_synthetic_raster(path: Path, *, width: int = 64, height: int = 64) -> None:
@@ -925,31 +1067,14 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
     src_path = tmp_path / "B01.jp2"
     _make_synthetic_raster(src_path, width=64, height=64)
 
-    asset = Asset(href=str(src_path), media_type="image/jp2")
-    # cogify() calls FileExtension.ext(asset, add_if_missing=True), which under
-    # pystac 1.15.2 requires the asset to have an owner.
-    owner = Item(
-        id="test-item",
-        geometry=None,
-        bbox=None,
-        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
-        properties={},
-    )
-    owner.assets["B01"] = asset
-    asset.set_owner(owner)
+    cog = cogify("B01", Asset(href=str(src_path), media_type="image/jp2"))
 
-    cogify("B01", asset)
+    assert cog.path.suffix == ".tif"
+    assert cog.filename == "B01.tif"
+    assert cog.checksum
+    assert cog.size > 0
 
-    cog_path = Path(asset.href)
-    assert cog_path.suffix == ".tif"
-    assert asset.type == MediaType.COG
-
-    fext = FileExtension.ext(asset)
-    assert fext.checksum is not None
-    assert fext.size is not None
-    assert fext.size > 0
-
-    with rasterio.open(str(cog_path)) as ds:
+    with rasterio.open(str(cog.path)) as ds:
         assert ds.count == 1
         assert ds.width == 64
         assert ds.height == 64
@@ -960,8 +1085,8 @@ def test_logger_prefixes_payload_id(caplog: pytest.LogCaptureFixture) -> None:
     # prefixes every log line with the payload id. Guard against a future
     # stactask change silently dropping the prefix from production logs.
     task = Sentinel2ToStac(
-        {"id": "roda-payload-123", "metadata_href": "x"}, upload=False
+        {"id": "test-payload-123", "metadata_href": "x"}, upload=False
     )
     with caplog.at_level(logging.INFO):
         task.logger.info("processing tile")
-    assert "[roda-payload-123] processing tile" in caplog.text
+    assert "[test-payload-123] processing tile" in caplog.text

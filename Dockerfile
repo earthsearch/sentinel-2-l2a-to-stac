@@ -5,9 +5,10 @@ FROM public.ecr.aws/lambda/python:3.12 AS builder
 # No system GDAL needed: the pinned rasterio (1.5.x) and pyproj (3.7.x) wheels are
 # manylinux_2_28 and bundle their own GDAL/PROJ/GEOS. The Lambda base is Amazon
 # Linux 2023 (glibc 2.34), which satisfies manylinux_2_28, so the wheels install
-# and run as-is. `task.py` uses rasterio only (no osgeo bindings), so there is
-# nothing that needs a system libgdal. `git` is required because pystac is a
-# git dependency (see [tool.uv.sources] in pyproject.toml).
+# and run as-is (except libexpat, see final stage below). `task.py` uses rasterio
+# only (no osgeo bindings), so there is nothing that needs a system libgdal.
+# `git` is required because pystac is a git dependency (see [tool.uv.sources] in
+# pyproject.toml).
 RUN dnf update -y && \
   dnf install -y git && \
   dnf clean all && \
@@ -39,6 +40,13 @@ RUN --mount=from=uv,source=/uv,target=/bin/uv \
 
 FROM public.ecr.aws/lambda/python:3.12
 
+# rasterio's bundled GDAL dynamically links libexpat.so.1 from the system rather
+# than vendoring it; the base Lambda image doesn't include it, so it must be
+# installed explicitly or DatasetBase import fails at runtime.
+RUN dnf install -y expat && \
+  dnf clean all && \
+  rm -rf /var/cache/dnf
+
 # Copy the runtime dependencies from the builder stage.
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
@@ -49,8 +57,8 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 # Uncomment one of the following:
 
 # 1. for lambda task, use CMD
-CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
+# CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
 
 # 2. for batch task, use ENTRYPOINT
-#ENV PYTHONPATH="/var/task"
-#ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]
+ENV PYTHONPATH="/var/task"
+ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]

@@ -1,5 +1,6 @@
 import hashlib
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -8,7 +9,6 @@ import rasterio
 from multiformats import multihash
 from PIL import Image
 from pystac import Asset, Item, MediaType
-from pystac.extensions.file import FileExtension
 from rasterio.enums import ColorInterp, Resampling
 from rasterio.rio.overview import get_maximum_overview_level
 from stactask.exceptions import InvalidInput
@@ -19,12 +19,6 @@ from sentinel_2_l2a_to_stac.constants import (
     RASTER_SCALE_KEY,
     RASTER_SPATIAL_RESOLUTION_KEY,
 )
-
-# SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
-# 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
-if not hasattr(Asset, "media_type"):
-    Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
-
 
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
@@ -40,6 +34,19 @@ GSD_TO_BLOCKSIZE: dict[int | None, tuple[int, int]] = {
     20: (512, 256),
     60: (256, 128),
 }
+
+
+@dataclass(frozen=True)
+class CogFile:
+    """A COG written by :func:`cogify`, with its file info already computed."""
+
+    path: Path
+    size: int
+    checksum: str
+
+    @property
+    def filename(self) -> str:
+        return self.path.name
 
 
 def sha256sum_multihash(filename: str) -> str:
@@ -114,6 +121,7 @@ def write_cog(
     config = {
         "GDAL_TIFF_INTERNAL_MASK": os.getenv("GDAL_TIFF_INTERNAL_MASK", True),
         "GDAL_TIFF_OVR_BLOCKSIZE": str(overview_blocksize),
+        "NUM_THREADS": "ALL_CPUS",
     }
 
     tags = {
@@ -134,7 +142,13 @@ def write_cog(
             dst.stats()
 
 
-def cogify(asset_name: str, asset: Asset) -> None:
+def cogify(asset_name: str, asset: Asset) -> CogFile:
+    """COGify the JP2 at ``asset.href``, writing a sibling ``.tif``.
+
+    ``asset`` is only read from: it supplies the source href and the band
+    metadata that determines scale/offset/nodata/blocksize, so callers can pass
+    a throwaway asset built straight from the granule metadata.
+    """
     infile = Path(asset.href)
     cogfile = infile.with_suffix(".tif")
 
@@ -203,20 +217,11 @@ def cogify(asset_name: str, asset: Asset) -> None:
         cogfile_tmp.write_bytes(output)
         cogfile_tmp.rename(cogfile)
 
-    # pystac 2.0: add_if_missing=True. Both callers
-    # give the asset an owner first, so add_if_missing=True
-    # can register the file extension URI on the owning item here.
-    FileExtension.ext(
-        asset,
-        add_if_missing=True,
-    ).apply(
-        checksum=str(multihash.wrap(shasum.digest(), "sha2-256").hex()),
+    return CogFile(
+        path=cogfile,
         size=cogfile.stat().st_size,
+        checksum=str(multihash.wrap(shasum.digest(), "sha2-256").hex()),
     )
-
-    asset.href = str(cogfile)
-    # pystac 2.0 renamed Asset.media_type → Asset.type
-    asset.type = MediaType.COG
 
 
 def get_band_scales_offsets_nodatas_resolutions(

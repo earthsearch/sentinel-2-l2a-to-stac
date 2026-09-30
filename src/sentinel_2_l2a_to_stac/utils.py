@@ -23,9 +23,8 @@
 # Inline: stactools.core.io.xml.XmlElement (local-file reads only)
 # ---------------------------------------------------------------------------
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Callable, Optional, cast
 
 from lxml import etree
 from lxml.etree import _Element as lxmlElement
@@ -35,48 +34,37 @@ class XmlElement:
     def __init__(self, element: lxmlElement) -> None:
         self.element = element
 
-    @lru_cache(maxsize=100)
     def find(self, xpath: str) -> Optional["XmlElement"]:
         node = self.element.find(xpath, self.element.nsmap)
         return None if node is None else XmlElement(node)
 
-    def find_or_throw(self, xpath: str, get_exception: Any) -> "XmlElement":
+    def find_or_throw(
+        self, xpath: str, get_exception: Callable[[str], Exception]
+    ) -> "XmlElement":
         result = self.find(xpath)
         if result is None:
             raise get_exception(xpath)
         return result
 
-    @lru_cache(maxsize=100)
     def findall(self, xpath: str) -> list["XmlElement"]:
         return [XmlElement(e) for e in self.element.findall(xpath, self.element.nsmap)]
 
-    @lru_cache(maxsize=100)
     def find_text(self, xpath: str) -> Optional[str]:
         node = self.find(xpath)
         return None if node is None else node.text
 
-    def find_text_or_throw(self, xpath: str, get_exception: Any) -> str:
+    def find_text_or_throw(
+        self, xpath: str, get_exception: Callable[[str], Exception]
+    ) -> str:
         result = self.find_text(xpath)
         if result is None:
             raise get_exception(xpath)
         return result
 
-    @lru_cache(maxsize=100)
-    def find_attr(self, attr: str, xpath: str) -> Optional[str]:
-        node = self.find(xpath)
-        return None if node is None else node.get_attr(attr)
-
     @property
     def text(self) -> Optional[str]:
-        if isinstance(self.element.text, str):
-            return self.element.text
-        elif isinstance(self.element.text, bytes):
-            return str(self.element.text, encoding="utf-8")
-        else:
-            assert self.element.text is None
-            return None
+        return cast(Optional[str], self.element.text)
 
-    @lru_cache(maxsize=100)
     def get_attr(self, attr: str) -> Optional[str]:
         return cast(Optional[str], self.element.get(attr, None))
 

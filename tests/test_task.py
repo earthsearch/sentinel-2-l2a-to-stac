@@ -1,6 +1,7 @@
 """Full-pipeline parity tests against the legacy Sentinel-2 C1 L2A task.
 
-These walk the payload fixtures under ``tests/fixtures/payloads/{success,failure}``
+These walk the payload fixtures under
+``tests/fixtures/payloads/{upgrade,downgrade,failure}``
 and run the *entire* ``process()`` pipeline — download, ``create_item``,
 ``update_item``, the ``is_newer_than_existing`` gate, COG generation, thumbnail,
 and checksums — comparing the output against a checked-in ``out.json`` with tolerant
@@ -179,10 +180,6 @@ def failure_cases() -> Generator[Path, None, None]:
         yield d
 
 
-def success_cases() -> Generator[Path, None, None]:
-    yield from (FIXTURES / "success").iterdir()
-
-
 def upgrade_cases() -> Generator[Path, None, None]:
     yield from (FIXTURES / "upgrade").iterdir()
 
@@ -220,21 +217,6 @@ def test_failing_files(fixture_dir: Path) -> None:
     assert exception_msg in str(excinfo.value)
 
 
-@pytest.mark.system
-@pytest.mark.parametrize("fixture_dir", success_cases(), ids=lambda x: x.name)
-def test_successful_payload_to_input_item(fixture_dir: Path) -> None:
-    payload = json.loads((fixture_dir / "in.json").read_text())
-
-    actual_output = _run(payload)
-
-    diff = diff_output(fixture_dir, actual_output)
-
-    if diff:
-        pytest.fail(
-            f"expected output does not match:\n{diff.to_json(indent=4)}", pytrace=False
-        )
-
-
 # Update-first parity tests.
 # They are opt-in with `-m upgrade` and never write to S3 (`upload=False`).
 @pytest.mark.upgrade
@@ -267,28 +249,6 @@ def test_downgrade_payload_to_v1_item(fixture_dir: Path) -> None:
         pytest.fail(
             f"expected output does not match:\n{diff.to_json(indent=4)}", pytrace=False
         )
-
-
-# Standalone regression payloads (single scenes, no out.json comparison — they
-# only assert the pipeline runs to completion without error).
-
-
-@pytest.mark.system
-def test_tile_info_missing_tile_data_geometry() -> None:
-    # Previously failed when tileInfo.json lacked tileDataGeometry; now falls
-    # back to the product metadata. Regression guard.
-    payload = json.loads(
-        (FIXTURES / "payload-tileinfo-no-tileDataGeometry.json").read_text()
-    )
-    _run(payload)
-
-
-@pytest.mark.system
-def test_antimeridian_pole_geometry_problem() -> None:
-    # This scene previously passed on arm64 but failed on amd64 (or vice-versa).
-    # Regression guard for the antimeridian/pole geometry handling.
-    payload = json.loads((FIXTURES / "payload-antimeridian-pole.json").read_text())
-    _run(payload)
 
 
 # Fast, offline coverage kept out of the `system` suite: the metadata_href

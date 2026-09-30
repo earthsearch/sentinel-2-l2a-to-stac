@@ -299,6 +299,15 @@ wheels = [
 ]
 
 [[package]]
+name = "backoff"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
 name = "bases"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -580,12 +589,47 @@ wheels = [
 ]
 
 [[package]]
+name = "cirrus-geo"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "boto3-utils" },
+    { name = "jsonpath-ng" },
+    { name = "python-json-logger" },
+    { name = "stactask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/84/35/941e6c6260bd514155926b1bef798dc8be3719605950852db997daa33e7a/cirrus_geo-2.0.0.tar.gz", hash = "sha256:b41955a7ac4403d85739dbfa52f4b985adeedc672955ba2cb526209ceddecedd", size = 528200, upload-time = "2026-04-22T17:08:59.251Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/a8/66a01acf8e6ddcbf321ca858e6ee7eb9ab663ad815cb063c5bc069b73999/cirrus_geo-2.0.0-py3-none-any.whl", hash = "sha256:bde4cd20e0d05406af2494eccf2aa5ef0a397ed47a045ed4d497830582da02f3", size = 71322, upload-time = "2026-04-22T17:08:57.518Z" },
+]
+
+[package.optional-dependencies]
+cli = [
+    { name = "backoff" },
+    { name = "click" },
+    { name = "click-option-group" },
+]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz", hash = "sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34", size = 382235, upload-time = "2026-08-26T13:33:14.56Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl", hash = "sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360", size = 125251, upload-time = "2026-08-26T13:33:12.928Z" },
+]
+
+[[package]]
+name = "click-option-group"
+version = "0.5.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/ff/d291d66595b30b83d1cb9e314b2c9be7cfc7327d4a0d40a15da2416ea97b/click_option_group-0.5.9.tar.gz", hash = "sha256:f94ed2bc4cf69052e0f29592bd1e771a1789bd7bfc482dd0bc482134aff95823", size = 22222, upload-time = "2025-10-09T09:38:01.474Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/45/54bb2d8d4138964a94bef6e9afe48b0be4705ba66ac442ae7d8a8dc4ffef/click_option_group-0.5.9-py3-none-any.whl", hash = "sha256:ad2599248bd373e2e19bec5407967c3eec1d0d4fc4a5e77b08a0481e75991080", size = 11553, upload-time = "2025-10-09T09:38:00.066Z" },
 ]
 
 [[package]]
@@ -1724,6 +1768,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-json-logger"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/25/5473e46b179f8e8b4ad3aeeb36773d1701b7770eaf5e5bc2025c7303b598/python_json_logger-4.2.0.tar.gz", hash = "sha256:e371ebe22ec01e289850102091a2b1f6fc9e655c7f1f5f29073936756c290afa", size = 18211, upload-time = "2026-08-15T11:36:38.232Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/55/6467fde553886cb293e41538f3a8b4e4fd4688c6df242cf982162d8367fb/python_json_logger-4.2.0-py3-none-any.whl", hash = "sha256:158a52126fcd6869e09574d2b66272666f3dc8f468c62637ef9a1fa883719cb9", size = 14988, upload-time = "2026-08-15T11:36:36.821Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1767,6 +1820,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
+]
+
+[[package]]
+name = "raster-footprint"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "rasterio" },
+    { name = "shapely" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ad/a6/ee503f0391baaf22056cba4dc7f75fdb8db703883bfaba5af5ad50f138dd/raster_footprint-0.3.0.tar.gz", hash = "sha256:2e99be94b85c2ae59dbb1ce98914594bee6ecb06e7b0047fec2aa0a0e457ef00", size = 17586, upload-time = "2026-05-04T01:56:13.999Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/4a/d76c71ec5acdb9a7e912e1f557db1169c669ad28bde1b2b16d011d2a5f7f/raster_footprint-0.3.0-py3-none-any.whl", hash = "sha256:c0ccf25a86e443bc8676f095f22246aa989bd7ed1a0d694688e7f94bf74d90d9", size = 15731, upload-time = "2026-05-04T01:56:12.837Z" },
 ]
 
 [[package]]
@@ -1928,13 +1994,13 @@ version = "2026.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "antimeridian" },
-    { name = "boto3-utils" },
     { name = "lxml" },
     { name = "multiformats" },
     { name = "numpy" },
     { name = "pillow" },
     { name = "pyproj" },
     { name = "pystac" },
+    { name = "raster-footprint" },
     { name = "rasterio" },
     { name = "requests" },
     { name = "returns" },
@@ -1943,6 +2009,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cirrus-geo", extra = ["cli"] },
     { name = "deepdiff" },
     { name = "mypy" },
     { name = "pre-commit" },
@@ -1956,14 +2023,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "antimeridian", specifier = ">=0.4.8" },
-    { name = "boto3-utils", specifier = ">=0.4.2" },
     { name = "lxml", specifier = ">=6.0" },
     { name = "multiformats", specifier = "~=0.3.1" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pillow", specifier = "~=12.0" },
     { name = "pyproj", specifier = ">=3.7" },
     { name = "pystac", git = "https://github.com/stac-utils/pystac.git?rev=4f346f2e1a1db00d526ef052800f24e19c72476c" },
-    { name = "rasterio", specifier = "~=1.4" },
+    { name = "raster-footprint", specifier = ">=0.3.0" },
+    { name = "rasterio", specifier = "~=1.5" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "returns", specifier = "~=0.29" },
     { name = "stactask", specifier = ">=0.7.0" },
@@ -1971,6 +2038,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cirrus-geo", extras = ["cli"], specifier = ">=2.0.0" },
     { name = "deepdiff", specifier = ">=8.0" },
     { name = "mypy", specifier = ">=2.3.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },

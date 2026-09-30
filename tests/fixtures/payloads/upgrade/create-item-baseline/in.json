@@ -1,6 +1,6 @@
 {
   "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2A_T19TDJ_20260823T153829_L2A-baseline",
-  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/tileInfo.json",
+  "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/metadata.xml",
   "create_cogs": false,
   "process": [
     {
@@ -8,7 +8,7 @@
       "upload_options": {
         "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
         "collections": {
-          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+          "sentinel-2-l2a": "$[?(@.id =~ '.*')]"
         }
       },
       "tasks": {

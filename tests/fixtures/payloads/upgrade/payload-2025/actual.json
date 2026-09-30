@@ -8,7 +8,7 @@
       "upload_options": {
         "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
         "collections": {
-          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+          "sentinel-2-l2a": "$[?(@.id =~ '.*')]"
         }
       },
       "tasks": {
@@ -1675,7 +1675,7 @@
           ]
         }
       },
-      "collection": "sentinel-2-c1-l2a"
+      "collection": "sentinel-2-l2a"
     }
   ]
 }

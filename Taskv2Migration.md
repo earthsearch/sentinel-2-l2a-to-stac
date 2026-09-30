@@ -13,13 +13,13 @@ up.
 | `stac_version` | `1.0.0` → **`1.1.0`** (emitted by the current stack; asserted, not forced). |
 | Band metadata | Per-asset `eo:bands` + `raster:bands` arrays are **merged into the core 1.1.0 `bands` field** (aligned by index). Core fields (`data_type`, `nodata`, `unit`, `statistics`) land unprefixed; the rest stay `eo:`/`raster:`-prefixed inside `bands`. |
 | Extension versions | `eo`/`raster` extensions bumped to **v2.0.0**; `projection` is **v2.0.0**, so `proj:epsg` → **`proj:code`** (accepted, intentional consumer-visible rename). |
-| Storage extension | Flat `storage:platform`/`storage:region`/`storage:requester_pays` → **`storage:schemes`/`storage:refs`**. Each asset is grouped by its final href into a named scheme: `roda` (source metadata left on the public bucket), `earthsearch` (uploaded assets), or `local` (`--local`/test runs). |
+| Storage extension | Flat `storage:platform`/`storage:region`/`storage:requester_pays` → **`storage:schemes`/`storage:refs`**. Each asset is grouped by its final href into a named scheme: `earthsearch` (uploaded assets, or COGs already living there) or `local` (`--local`/test runs). |
 | Input field | Payload now reads a **top-level `metadata_href`** instead of `assets['metadata']['href']`. |
 | `s2:dark_features_percentage` | **No longer emitted** — ESA dropped `DARK_FEATURES_PERCENTAGE` from the source metadata after processing baseline 05.09. Source-data change, not a code regression. |
 | `processing:software` | Still emitted (`{task-name: CalVer version}`), but now **restored explicitly** — stactask 0.7.0 no longer applies it automatically (see §4). |
 
 Unchanged from legacy (called out because they're easy to assume changed):
-`providers` dropped, `license` link removed, the `via` link to the RODA granule
+`providers` dropped, `license` link removed, the `via` link to the source granule
 metadata, and the "scrub extra metadata" block (`eo:snow_cover`, the
 classification extension, and `scl`'s `classification:classes`).
 

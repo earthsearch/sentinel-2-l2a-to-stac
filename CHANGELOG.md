@@ -9,16 +9,54 @@ used by this project.
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Changed
+
+- **This task no longer creates COGs from a granule that lacks them.** There
+  are now exactly two supported inputs:
+  - `safe_href`: a `.SAFE` archive, always COGified from scratch (unchanged).
+  - `metadata_href`: a granule prefix that must already carry the full flat
+    Earth Search COG layout (product/granule metadata plus all 19 canonical
+    COGs); this is now the *only* behavior for `metadata_href` — there is no
+    more path that COGifies a granule's source imagery in place, and no
+    fallback for locating product metadata outside the granule prefix. Any
+    required file that isn't present is a hard `InvalidInput` failure rather
+    than a fallback.
+  The `create_cogs` payload field is no longer read; whether COGs are created
+  is now solely determined by which of the two input fields is given.
+- **Item geometry is now measured from the rasters** instead of from
+  `tileInfo.json`. The footprint is the union of the valid-data footprints of
+  the canonical image set (the COGs for `metadata_href`, the freshly-created
+  COGs for `safe_href`), extracted with
+  [`raster-footprint`](https://github.com/stac-utils/raster-footprint) and
+  cleaned with the same convex-hull differencing the original Sinergise
+  footprint tool used. The product metadata footprint remains the fallback
+  when no raster can be read.
+- `datetime` now comes from the granule metadata's `SENSING_TIME` rather than
+  the `tileInfo.json` timestamp, so it carries full sub-second precision.
+- **All S3 access now goes through plain `boto3`** instead of `boto3utils`
+  (bucket listing, `read_href`) and `stac-asset` (`fetch_source_images`, which
+  no longer fabricates a throwaway `pystac.Item` just to drive `stac-asset`'s
+  downloader). `boto3-utils` is dropped as a direct dependency.
+
+### Removed
+
+- **All use of `tileInfo.json` and `productInfo.json`.** Neither has a SAFE or
+  Earth Search equivalent. `tileInfo.json`'s data geometry is replaced by the
+  raster footprint, its timestamp by the granule `SENSING_TIME`, and its
+  `s2:product_type` by the product metadata `PRODUCT_TYPE`. The
+  `tileinfo_metadata` asset is no longer emitted. The storage extension now
+  only ever produces an `earthsearch` or `local` scheme.
+- The `success/*` and `payload-tileinfo-no-tileDataGeometry`/
+  `payload-antimeridian-pole`/`processing_baseline_02.13` opt-in `-m system`
+  test fixtures, which exercised the now-removed COG-from-granule path. New
+  fixtures are needed under `tests/fixtures/payloads/failure/` to restore
+  `-m system` coverage.
+
 ## [v2026.09.28]
 
 ### Added
-
-- **COG-in-bucket fallback path**: when `create_cogs=False` and no existing
-  STAC doc is found, the task now checks whether all expected COG files are
-  already present in the output prefix. If they are, it applies earthsearch
-  hrefs and downloads each asset to compute `file:size`/`file:checksum`, rather
-  than falling back to RODA JP2 hrefs. A warning is logged with the list of
-  missing files when the fallback to RODA JP2 hrefs does occur.
 
 - **`v1_output` flag**: optional boolean payload field (default `false`). When
   `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0: version

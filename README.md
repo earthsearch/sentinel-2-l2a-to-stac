@@ -2,12 +2,12 @@
 
 *A Cirrus task that builds STAC Items from Sentinel-2 L2A products. See the [DEVELOPMENT.md](DEVELOPMENT.md) file for instructions on developing a task.*
 
-**A Cirrus task that reconstructs STAC 1.1.0 Items for Sentinel-2 L2A scenes from
-the raw metadata Sinergise/AWS host on the public RODA bucket
-(`s3://sentinel-s2-l2a`, no STAC catalog of its own): it downloads the source
-metadata, builds an Item via `stactools-sentinel2`, applies Earth Search overrides,
-optionally COGifies the JP2 imagery and generates a thumbnail, and returns the
-Item(s).**
+**A Cirrus task that reconstructs STAC 1.1.0 Items for Sentinel-2 L2A scenes. A
+scene is either COGified from a SAFE archive (`safe_href`) or built from COGs
+that already exist at an Earth Search granule prefix (`metadata_href`).
+It downloads the source metadata, builds an Item via `stactools-sentinel2`,
+applies Earth Search overrides, and (for a SAFE archive) COGifies the JP2 imagery
+and generates a thumbnail, then returns the Item(s).**
 
 ## Development
 
@@ -21,31 +21,30 @@ uv sync
 ## Input
 
 This task does not require complete STAC Items. Each `Feature` in the Cirrus Process Payload needs
-only two **top-level** fields: an `id` and the `metadata_href` of the source
-`metadata.xml`. (This differs from the legacy task, which read the href from
-`assets['metadata']['href']`.)
+only two **top-level** fields: an `id` and either a `metadata_href` or a `safe_href`
+(see [Usage](#usage) below for the difference). (This differs from the legacy task, which read the href from `assets['metadata']['href']`.)
 
 | Field           | Description                                                          |
 | --------------- | ------------------------------------------------------------------- |
 | `id`            | A unique identifier for this scene (will not be the final scene ID) |
-| `metadata_href` | The URL of the source granule `metadata.xml`                        |
+| `metadata_href` | The URL of an already-cogified Earth Search granule's `metadata.xml` |
+| `safe_href`     | The URL/path of a Sentinel-2 L2A `.SAFE` archive to COGify           |
 
-See the [Usage](#usage) section below for the full field reference, including the
-optional `create_cogs` toggle.
+See the [Usage](#usage) section below for the full field reference.
 
 Example:
 
 ```json
 {
-  "id": "roda-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
-  "metadata_href": "s3://sentinel-s2-l2a/tiles/19/T/DJ/2026/8/23/0/metadata.xml",
+  "id": "earthsearch-sentinel-2-l2a/workflow-sentinel-2-l2a-to-stac/tiles-19-T-DJ-2026-8-23-0",
+  "metadata_href": "s3://sentinel-cogs-test/sentinel-2-l2a/19/T/DJ/2026/8/S2A_T19TDJ_20260823T153829_L2A/metadata.xml",
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",
       "upload_options": {
         "path_template": "s3://sentinel-cogs-test/${collection}/${mgrs:utm_zone}/${mgrs:latitude_band}/${mgrs:grid_square}/${year}/${month}/${id}",
         "collections": {
-          "sentinel-2-c1-l2a": "$[?(@.id =~ '.*')]"
+          "sentinel-2-l2a": "$[?(@.id =~ '.*')]"
         }
       },
       "tasks": {
@@ -72,39 +71,48 @@ task-scoped config keys — that table is empty, as in the legacy task):
 
 | Field          | Type    | Description |
 | -------------- | ------- | ----------- |
-| `metadata_href`  | string  | **REQUIRED.** Href to any file in the source granule prefix on RODA/S3 or the earthsearch bucket (e.g. `s3://sentinel-s2-l2a/tiles/.../tileInfo.json`). Its directory is used as the granule prefix; `tileInfo.json`, granule `metadata.xml`, and product `metadata.xml` are fetched relative to it. |
-| `create_cogs`    | boolean | Optional. When `true` and no existing product doc is found in the output prefix, COGify the JP2 imagery and generate a JPEG thumbnail. When an existing product doc is present in the output prefix the reference path is taken regardless of this flag (see below). When `false` and no existing doc is present, the Item is emitted with its source asset hrefs unchanged. (Default: `false`.) |
+| `metadata_href`  | string  | Href to any file in an already-cogified Earth Search granule prefix (e.g. `s3://.../metadata.xml`). Its directory is used as the granule prefix; granule `metadata.xml`, product `metadata.xml`, and all 19 canonical COGs are required directly under it — any of them missing raises `InvalidInput`. Mutually exclusive with `safe_href`; there is no fallback to any other source. |
+| `safe_href`      | string  | Href/path of a Sentinel-2 L2A `.SAFE` archive. Always COGifies the JP2 imagery and generates a JPEG thumbnail; a missing required file inside the archive raises `InvalidInput`. Mutually exclusive with `metadata_href`. |
 | `v1_output`      | boolean | Optional. When `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0 format: `stac_version` is set to `1.0.0`, extension schema URLs are rolled back to their v1 versions, `proj:code` becomes `proj:epsg`, storage schemes are collapsed to item-level `storage:platform`/`region`/`requester_pays`, and per-asset `bands` are split back into `eo:bands` and `raster:bands`. (Default: `false`.) |
 
 The collection each Item is assigned to is resolved from
 `payload['process']['upload_options']['collections']` (a map of collection id →
 JSONPath expression, first match wins), per the standard Cirrus convention.
 
-### Reference path (update-first)
+### Existing-COGs path (`metadata_href`)
 
-When the output prefix already contains a `{item_id}.json`, the task
-automatically operates in **reference/update mode**, regardless of `create_cogs`:
+A `metadata_href` granule prefix is always treated as already-cogified:
 
-- Each expected asset is verified to be present in the bucket. An asset that
-  is expected but absent raises `InvalidInput`.
-- `type`,`file:size` and `file:checksum` are reused from the existing doc where
-  available; assets whose info is missing are downloaded and recomputed.
-- All asset hrefs are rewritten to the flat earthsearch prefix layout.
+- Every canonical COG, `metadata.xml`, and `product_metadata.xml` is required
+  directly under the granule prefix; anything missing raises `InvalidInput`.
+- Geometry is measured as the union of the valid-data footprint of each COG.
+- `type`, `file:size` and `file:checksum` are reused from an existing
+  `{item_id}.json` STAC doc where available; assets whose info is missing
+  (including when there is no existing doc at all) are downloaded and
+  recomputed.
+- All asset hrefs are rewritten to the flat Earth Search prefix layout.
 - The `thumbnail` asset reuses the existing `L2A_PVI.jpg` from the bucket — no
   re-generation needed.
-- No assets already in the bucket are re-uploaded; only the STAC metadata files
-  are uploaded.
+- No assets already in the bucket are re-uploaded; only the STAC metadata
+  document is uploaded.
 
-This path is intended for re-ingesting an already-present earthsearch scene
-(for example, upgrading a STAC 1.0 item to 1.1.0) without re-COGifying or
-re-uploading imagery.
+This path is intended for building/refreshing the STAC Item for an
+already-cogified Earth Search scene (for example, upgrading a STAC 1.0 item to
+1.1.0) without re-COGifying or re-uploading imagery.
+
+### COG-creation path (`safe_href`)
+
+A `safe_href` archive has no pre-existing COGs, so this is the only path that
+creates them: the canonical JP2 image set is COGified, geometry is measured
+from the resulting COGs, a JPEG thumbnail is generated from the preview image,
+and every asset is uploaded to the output prefix.
 
 ### Environment Variables
 
 | Variable              | Default                                          | Description |
 | --------------------- | ------------------------------------------------ | ----------- |
 | `STAC_API_URL`        | `https://earth-search.aws.element84.com/v2`      | STAC API queried by the `is_newer_than_existing` gate. |
-| `AWS_DEFAULT_REGION`  | (none — required)                                | AWS region for the S3 reads/writes (`us-west-2` for the public RODA bucket). Required for any run that touches S3. |
+| `AWS_DEFAULT_REGION`  | (none — required)                                | AWS region for the S3 reads/writes. Required for any run that touches S3. |
 | `CIRRUS_LOG_LEVEL`    | `WARN`                                            | Root log level. `stactools`/`botocore`/`rasterio` loggers are quieted regardless. |
 | `BIGTIFF`             | `IF_SAFER`                                         | Passed through to the GDAL COG driver during COG creation. |
 | `GDAL_TIFF_INTERNAL_MASK` | `True`                                        | Passed through to the GDAL COG driver during COG creation. |
@@ -123,22 +131,18 @@ uv run pytest
 
 ### Network parity tests (`-m system`)
 
-`tests/test_task.py` also contains full-pipeline parity tests that compare the
-task's output against the legacy Sentinel-2 C1 L2A task. These **hit the
-network**: they download genuine Sentinel-2 imagery from the public RODA/AWS
-bucket (`s3://sentinel-s2-l2a`) so the COG/thumbnail pipeline runs end-to-end.
-They are marked `@pytest.mark.system` and are **excluded by default**. Run them
+`tests/test_task.py` also contains full-pipeline parity tests, marked
+`@pytest.mark.system`, that would compare the task's output against the legacy
+Sentinel-2 C1 L2A task by hitting the real network. There are currently no
+fixtures under this marker (the prior ones tested the now-unsupported behavior
+of COGifying directly from a granule prefix that lacked existing COGs); add
+fixtures under `tests/fixtures/payloads/failure/` (each its own directory with
+an `in.json` and an `exception.txt`) to restore coverage. Run the marker
 explicitly with:
 
 ```
 uv run pytest -m system
 ```
-
-They never write to S3 (every call uses `upload=False`), and the STAC API
-item-lookup stays stubbed to 404 so the run is deterministic. Downloaded imagery
-is cached under `tests/external-data/<payload-id>`; delete that directory to
-force a clean re-fetch. The expected `out.json` for each success fixture is
-generated on the first run if absent.
 
 ### Update-first tests (`-m upgrade`)
 
@@ -191,9 +195,13 @@ $ task.py payload.json --local
 ### Updating test fixtures
 
 To update the expected output for any given fixture, simply remove the
-`actual.json` file from the test's fixture directory, and rerun the tests.
+`out.json` file from the test's fixture directory, and rerun the tests.
 This will recreate the fixture. `git diff` can be used to examine what has
 changed.
+
+If a test fails due to a mismatch, an `actual.json` file is written alongside
+`out.json` so you can `diff` the two to see what changed; it is not itself
+read by the tests and can be deleted once you're done comparing.
 
 ## Local Dockerized Lambda Testing
 
