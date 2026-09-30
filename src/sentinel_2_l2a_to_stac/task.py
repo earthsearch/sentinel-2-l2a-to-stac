@@ -288,7 +288,7 @@ def _item_errors(logger: Any) -> Iterator[None]:
 class Sentinel2ToStac(Task):
     name = "sentinel-2-l2a-to-stac"
     description = "Sentinel-2 L2A to STAC Cirrus task"
-    version = "v2026.09.18"  # keep in sync with pyproject.toml and CHANGELOG.md
+    version = "v2026.09.30"  # keep in sync with pyproject.toml and CHANGELOG.md
 
     def validate(self) -> bool:
         # Rewritten for stactask 0.6.1 (requires self._payload instead of

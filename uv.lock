@@ -2022,7 +2022,7 @@ wheels = [
 
 [[package]]
 name = "sentinel-2-l2a-to-stac"
-version = "2026.9.18"
+version = "2026.9.30"
 source = { editable = "." }
 dependencies = [
     { name = "antimeridian" },

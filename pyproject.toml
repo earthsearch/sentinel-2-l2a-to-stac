@@ -1,7 +1,11 @@
 [project]
 name = "sentinel-2-l2a-to-stac"
-version = "v2026.09.18"
-authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
+version = "v2026.09.30"
+authors = [
+    { name = "Element 84", email = "opendata@element84.com" },
+    { name = "Tyler Anderson", email= "tanderson@element84.com"},
+    { name = "Vinny Pilone", email = "vpilone@element84.com"}
+]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
 # pystac 2.0-dev requires Python >= 3.12, so 3.11 support is dropped as part of

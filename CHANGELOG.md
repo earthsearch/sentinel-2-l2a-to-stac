@@ -9,231 +9,84 @@ used by this project.
 
 ## [Unreleased]
 
-### Fixed
+## [v2026.09.30]
 
-- Reference path: computing `file:size`/`file:checksum` for an asset missing
-  from the existing doc no longer writes a temp file into the workdir. The
-  old temp file shared its name with the cached source metadata files
-  (`metadata.xml`, `product_metadata.xml`) and deleted them; bytes are now
-  hashed in memory.
-- Reference path: the `thumbnail` asset now carries the same title as the one
-  generated when COGs are created ("Thumbnail of preview image").
-- `pyproject.toml` version now matches the task's `version` (`v2026.09.18`);
-  it had been left at `v2026.09.03`.
+First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus
+task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline.
+
+### Added
+
+- Full Sentinel-2 L2A → STAC pipeline with two supported inputs:
+  - `safe_href`: a `.SAFE` archive, always COGified from scratch.
+  - `metadata_href`: an Earth Search granule prefix that must already carry
+    the full flat COG layout (product/granule metadata plus all 19 canonical
+    COGs). This path never COGifies source imagery in place and has no
+    fallback for locating product metadata outside the granule prefix; any
+    required file that isn't present is a hard `InvalidInput` failure.
+- Reference/update path: when the output prefix already contains a
+  `{item_id}.json`, the task reuses `file:size`/`file:checksum` from the
+  existing doc for assets whose info is already present, downloads only the
+  assets whose info is missing, rewrites hrefs to the flat Earth Search
+  layout, and skips re-uploading assets already in the bucket. The existing
+  `L2A_PVI.jpg` is referenced directly as the `thumbnail` asset with no
+  re-generation needed.
+- Item geometry measured from the rasters: the union of the valid-data
+  footprints of the canonical image set, extracted with
+  [`raster-footprint`](https://github.com/stac-utils/raster-footprint)
+  footprint tool used, falling back to the product metadata footprint if no
+  raster can be read. `datetime` comes from the granule metadata's
+  `SENSING_TIME`.
+- STAC 1.1.0-native `bands` on every asset (merged `eo:`/`raster:` fields),
+  with the `eo`/`raster` extension schemas bumped to v2.0.0.
+- Updated storage extension
+- `v1_output` payload flag (default `false`): downgrades the emitted Item
+  from STAC 1.1 to STAC 1.0 (schema/version rollback, `proj:code` →
+  `proj:epsg`, storage schemes collapsed to item-level properties, `bands`
+  split back into `eo:bands`/`raster:bands`). Applies after all build modes.
+- Test suite: offline fixture-driven tests; opt-in `-m system`, `-m upgrade`
+  and `-m downgrade` network-parity tests that download real imagery and
+  exercise the various data paths against real Earth
+  Search data (none write to S3; all cache downloads under
+  `tests/external-data`); a hermetic `conftest.py`; local dockerized Lambda
+  testing (`tests/run_tests.sh`, `.env.example`); `scripts/compare_fixture.py`
+  for legacy↔destination parity diffing.
+- CI workflow; Dockerfile/compose targeting Python 3.12 on an Amazon Linux
+  2023 base via `uv`.
 
 ### Changed
 
-- Asset pruning removed entirely: `parse_metadata` now builds `image_paths`
-  for L2A from `CANONICAL_L2A_IMAGE_PATHS`, so non-native-resolution
-  duplicates (e.g. `red_20m`, `visual_60m`) are never considered, let alone
-  built and deleted. `stac._is_native_resolution`, the task-level
-  `_prune_to_canonical_assets` and the full `L2A_IMAGE_PATHS` list are gone.
-- Declared `boto3` and `shapely` as direct runtime dependencies (both are
-  imported directly, but `boto3` was only transitive and `shapely` was
-  dev-only). Moved the pystac pin comment next to `[tool.uv.sources]`.
-- Corrected the storage extension comment (pinned pystac 2.0-dev, not 1.15.2).
-- **This task no longer creates COGs from a granule that lacks them.** There
-  are now exactly two supported inputs:
-  - `safe_href`: a `.SAFE` archive, always COGified from scratch (unchanged).
-  - `metadata_href`: a granule prefix that must already carry the full flat
-    Earth Search COG layout (product/granule metadata plus all 19 canonical
-    COGs); this is now the *only* behavior for `metadata_href` — there is no
-    more path that COGifies a granule's source imagery in place, and no
-    fallback for locating product metadata outside the granule prefix. Any
-    required file that isn't present is a hard `InvalidInput` failure rather
-    than a fallback.
-  The `create_cogs` payload field is no longer read; whether COGs are created
-  is now solely determined by which of the two input fields is given.
-- **Item geometry is now measured from the rasters** instead of from
-  `tileInfo.json`. The footprint is the union of the valid-data footprints of
-  the canonical image set (the COGs for `metadata_href`, the freshly-created
-  COGs for `safe_href`), extracted with
-  [`raster-footprint`](https://github.com/stac-utils/raster-footprint) and
-  cleaned with the same convex-hull differencing the original Sinergise
-  footprint tool used. The product metadata footprint remains the fallback
-  when no raster can be read.
-- `datetime` now comes from the granule metadata's `SENSING_TIME` rather than
-  the `tileInfo.json` timestamp, so it carries full sub-second precision.
-- **All S3 access now goes through plain `boto3`** instead of `boto3utils`
-  (bucket listing, `read_href`) and `stac-asset` (`fetch_source_images`, which
-  no longer fabricates a throwaway `pystac.Item` just to drive `stac-asset`'s
-  downloader). `boto3-utils` is dropped as a direct dependency.
+- Input is read from a top-level `metadata_href` (was
+  `assets['metadata']['href']` in the legacy task).
+- Renamed the template package/class to `sentinel_2_l2a_to_stac` /
+  `Sentinel2ToStac`.
+- Adopted pystac 2.0 (git-SHA pinned via `[tool.uv.sources]`), raising
+  `requires-python` to `>=3.12`.
+- Replaced `stactools`/`stactools-sentinel2` with a self-contained metadata
+  pipeline, split into `constants.py` (band definitions/lookup tables),
+  `metadata.py` (XML parsing), `stac.py` (`create_item`), `cogify.py`
+  (COG/thumbnail generation, `sha256sum_multihash`), and `utils.py` (shared
+  XML helpers).
+- All S3 access goes through plain `boto3` instead of `boto3utils`/
+  `stac-asset`; `boto3`, `shapely`, `antimeridian`, `lxml`, and `pyproj` are
+  direct runtime dependencies, `boto3-utils` is dropped.
+- Processing baseline floor raised to `>= 05.00` (excluding `05.09`); the
+  legacy task's `>= 04.00` with a Europe-tile carve-out is gone.
+- Switched to dot-delimited CalVer.
+- Dockerfile/compose: single `uv pip install --frozen` step,
+  dropped the `lambgeo` GDAL build stage in favor of `manylinux_2_28`
+  `rasterio`/`pyproj` wheels that bundle their own GDAL/PROJ.
 
 ### Removed
 
-- **All use of `tileInfo.json` and `productInfo.json`.** Neither has a SAFE or
-  Earth Search equivalent. `tileInfo.json`'s data geometry is replaced by the
-  raster footprint, its timestamp by the granule `SENSING_TIME`, and its
-  `s2:product_type` by the product metadata `PRODUCT_TYPE`. The
-  `tileinfo_metadata` asset is no longer emitted. The storage extension now
-  only ever produces an `earthsearch` or `local` scheme.
-- The `success/*` and `payload-tileinfo-no-tileDataGeometry`/
-  `payload-antimeridian-pole`/`processing_baseline_02.13` opt-in `-m system`
-  test fixtures, which exercised the now-removed COG-from-granule path. New
-  fixtures are needed under `tests/fixtures/payloads/failure/` to restore
-  `-m system` coverage.
+- All use of `tileInfo.json` and `productInfo.json`: geometry, `datetime`,
+  and `s2:product_type` are derived from raster footprints and product/
+  granule metadata instead.
+- The COG-from-granule path for `metadata_href` inputs, and the
+  `create_cogs` payload field — whether COGs are created is now solely
+  determined by which input field is given.
+- `eo:bands` on assets (superseded by the STAC 1.1.0 `bands` field),
+  `s2:dark_features_percentage`, `eo:snow_cover`, and SCL classification
+  classes (none are emitted anymore).
 
-## [v2026.09.28]
-
-### Added
-
-- **`v1_output` flag**: optional boolean payload field (default `false`). When
-  `true`, the emitted Item is downgraded from STAC 1.1 to STAC 1.0: version
-  and extension schema URLs are rolled back, `proj:code` becomes `proj:epsg`,
-  storage schemes collapse to item-level properties, and per-asset `bands` are
-  split into `eo:bands`/`raster:bands`. Applies after all build modes (full
-  rebuild, reference/update, COGs on or off).
-
-## [v2026.09.18]
-
-### Added
-
-- **Reference/update path**: when the output prefix already contains a
-  `{item_id}.json`, the task switches into an update-first mode — it reuses
-  `file:size` and `file:checksum` from the existing doc for assets whose info
-  is already present, downloads only the assets whose info is missing, rewrites
-  all hrefs to the flat earthsearch prefix layout, and skips re-uploading
-  assets that are already in the bucket. An asset that is expected but absent
-  from the bucket raises `InvalidInput` (it cannot be serviced without COG
-  generation). The reference path takes effect regardless of `create_cogs`.
-- **Thumbnail in the reference path**: the existing `L2A_PVI.jpg` in the
-  bucket is referenced directly as the `thumbnail` asset, with no
-  re-generation needed.
-- **Flat-first `product_metadata.xml` resolution**: when a
-  `product_metadata.xml` is found directly in the output prefix, it is used
-  in preference to fetching the RODA `productPath` `metadata.xml`, supporting
-  re-ingestion from an earthsearch-originated prefix.
-- **`-m upgrade` network test suite**: opt-in system tests (run with
-  `uv run pytest -m upgrade`) that exercise the reference path against real
-  earthsearch data, parallel to the existing `-m system` tests. They never
-  write to S3 and cache downloaded files under `tests/external-data`.
-
-### Changed
-
-- `metadata.py` split into `constants.py` (band definitions and lookup tables),
-  `metadata.py` (XML parsing), and `stac.py` (`create_item`) for clarity and
-  easier maintenance.
-- COG generation, thumbnail creation, and `sha256sum_multihash` moved to
-  `cogify.py`; shared XML utilities extracted to `utils.py`.
-- `create_cogs` payload field now governs COG/thumbnail generation; see the
-  reference path behavior above for how the two interact.
-- Replaced `stactools~=0.5.3` and `stactools-sentinel2==0.8.0` with a
-  self-contained `metadata.py` (vendored + pruned granule/S3 path). The public
-  interface is unchanged: `create_item(workdir)` returns a `pystac.Item`.
-  `antimeridian`, `lxml`, and `pyproj` are now direct dependencies (they were
-  previously transitive through stactools).
-- `metadata.py` now emits STAC 1.1.0-native `bands` on every asset directly,
-  using `pystac.Band.from_dict(...)` with merged `eo:`/`raster:` prefixed fields.
-  The post-hoc `upgrade_item_to_stac_1_1` / `_consolidate_bands` fixups in
-  `task.py` are removed.
-- `Asset.type` is used throughout instead of the old `media_type=` kwarg; the
-  `_normalize_asset_media_types` shim is removed.
-- Asset owners are set inside `create_item` at construction time; the
-  `_set_asset_owners` call is removed from `update_item` (still present in
-  `make_cogs_for_item` and `add_fileinfo_to_local_assets` where stac-asset
-  download can reset ownership).
-- The `pystac.link.HREF` monkeypatch (only needed for stactools compatibility) is
-  removed. The `Asset.media_type` alias for stac-asset compatibility is retained
-  and marked `# SHIM(pystac-2.0)` for easy discovery when stac-asset is updated.
-- EO and raster extension schema URIs are bumped to v2.0.0 inside `create_item`
-  rather than as a late post-processing step.
-- SCL classification classes are no longer emitted (they were always scrubbed by
-  `update_item`); the scrub block is removed.
-- `eo:snow_cover` is no longer set on the item (it was always deleted by
-  `update_item`); the corresponding delete is removed.
-
-### Fixed
-
-- Existing-doc detection matches exactly on `{item_id}.json` rather than
-  on any `.json` in the prefix, preventing false matches against RODA's own
-  `productInfo.json` when operating on RODA-sourced prefixes.
-- Single-band assets no longer incorrectly wrap the band object in a list.
-- Bucket listing now uses unsigned credentials, fixing access failures when
-  task credentials did not have explicit permissions on public source buckets.
-
-## [v2026.09.03]
-
-First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus
-task ported forward onto STAC 1.1.0 output and a pystac 2.0 baseline. See
-[Taskv2Migration.md](Taskv2Migration.md) for the detailed migration notes
-(output changes, new features, and the temporary compatibility shims).
-
-### Added
-
-- Full Sentinel-2 L2A → STAC pipeline, ported from the legacy task:
-  source-metadata download (`tileInfo.json` + granule/product `metadata.xml`),
-  Item creation via `stactools-sentinel2`, Earth Search overrides (`update_item`),
-  the `is_newer_than_existing` gate against the live STAC API, optional COG
-  generation and JPEG thumbnail, `file:checksum`/`file:size` stamping, and S3
-  upload.
-- **STAC 1.1.0 band consolidation** (`upgrade_item_to_stac_1_1`): merges each
-  asset's `eo:bands` + `raster:bands` into the core 1.1.0 `bands` field and bumps
-  the `eo`/`raster` extensions to v2.0.0. Self-disables once `stactools-sentinel2`
-  emits native `bands`.
-- **Storage extension** on the `schemes`/`refs` model, with per-bucket schemes
-  classified by each asset's final href (`roda` source metadata, `earthsearch`
-  uploaded assets, `local` for `--local`/test runs).
-- `create_cogs` payload toggle to skip COG/thumbnail generation and emit the Item
-  with its source asset hrefs.
-- Test suite: offline fixture-driven tests plus opt-in `@pytest.mark.system`
-  network-parity tests that download real imagery and compare against the legacy
-  task (`uv run pytest -m system`); a hermetic `conftest.py` (dummy AWS creds, a
-  STAC-API 404 stub) that keeps the default suite fully local; and local
-  dockerized Lambda testing (`tests/run_tests.sh`, `.env.example`).
-- `scripts/compare_fixture.py`: dev tool for legacy↔destination parity diffing
-  (strips expected-drift fields so only semantic STAC differences surface).
-
-### Changed
-
-- **Input** is now read from a top-level `metadata_href` (was
-  `assets['metadata']['href']` in the legacy task).
-- **Renamed** the template package/class to `sentinel_2_l2a_to_stac` /
-  `Sentinel2ToStac`, with the CLI entry point, Dockerfile, and tests updated to
-  match.
-- **Adopted pystac 2.0** (unreleased; git-SHA pinned via `[tool.uv.sources]`),
-  raising `requires-python` to `>=3.12`. Ported the 2.0 API deltas
-  (`set_collection()`, explicit asset-owner re-parenting, `Asset.media_type` →
-  `Asset.type`) and added idempotent, self-disabling compatibility shims for
-  `stactools`/`stac-asset`/`stactools-sentinel2` (HREF import move, media-type
-  normalization, `Asset.media_type` read alias) — see Taskv2Migration.md.
-- **Upgraded the dependency baseline**: pystac → 1.15.2 then the 2.0 dev build,
-  stactask 0.6.1 → 0.7.0, stac-asset 0.4.6 → 0.4.7, boto3/botocore 1.37.1 →
-  1.43.56, plus dev tools (mypy, pytest, ruff, pre-commit).
-- **Restored `processing:software`** on the output Item, which stactask 0.7.0 no
-  longer applies automatically.
-- Refreshed the success fixtures onto processing baseline `> 05.09` (same tiles;
-  side effect: `s2:dark_features_percentage` is no longer emitted, since ESA
-  dropped it from the source metadata after 05.09 — not a code regression).
-- Switched to dot-delimited CalVer and added a Versioning section to the README.
-- **Dockerfile/compose**: Python 3.12 base images, single `uv pip install
-  --frozen` step (reads `uv.lock` directly, no intermediate `requirements.txt`),
-  and `linux/amd64` platform pinning for Apple Silicon. Dropped the
-  `ghcr.io/lambgeo/lambda-gdal` build stage and its `GDAL_DATA`/`PROJ_LIB`/
-  `GDAL_CONFIG`/`GEOS_CONFIG` env plumbing: the pinned `rasterio` (1.5.x) and
-  `pyproj` (3.7.x) wheels are `manylinux_2_28` and bundle their own GDAL/PROJ,
-  which the Amazon Linux 2023 base (glibc 2.34) satisfies — removing a GDAL
-  3.8-vs-wheel version conflict and the dependency on a Python 3.12 lambgeo tag
-  that blocked the build (build deps trimmed to just `git` for the pystac git
-  dependency). Fixed the compose handler string to
-  `sentinel_2_l2a_to_stac.task.lambda_handler` (was `task.handler`, a
-  non-existent module/function) so it matches the Dockerfile `CMD`.
-
-## [v2025.03.12]
-
-### Changed
-
-- Dockerfile now uses UV build scheme, along with lambgeo base. ([#2])
-- CLI specified via pyproject.toml. ([#1])
-
-## [v2025.03.11]
-
-Initial release
-
-[unreleased]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.28..main
-[v2026.09.28]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.18..v2026.09.28
-[v2026.09.18]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2026.09.03..v2026.09.18
-[v2026.09.03]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.12..v2026.09.03
-[v2025.03.12]: https://github.com/cirrus-geo/cirrus-task-example/compare/v2025.03.11..v2025.03.12
-[v2025.03.11]: https://github.com/cirrus-geo/cirrus-task-example/tree/v2025.03.11
-[#1]: https://github.com/cirrus-geo/cirrus-task-example/pull/1
-[#2]: https://github.com/cirrus-geo/cirrus-task-example/pull/2
+[unreleased]: https://github.com/earthsearch/sentinel-2-l2a-to-stac/compare/v2026.09.30...main
+[v2026.09.30]: https://github.com/earthsearch/sentinel-2-l2a-to-stac/compare/3e01c13...v2026.09.30
