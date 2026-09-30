@@ -685,7 +685,7 @@ class Sentinel2ToStac(Task):
         A SAFE archive carries no COGs, so COG creation is the only way to get
         publishable assets out of it and is always on.
         """
-        prefix = safe_href.rstrip("/")
+        prefix = safe_href.removesuffix("/manifest.safe")
         layout = resolve_safe_layout(prefix, self.list_files(prefix))
 
         if not self.product_metadata_xml_path.exists():
