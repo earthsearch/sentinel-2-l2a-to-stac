@@ -22,6 +22,7 @@ from sentinel_2_l2a_to_stac.constants import (
 
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
+THUMBNAIL_TITLE = "Thumbnail of preview image"
 
 ASSET_TO_RESAMPLE_ALGORITHM: dict[str | None, str] = {
     None: "AVERAGE",  # default case
@@ -56,6 +57,10 @@ def sha256sum_multihash(filename: str) -> str:
         )
 
 
+def sha256_multihash_bytes(data: bytes) -> str:
+    return str(multihash.wrap(hashlib.sha256(data).digest(), "sha2-256").hex())
+
+
 def make_thumbnail(item: Item) -> Item:
     asset = item.assets[THUMBNAIL_SOURCE_ASSET_NAME]
 
@@ -68,7 +73,7 @@ def make_thumbnail(item: Item) -> Item:
         href=os.path.splitext(asset.href)[0] + ".jpg",
         type=MediaType.JPEG,
         roles=["thumbnail"],
-        title="Thumbnail of preview image",
+        title=THUMBNAIL_TITLE,
     )
     item.assets[THUMBNAIL_ASSET_NAME] = tn_asset
 

@@ -45,7 +45,6 @@ from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
-    _prune_to_canonical_assets,
     _set_asset_owners,
     _validate_processing_baseline,
     find_existing_stac_doc_filename,
@@ -308,37 +307,13 @@ def test_resolve_image_hrefs_returns_flat_earthsearch_layout() -> None:
     assert set(image_hrefs) == set(CANONICAL_L2A_IMAGE_PATHS)
 
 
-def test_prune_to_canonical_assets_drops_m_suffixed_and_thumbnail(
-    baseline_item_dict: dict[str, Any],
-) -> None:
-    item = Item.from_dict(baseline_item_dict)
-    # Simulate create_item's raw, unpruned output plus a thumbnail asset.
-    item.assets["red_20m"] = Asset(href="x", type="image/jp2")
-    item.assets["visual_60m"] = Asset(href="x", type="image/jp2")
-    item.assets["thumbnail"] = Asset(href="x", type="image/jpeg")
-    _set_asset_owners(item)
-
-    before_canonical_keys = {
-        k for k in item.assets if not k.endswith("m") and k != "thumbnail"
-    }
-
-    result = _prune_to_canonical_assets(item)
-
-    assert "red_20m" not in result.assets
-    assert "visual_60m" not in result.assets
-    assert "thumbnail" not in result.assets
-    assert set(result.assets.keys()) == before_canonical_keys
-
-
 def test_asset_filenames_map_matches_create_item_keys(
     baseline_item_dict: dict[str, Any],
 ) -> None:
-    # ASSET_FILENAMES must cover exactly the canonical keys create_item
-    # produces after pruning (thumbnail is added manually in the reference
-    # path, not produced by create_item, so it's expected here too).
+    # ASSET_FILENAMES must cover exactly the canonical keys create_item produces
+    # (thumbnail is added manually in the reference path, not by create_item).
     item = Item.from_dict(baseline_item_dict)
-    canonical_keys = {k for k in item.assets if not k.endswith("m")}
-    assert set(ASSET_FILENAMES.keys()) == canonical_keys | {"thumbnail"}
+    assert set(ASSET_FILENAMES.keys()) == set(item.assets.keys()) | {"thumbnail"}
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +354,7 @@ def test_add_thumbnail_asset() -> None:
     assert thumb.href == "s3://bucket/prefix/L2A_PVI.jpg"
     assert thumb.roles == ["thumbnail"]
     assert thumb.type == MediaType.JPEG
+    assert thumb.title == "Thumbnail of preview image"
 
 
 def test_apply_reference_file_info_reuses_from_doc(
@@ -424,8 +400,30 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == len(b"fake-cog-bytes")
     assert fext.checksum is not None
-    # The downloaded file is only needed to compute size/checksum.
-    assert not (tmp_path / "B02.tif").exists()
+    # Size/checksum are computed in memory; nothing is written to the workdir.
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_apply_reference_file_info_preserves_cached_metadata_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A metadata asset with no file info in the doc must not clobber or delete
+    # the cached source file of the same name in the workdir.
+    item = _synthetic_item(["granule_metadata"])
+    item.assets["granule_metadata"].href = "s3://bucket/prefix/metadata.xml"
+    cached = tmp_path / "metadata.xml"
+    cached.write_bytes(b"cached-original")
+    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"from-s3")
+    task = Sentinel2ToStac(
+        {"id": "test-cache", "metadata_href": "s3://bucket/prefix/x"},
+        workdir=tmp_path,
+        upload=False,
+    )
+
+    result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}})
+
+    assert cached.read_bytes() == b"cached-original"
+    assert FileExtension.ext(result.assets["granule_metadata"]).size == len(b"from-s3")
 
 
 def test_apply_reference_file_info_ignores_extra_doc_asset(
@@ -815,9 +813,7 @@ def test_earthsearch_storage_scheme_after_upload(
     def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
         for key in asset_keys:
             fname = Path(item.assets[key].href).name
-            item.assets[
-                key
-            ].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
+            item.assets[key].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
         return item
 
     monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)

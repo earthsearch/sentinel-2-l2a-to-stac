@@ -567,7 +567,11 @@ def create_item(
         item.stac_extensions.append(SENTINEL2_EXTENSION_SCHEMA)
     item.properties.update(metadata.metadata_dict)
 
-    image_assets = create_image_assets(granule_href, metadata, metadata.image_paths)
+    image_assets = create_image_assets(
+        granule_href,
+        metadata,
+        metadata.image_paths,
+    )
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):
         assert key not in item.assets

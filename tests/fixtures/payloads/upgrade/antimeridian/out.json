@@ -1,7 +1,6 @@
 {
   "id": "earthsearch-sentinel-2-c1-l2a/upgrade-sentinel-2-l2a-to-stac/S2B_T01LAC_20260830T221935_L2A",
   "metadata_href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/1/L/AC/2026/8/S2B_T01LAC_20260830T221935_L2A/metadata.xml",
-  "create_cogs": false,
   "process": [
     {
       "workflow": "sentinel-2-l2a-to-stac",
@@ -1022,7 +1021,8 @@
           "type": "image/jpeg",
           "roles": [
             "thumbnail"
-          ]
+          ],
+          "title": "Thumbnail of preview image"
         }
       },
       "collection": "sentinel-2-l2a"

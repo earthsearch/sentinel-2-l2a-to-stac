@@ -9,10 +9,29 @@ used by this project.
 
 ## [Unreleased]
 
-## [Unreleased]
+### Fixed
+
+- Reference path: computing `file:size`/`file:checksum` for an asset missing
+  from the existing doc no longer writes a temp file into the workdir. The
+  old temp file shared its name with the cached source metadata files
+  (`metadata.xml`, `product_metadata.xml`) and deleted them; bytes are now
+  hashed in memory.
+- Reference path: the `thumbnail` asset now carries the same title as the one
+  generated when COGs are created ("Thumbnail of preview image").
+- `pyproject.toml` version now matches the task's `version` (`v2026.09.18`);
+  it had been left at `v2026.09.03`.
 
 ### Changed
 
+- Asset pruning removed entirely: `parse_metadata` now builds `image_paths`
+  for L2A from `CANONICAL_L2A_IMAGE_PATHS`, so non-native-resolution
+  duplicates (e.g. `red_20m`, `visual_60m`) are never considered, let alone
+  built and deleted. `stac._is_native_resolution`, the task-level
+  `_prune_to_canonical_assets` and the full `L2A_IMAGE_PATHS` list are gone.
+- Declared `boto3` and `shapely` as direct runtime dependencies (both are
+  imported directly, but `boto3` was only transitive and `shapely` was
+  dev-only). Moved the pystac pin comment next to `[tool.uv.sources]`.
+- Corrected the storage extension comment (pinned pystac 2.0-dev, not 1.15.2).
 - **This task no longer creates COGs from a granule that lacks them.** There
   are now exactly two supported inputs:
   - `safe_href`: a `.SAFE` archive, always COGified from scratch (unchanged).

@@ -1,6 +1,6 @@
 [project]
 name = "sentinel-2-l2a-to-stac"
-version = "v2026.09.03"
+version = "v2026.09.18"
 authors = [{ name = "Matthew Hanson", email = "matt.a.hanson@gmail.com" }]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
@@ -16,24 +16,26 @@ classifiers = [
 ]
 dependencies = [
     "antimeridian>=0.4.8",
+    "boto3>=1.43.56",
     "lxml>=6.0",
     "multiformats~=0.3.1",
     "numpy>=2.4.6",
     "pillow~=12.0",
-    # pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
-    # per CLAUDE.md — never a floating @main. This is the dev build that carries
-    # the native core `bands` API (Asset.bands / Band); the source override lives
-    # in [tool.uv.sources] below. Bump the SHA deliberately and re-verify.
     "pyproj>=3.7",
     "pystac",
     "raster-footprint>=0.3.0",
     "rasterio~=1.5",
     "requests>=2.34.2",
     "returns~=0.29",
+    "shapely>=2.0",
     "stactask>=0.7.0",
 ]
 
 [tool.uv.sources]
+# pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
+# per CLAUDE.md — never a floating @main. This is the dev build that carries
+# the native core `bands` API (Asset.bands / Band). Bump the SHA deliberately
+# and re-verify.
 pystac = { git = "https://github.com/stac-utils/pystac.git", rev = "4f346f2e1a1db00d526ef052800f24e19c72476c" }
 
 [project.scripts]
@@ -87,6 +89,7 @@ lint.select = ["F", "E", "W", "I", "ERA", "RUF"]
 
 [dependency-groups]
 dev = [
+    "awscrt>=0.37.0",
     "cirrus-geo[cli]>=2.0.0",
     "deepdiff>=8.0",
     "mypy>=2.3.1",
@@ -94,7 +97,6 @@ dev = [
     "pytest>=9.1.1",
     "requests-mock>=1.12.1",
     "ruff>=0.16.5",
-    "shapely>=2.0",
     "types-requests>=2.33.0.20260712",
 ]
 
