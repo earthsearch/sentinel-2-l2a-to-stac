@@ -195,53 +195,11 @@ ASSET_TO_TITLE: Final[dict[str, str]] = {
 }
 
 # L2A image path list (granule-relative, Sinergise S3 layout)
-L2A_IMAGE_PATHS: Final[list[str]] = [
-    "R10m/B04.jp2",
-    "R10m/B03.jp2",
-    "R10m/B02.jp2",
-    "R10m/WVP.jp2",
-    "R10m/AOT.jp2",
-    "R10m/TCI.jp2",
-    "R10m/B08.jp2",
-    "R20m/B12.jp2",
-    "R20m/B06.jp2",
-    "R20m/B07.jp2",
-    "R20m/B05.jp2",
-    "R20m/B11.jp2",
-    "R20m/B04.jp2",
-    "R20m/B03.jp2",
-    "R20m/B02.jp2",
-    "R20m/WVP.jp2",
-    "R20m/B8A.jp2",
-    "R20m/SCL.jp2",
-    "R20m/AOT.jp2",
-    "R20m/TCI.jp2",
-    "R20m/B08.jp2",
-    "R60m/B12.jp2",
-    "R60m/B06.jp2",
-    "R60m/B07.jp2",
-    "R60m/B05.jp2",
-    "R60m/B11.jp2",
-    "R60m/B04.jp2",
-    "R60m/B01.jp2",
-    "R60m/B03.jp2",
-    "R60m/B02.jp2",
-    "R60m/WVP.jp2",
-    "R60m/B8A.jp2",
-    "R60m/SCL.jp2",
-    "R60m/AOT.jp2",
-    "R60m/B09.jp2",
-    "R60m/TCI.jp2",
-    "R60m/B08.jp2",
-    "qi/CLD_20m.jp2",
-    "qi/SNW_20m.jp2",
-    "qi/L2A_PVI.jp2",
-]
-
-# The canonical, native-resolution subset of L2A_IMAGE_PATHS: asset key ->
-# granule-relative source path. These are the only images that get COGified and
-# published; every other resolution variant is dropped. The basename of each
-# path is also the filename used in the (flat) workdir and output prefix.
+# The canonical, native-resolution L2A images: asset key -> granule-relative
+# source path. These are the only images that get built into assets, COGified
+# and published; ESA's other resolution variants are never considered. The
+# basename of each path is also the filename used in the (flat) workdir and
+# output prefix.
 CANONICAL_L2A_IMAGE_PATHS: Final[dict[str, str]] = {
     "coastal": "R60m/B01.jp2",
     "blue": "R10m/B02.jp2",

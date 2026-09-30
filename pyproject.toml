@@ -89,6 +89,7 @@ lint.select = ["F", "E", "W", "I", "ERA", "RUF"]
 
 [dependency-groups]
 dev = [
+    "awscrt>=0.37.0",
     "cirrus-geo[cli]>=2.0.0",
     "deepdiff>=8.0",
     "mypy>=2.3.1",

@@ -199,27 +199,6 @@ def _band_from_band_id(band_id: str) -> EOBand:
     return SENTINEL_BANDS[BANDS_TO_ASSET_NAME[band_id]]
 
 
-def _is_native_resolution(image_path: str) -> bool:
-    """Return True if this image path maps to a canonical (unsuffixed) asset key.
-
-    Non-native-resolution duplicates (e.g. B04 at 20m, TCI at 60m) share the
-    same band/pattern but have an explicit resolution suffix in their filename
-    that doesn't match the band's highest/canonical resolution.
-    """
-    maybe_res = _extract_gsd(image_path)
-    if maybe_res is None:
-        return True
-    if _IS_PVI_PATTERN.search(image_path):
-        return True  # preview is always unsuffixed regardless of resolution
-    band_id_search = _BAND_ID_PATTERN.search(image_path)
-    if band_id_search:
-        return maybe_res == _highest_asset_res(band_id_search.group(1))
-    if _IS_TCI_PATTERN.search(image_path):
-        return maybe_res == 10
-    # AOT, WVP, SCL, CLD, SNW: _mk_asset_id treats 20m as the unsuffixed canonical form
-    return maybe_res == 20
-
-
 def _mk_asset_id(maybe_res: Optional[int], name: str) -> str:
     return f"{name.lower()}_{maybe_res}m" if maybe_res and maybe_res != 20 else name
 
@@ -591,7 +570,7 @@ def create_item(
     image_assets = create_image_assets(
         granule_href,
         metadata,
-        [p for p in metadata.image_paths if _is_native_resolution(p)],
+        metadata.image_paths,
     )
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):

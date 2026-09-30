@@ -23,11 +23,11 @@ used by this project.
 
 ### Changed
 
-- Asset pruning moved into `create_item`: non-native-resolution duplicates
-  (e.g. `red_20m`, `visual_60m`) are no longer built and then deleted.
-  `stac._is_native_resolution` filters image paths up front by comparing the
-  filename's resolution token against each band's canonical resolution, and
-  the task-level `_prune_to_canonical_assets` is removed.
+- Asset pruning removed entirely: `parse_metadata` now builds `image_paths`
+  for L2A from `CANONICAL_L2A_IMAGE_PATHS`, so non-native-resolution
+  duplicates (e.g. `red_20m`, `visual_60m`) are never considered, let alone
+  built and deleted. `stac._is_native_resolution`, the task-level
+  `_prune_to_canonical_assets` and the full `L2A_IMAGE_PATHS` list are gone.
 - Declared `boto3` and `shapely` as direct runtime dependencies (both are
   imported directly, but `boto3` was only transitive and `shapely` was
   dev-only). Moved the pystac pin comment next to `[tool.uv.sources]`.

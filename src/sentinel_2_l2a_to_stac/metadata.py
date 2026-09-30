@@ -44,10 +44,10 @@ from shapely.geometry import Polygon
 from shapely.geometry import mapping as shapely_mapping
 
 from sentinel_2_l2a_to_stac.constants import (
+    CANONICAL_L2A_IMAGE_PATHS,
     COORD_ROUNDING,
     GRANULE_METADATA_ASSET_KEY,
     L1C_IMAGE_PATHS,
-    L2A_IMAGE_PATHS,
     PRODUCT_METADATA_ASSET_KEY,
     s2_prefix,
 )
@@ -557,7 +557,9 @@ def parse_metadata(
         extra_assets[key] = asset
 
     image_paths = (
-        L2A_IMAGE_PATHS if "_L2A_" in granule_metadata.scene_id else L1C_IMAGE_PATHS
+        list(CANONICAL_L2A_IMAGE_PATHS.values())
+        if "_L2A_" in granule_metadata.scene_id
+        else L1C_IMAGE_PATHS
     )
 
     metadata_dict: dict[str, Any] = {
