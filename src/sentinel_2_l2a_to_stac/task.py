@@ -24,10 +24,11 @@ from stactask.utils import stac_jsonpath_match
 from sentinel_2_l2a_to_stac.cogify import (
     THUMBNAIL_TITLE,
     CogFile,
+    FileInfo,
     cogify,
     make_thumbnail,
-    sha256_multihash_bytes,
     sha256sum_multihash,
+    stream_file_info,
 )
 from sentinel_2_l2a_to_stac.constants import (
     CANONICAL_L2A_IMAGE_PATHS,
@@ -150,6 +151,9 @@ for _noisy_logger in ("botocore", "rasterio"):
 # handled separately by stactask's own authenticated client.
 _s3_client = boto3.client("s3")
 S3_REQUEST_PAYER = "requester"
+
+# Read size for streamed S3 bodies, which are measured rather than buffered.
+S3_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
 
 
 def _parse_s3_url(url: str) -> tuple[str, str]:
@@ -413,15 +417,16 @@ class Sentinel2ToStac(Task):
         item: Item,
         bucket_filenames: set[str],
         existing_stac_doc: dict[str, Any],
+        measured: dict[str, FileInfo],
     ) -> Item:
         """Populate file:size/file:checksum for every reference-path asset.
 
         Reuse them from the existing doc when it already carries both fields
-        for this asset, otherwise download the object from earthsearch and
-        compute them fresh (in memory: the workdir holds cached source
-        metadata files under the same names as some assets, so nothing is
-        written there). An asset missing from the bucket is a hard input
-        error. Any doc asset that isn't one of `item`'s own keys is never consulted,
+        for this asset, then from `measured` (the footprint pass already had
+        those rasters on disk), and only otherwise go back to the bucket --
+        streamed, so no asset is ever held in memory or written to the
+        workdir. An asset missing from the bucket is a hard input error. Any
+        doc asset that isn't one of `item`'s own keys is never consulted,
         which is what makes an extra doc-only asset a no-op.
         """
         doc_assets = existing_stac_doc.get("assets", {})
@@ -441,21 +446,50 @@ class Sentinel2ToStac(Task):
             if size is not None and checksum is not None:
                 fext.size = size
                 fext.checksum = checksum
-            else:
-                data = self.read_href(asset.href)
-                fext.size = len(data)
-                fext.checksum = sha256_multihash_bytes(data)
+                continue
+
+            info = measured.get(key) or self.remote_file_info(asset.href)
+            fext.size = info.size
+            fext.checksum = info.checksum
 
         return item
+
+    def measure_reference_images(
+        self, image_hrefs: dict[str, str]
+    ) -> tuple[Optional[dict[str, Any]], dict[str, FileInfo]]:
+        """Footprint and file info for an already-cogified granule.
+
+        Each raster is fetched, measured, hashed and deleted before the next
+        one is fetched, so the workdir never holds more than a single image.
+        Only the reflectance bands are fetched at all; every other asset is
+        measured straight off the bucket by `apply_reference_file_info`.
+        """
+        hrefs = {k: h for k, h in image_hrefs.items() if k in SENTINEL_BANDS}
+        self.logger.info(f"Computing the data footprint from {len(hrefs)} rasters")
+        file_info: dict[str, FileInfo] = {}
+
+        def staged() -> Iterator[str]:
+            for key, href in hrefs.items():
+                local = self._workdir / CANONICAL_IMAGE_FILENAMES[key]
+                self.fetch_source_images({key: href})
+                try:
+                    file_info[key] = FileInfo(
+                        local.stat().st_size, sha256sum_multihash(str(local))
+                    )
+                    # data_footprint is done with each href before it asks for
+                    # the next one, so the file can go as soon as it resumes.
+                    yield str(local)
+                finally:
+                    local.unlink(missing_ok=True)
+
+        return data_footprint(staged()), file_info
 
     def fetch_source_images(self, image_hrefs: dict[str, str]) -> None:
         """Fetch each canonical source image into the workdir.
 
-        SAFE-archive-only: the existing-COGs path reads its rasters directly
-        by href instead. Every image lands under its canonical flat filename
-        (``B02.jp2``, ``CLD_20m.jp2``, ...) regardless of what it was called in
-        the archive. Already-present files are left alone so a saved workdir is
-        reused.
+        Every image lands under its canonical flat filename (``B02.jp2``,
+        ``CLD_20m.jp2``, ...) regardless of what it was called in the archive.
+        Already-present files are left alone so a saved workdir is reused.
         """
         pending = {
             key: href
@@ -504,6 +538,10 @@ class Sentinel2ToStac(Task):
             for asset_name, asset in assets.items():
                 self.logger.info(f"Converting {asset_name} {asset.href} to COG")
                 cogs[asset_name] = cogify(asset_name, asset)
+                # The footprint was measured before this ran and nothing else
+                # reads the source image again, so drop it rather than keeping
+                # both representations of every band in the workdir.
+                Path(asset.href).unlink(missing_ok=True)
         except InvalidInput:
             raise
         except CRSError as err:
@@ -601,12 +639,23 @@ class Sentinel2ToStac(Task):
     def read_href(self, href: str) -> bytes:
         if "://" not in href:
             return Path(href).read_bytes()
+        with self._s3_object_body(href) as body:
+            return bytes(body.read())
+
+    def remote_file_info(self, href: str) -> FileInfo:
+        """Size and checksum of an object, streamed rather than buffered."""
+        if "://" not in href:
+            return FileInfo(os.path.getsize(href), sha256sum_multihash(href))
+        with self._s3_object_body(href) as body:
+            return stream_file_info(iter(lambda: body.read(S3_STREAM_CHUNK_SIZE), b""))
+
+    @contextmanager
+    def _s3_object_body(self, href: str) -> Iterator[Any]:
         bucket, key = _parse_s3_url(href)
         try:
             response = _s3_client.get_object(
                 Bucket=bucket, Key=key, RequestPayer=S3_REQUEST_PAYER
             )
-            return bytes(response["Body"].read())
         except ClientError as err:
             if err.response["Error"]["Code"] == "NoSuchKey":
                 msg = f"Failed fetching href '{href}' ({err})"
@@ -614,6 +663,11 @@ class Sentinel2ToStac(Task):
                 raise InvalidInput(msg)
             else:
                 raise
+        body = response["Body"]
+        try:
+            yield body
+        finally:
+            body.close()
 
     def list_files(self, prefix: str) -> list[str]:
         """List every file href underneath a prefix, local or S3."""
@@ -743,13 +797,19 @@ class Sentinel2ToStac(Task):
             metadata.metadata_dict.get("s2:processing_baseline", "0")
         )
 
-        # Fetched up front, for both source kinds, so the footprint reads are
-        # local rather than full-band reads straight off the remote bucket
-        # (which GDAL has no retry logic for). The COG step reuses whatever
-        # landed in the workdir.
-        self.fetch_source_images(source.image_hrefs)
+        # The SAFE path fetches the whole image set up front: the COG step
+        # reuses the same files, and footprint reads are local rather than
+        # full-band reads off the remote bucket (which GDAL has no retry logic
+        # for). The reference path has nothing to COGify, so it measures and
+        # discards one raster at a time instead of holding all of them.
+        measured: dict[str, FileInfo] = {}
+        if source.create_cogs:
+            self.fetch_source_images(source.image_hrefs)
+            geometry = self.data_geometry(source)
+        else:
+            geometry, measured = self.measure_reference_images(source.image_hrefs)
 
-        if (geometry := self.data_geometry(source)) is not None:
+        if geometry is not None:
             metadata = replace(metadata, geometry=geometry)
 
         # Build the Item up front to run the two cheap gates: the collection
@@ -812,7 +872,7 @@ class Sentinel2ToStac(Task):
 
             self.logger.info("Reusing/downloading asset file info")
             item = self.apply_reference_file_info(
-                item, source.bucket_filenames, existing_stac_doc
+                item, source.bucket_filenames, existing_stac_doc, measured
             )
 
         self.logger.info("Adding fileinfo to assets")

@@ -18,6 +18,7 @@ needed.
 
 import json
 import logging
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,7 +36,7 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
-from sentinel_2_l2a_to_stac.cogify import CogFile, cogify
+from sentinel_2_l2a_to_stac.cogify import CogFile, FileInfo, cogify
 from sentinel_2_l2a_to_stac.constants import (
     CANONICAL_L2A_IMAGE_PATHS,
 )
@@ -159,6 +160,11 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
     )
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "measure_reference_images",
+        lambda self, image_hrefs: (None, {}),
+    )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
     # _StubItem is a bare stand-in, not a real pystac Item -- the reference-path
@@ -173,7 +179,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Sentinel2ToStac,
         "apply_reference_file_info",
-        lambda self, item, bucket_filenames, doc: item,
+        lambda self, item, bucket_filenames, doc, measured: item,
     )
     monkeypatch.setattr(
         Sentinel2ToStac,
@@ -363,10 +369,10 @@ def test_apply_reference_file_info_reuses_from_doc(
     item = _synthetic_item(["blue"])
     item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
 
-    def _fail_if_called(self: Sentinel2ToStac, href: str) -> bytes:
+    def _fail_if_called(self: Sentinel2ToStac, href: str) -> FileInfo:
         raise AssertionError(f"should not download when reusing: {href}")
 
-    monkeypatch.setattr(Sentinel2ToStac, "read_href", _fail_if_called)
+    monkeypatch.setattr(Sentinel2ToStac, "remote_file_info", _fail_if_called)
     task = Sentinel2ToStac(
         {"id": "test-reuse", "metadata_href": "s3://bucket/prefix/x"},
         workdir=tmp_path,
@@ -374,11 +380,36 @@ def test_apply_reference_file_info_reuses_from_doc(
     )
 
     doc = {"assets": {"blue": {"file:size": 123, "file:checksum": "abc"}}}
-    result = task.apply_reference_file_info(item, {"B02.tif"}, doc)
+    result = task.apply_reference_file_info(item, {"B02.tif"}, doc, {})
 
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 123
     assert fext.checksum == "abc"
+
+
+def test_apply_reference_file_info_reuses_measured_info(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The footprint pass already hashed this raster; it must not be fetched again.
+    item = _synthetic_item(["blue"])
+    item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
+
+    def _fail_if_called(self: Sentinel2ToStac, href: str) -> FileInfo:
+        raise AssertionError(f"should not download when measured: {href}")
+
+    monkeypatch.setattr(Sentinel2ToStac, "remote_file_info", _fail_if_called)
+    task = Sentinel2ToStac(
+        {"id": "test-measured", "metadata_href": "s3://bucket/prefix/x"},
+        workdir=tmp_path,
+        upload=False,
+    )
+
+    measured = {"blue": FileInfo(size=42, checksum="measured")}
+    result = task.apply_reference_file_info(item, {"B02.tif"}, {"assets": {}}, measured)
+
+    fext = FileExtension.ext(result.assets["blue"])
+    assert fext.size == 42
+    assert fext.checksum == "measured"
 
 
 def test_apply_reference_file_info_downloads_when_missing_from_doc(
@@ -387,7 +418,9 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
     item = _synthetic_item(["blue"])
     item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
     monkeypatch.setattr(
-        Sentinel2ToStac, "read_href", lambda self, href: b"fake-cog-bytes"
+        Sentinel2ToStac,
+        "remote_file_info",
+        lambda self, href: FileInfo(size=14, checksum="fresh"),
     )
     task = Sentinel2ToStac(
         {"id": "test-download", "metadata_href": "s3://bucket/prefix/x"},
@@ -395,12 +428,12 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
         upload=False,
     )
 
-    result = task.apply_reference_file_info(item, {"B02.tif"}, {"assets": {}})
+    result = task.apply_reference_file_info(item, {"B02.tif"}, {"assets": {}}, {})
 
     fext = FileExtension.ext(result.assets["blue"])
-    assert fext.size == len(b"fake-cog-bytes")
-    assert fext.checksum is not None
-    # Size/checksum are computed in memory; nothing is written to the workdir.
+    assert fext.size == 14
+    assert fext.checksum == "fresh"
+    # Size/checksum are streamed; nothing is written to the workdir.
     assert list(tmp_path.iterdir()) == []
 
 
@@ -413,17 +446,21 @@ def test_apply_reference_file_info_preserves_cached_metadata_files(
     item.assets["granule_metadata"].href = "s3://bucket/prefix/metadata.xml"
     cached = tmp_path / "metadata.xml"
     cached.write_bytes(b"cached-original")
-    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"from-s3")
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "remote_file_info",
+        lambda self, href: FileInfo(size=7, checksum="from-s3"),
+    )
     task = Sentinel2ToStac(
         {"id": "test-cache", "metadata_href": "s3://bucket/prefix/x"},
         workdir=tmp_path,
         upload=False,
     )
 
-    result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}})
+    result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}}, {})
 
     assert cached.read_bytes() == b"cached-original"
-    assert FileExtension.ext(result.assets["granule_metadata"]).size == len(b"from-s3")
+    assert FileExtension.ext(result.assets["granule_metadata"]).size == 7
 
 
 def test_apply_reference_file_info_ignores_extra_doc_asset(
@@ -431,7 +468,11 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
 ) -> None:
     item = _synthetic_item(["blue"])
     item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
-    monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"x")
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "remote_file_info",
+        lambda self, href: FileInfo(size=1, checksum="x"),
+    )
     task = Sentinel2ToStac(
         {"id": "test-extra", "metadata_href": "s3://bucket/prefix/x"},
         workdir=tmp_path,
@@ -446,7 +487,7 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
             "red": {"file:size": 999, "file:checksum": "should-not-be-used"},
         }
     }
-    result = task.apply_reference_file_info(item, {"B02.tif"}, doc)
+    result = task.apply_reference_file_info(item, {"B02.tif"}, doc, {})
 
     assert "red" not in result.assets
     fext = FileExtension.ext(result.assets["blue"])
@@ -459,7 +500,7 @@ def test_apply_reference_file_info_raises_when_missing_from_bucket() -> None:
     item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
     with pytest.raises(InvalidInput, match="not found in the bucket"):
         _minimal_task("test-missing-from-bucket").apply_reference_file_info(
-            item, set(), {"assets": {}}
+            item, set(), {"assets": {}}, {}
         )
 
 
@@ -497,12 +538,23 @@ def _stub_pipeline_with_item(monkeypatch: pytest.MonkeyPatch, item: Item) -> Non
     monkeypatch.setattr(
         Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
     )
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "measure_reference_images",
+        lambda self, image_hrefs: (None, {}),
+    )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
 
 
+_STUB_FILE_INFO = FileInfo(size=4, checksum="stub-checksum")
+
+
 def _stub_metadata_reads(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"<x/>")
+    monkeypatch.setattr(
+        Sentinel2ToStac, "remote_file_info", lambda self, href: _STUB_FILE_INFO
+    )
 
 
 def test_process_takes_reference_path_when_doc_exists(
@@ -528,8 +580,8 @@ def test_process_takes_reference_path_when_doc_exists(
     assert out_item["assets"]["blue"]["href"].endswith("/B02.tif")
     assert "thumbnail" in out_item["assets"]
     assert out_item["assets"]["thumbnail"]["href"].endswith("/L2A_PVI.jpg")
-    # No existing doc entries -> every asset is "missing from doc" -> downloaded.
-    assert out_item["assets"]["blue"]["file:size"] == len(b"<x/>")
+    # No existing doc entries -> every asset is "missing from doc" -> measured.
+    assert out_item["assets"]["blue"]["file:size"] == _STUB_FILE_INFO.size
 
 
 def test_process_reference_path_never_reuploads_existing_assets(
@@ -1039,6 +1091,46 @@ def test_fetch_source_images_renames_to_canonical_filenames(
 
     assert (workdir / "B02.jp2").read_bytes() == b"blue"
     assert (workdir / "CLD_20m.jp2").read_bytes() == b"cloud"
+
+
+def test_measure_reference_images_discards_each_raster(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The reference path must not accumulate imagery in the workdir: each
+    # raster is hashed and deleted before the next one is fetched.
+    source = tmp_path / "source"
+    source.mkdir()
+    _make_synthetic_raster(source / "B02.tif")
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    held: list[int] = []
+
+    def _fake_fetch(self: Sentinel2ToStac, image_hrefs: dict[str, str]) -> None:
+        for key, href in image_hrefs.items():
+            shutil.copy(href, workdir / task_module.CANONICAL_IMAGE_FILENAMES[key])
+        held.append(len(list(workdir.iterdir())))
+
+    monkeypatch.setattr(Sentinel2ToStac, "fetch_source_images", _fake_fetch)
+    task = Sentinel2ToStac(
+        {"id": "test-measure", "metadata_href": _METADATA_HREF},
+        workdir=workdir,
+        upload=False,
+    )
+
+    _, file_info = task.measure_reference_images(
+        {
+            "blue": str(source / "B02.tif"),
+            # Not a reflectance band: never fetched, left for the bucket.
+            "aot": str(source / "AOT.tif"),
+        }
+    )
+
+    assert set(file_info) == {"blue"}
+    assert file_info["blue"].size == (source / "B02.tif").stat().st_size
+    assert file_info["blue"].checksum
+    assert held == [1]
+    assert list(workdir.iterdir()) == []
 
 
 def _make_synthetic_raster(path: Path, *, width: int = 64, height: int = 64) -> None:

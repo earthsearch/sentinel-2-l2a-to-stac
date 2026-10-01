@@ -2,7 +2,7 @@ import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterable, NamedTuple, Sequence
 
 import numpy as np
 import rasterio
@@ -50,6 +50,13 @@ class CogFile:
         return self.path.name
 
 
+class FileInfo(NamedTuple):
+    """The ``file:size``/``file:checksum`` pair for one object."""
+
+    size: int
+    checksum: str
+
+
 def sha256sum_multihash(filename: str) -> str:
     with open(filename, "rb") as f:
         return str(
@@ -57,8 +64,14 @@ def sha256sum_multihash(filename: str) -> str:
         )
 
 
-def sha256_multihash_bytes(data: bytes) -> str:
-    return str(multihash.wrap(hashlib.sha256(data).digest(), "sha2-256").hex())
+def stream_file_info(chunks: Iterable[bytes]) -> FileInfo:
+    """Measure a byte stream without ever holding the whole of it in memory."""
+    digest = hashlib.sha256()
+    size = 0
+    for chunk in chunks:
+        size += len(chunk)
+        digest.update(chunk)
+    return FileInfo(size, str(multihash.wrap(digest.digest(), "sha2-256").hex()))
 
 
 def make_thumbnail(item: Item) -> Item:
@@ -181,51 +194,47 @@ def cogify(asset_name: str, asset: Asset) -> CogFile:
             )
         gsd = resolutions[0]
 
-    # Reading the file into a MemoryFile is slightly more performant
-    with rasterio.MemoryFile() as mem_src:
-        mem_src.write(infile.read_bytes())
-
-        with mem_src.open(mode="r") as src:
-            array = src.read()
-            if scales is None:
-                scales = src.scales
-            if offsets is None:
-                offsets = src.offsets
-            src_colorinterp = src.colorinterp
+    # The source is already on local disk, so read it in place rather than
+    # copying the whole encoded file through a MemoryFile first.
+    with rasterio.open(infile) as src:
+        array = src.read()
+        if scales is None:
+            scales = src.scales
+        if offsets is None:
+            offsets = src.offsets
+        src_crs = src.crs
+        src_transform = src.transform
+        src_width, src_height, src_count = src.width, src.height, src.count
+        src_colorinterp = src.colorinterp
 
     blocksize, overview_blocksize = gsd_to_blocksize(gsd)
     overview_resampling = asset_name_to_resample_algorithm(asset_name)
 
-    shasum = hashlib.sha256()
-    # Use a MemoryFile for the output so we can hash while writing to disk
-    # instead of opening and re-reading the file afterward.
-    with rasterio.MemoryFile() as mem_dst:
-        write_cog(
-            array,
-            mem_dst.name,
-            src.crs,
-            src.transform,
-            src.width,
-            src.height,
-            src.count,
-            blocksize,
-            overview_blocksize,
-            overview_resampling,
-            nodata,
-            scales=scales,
-            offsets=offsets,
-            colorinterp=src_colorinterp,
-        )
-        cogfile_tmp = cogfile.with_name("." + cogfile.name + ".tmp")
-        output = mem_dst.read()
-        shasum.update(output)
-        cogfile_tmp.write_bytes(output)
-        cogfile_tmp.rename(cogfile)
+    # Written straight to disk and hashed by streaming it back, so no copy of
+    # the encoded COG is ever held in memory.
+    cogfile_tmp = cogfile.with_name("." + cogfile.name + ".tmp")
+    write_cog(
+        array,
+        cogfile_tmp,
+        src_crs,
+        src_transform,
+        src_width,
+        src_height,
+        src_count,
+        blocksize,
+        overview_blocksize,
+        overview_resampling,
+        nodata,
+        scales=scales,
+        offsets=offsets,
+        colorinterp=src_colorinterp,
+    )
+    cogfile_tmp.rename(cogfile)
 
     return CogFile(
         path=cogfile,
         size=cogfile.stat().st_size,
-        checksum=str(multihash.wrap(shasum.digest(), "sha2-256").hex()),
+        checksum=sha256sum_multihash(str(cogfile)),
     )
 
 
