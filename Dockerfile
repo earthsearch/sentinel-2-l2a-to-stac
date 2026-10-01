@@ -54,11 +54,13 @@ COPY src/sentinel_2_l2a_to_stac/ ${LAMBDA_TASK_ROOT}/sentinel_2_l2a_to_stac/
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Uncomment one of the following:
-
-# 1. for lambda task, use CMD
-# CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
-
-# 2. for batch task, use ENTRYPOINT
+# Needed by the Batch/CLI invocation path, harmless under the Lambda runtime.
 ENV PYTHONPATH="/var/task"
-ENTRYPOINT [ "./bin/sentinel-2-l2a-to-stac" ]
+
+# Lambda-native by default: the base image's runtime interface client runs the
+# handler named in CMD. To run the same image as a Batch/ECS task, override both
+# in the job definition:
+#   entryPoint: ["/var/task/bin/sentinel-2-l2a-to-stac"]
+#   command:    [...]
+ENTRYPOINT [ "/lambda-entrypoint.sh" ]
+CMD [ "sentinel_2_l2a_to_stac.task.lambda_handler" ]
