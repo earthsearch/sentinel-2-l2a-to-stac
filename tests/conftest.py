@@ -71,10 +71,11 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     ``metadata_href`` is overridden to an Earth Search-style prefix, and
     ``list_bucket_filenames`` is faked to report every canonical COG already
     present there -- the only input shape a granule ``metadata_href``
-    supports. ``read_href`` is faked too, since the existing-COGs path
-    re-downloads each asset to compute file:size/file:checksum when (as here)
-    there's no prior STAC doc to reuse them from.
+    supports. ``read_href`` and ``remote_file_info`` are faked too, since the
+    existing-COGs path goes back to the bucket for file:size/file:checksum
+    when (as here) there's no prior STAC doc to reuse them from.
     """
+    from sentinel_2_l2a_to_stac.cogify import FileInfo
     from sentinel_2_l2a_to_stac.task import ASSET_FILENAMES, Sentinel2ToStac
 
     source = _FIXTURES / "source-metadata" / _BASELINE_TILE
@@ -110,15 +111,26 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     # returning None falls back to the product metadata footprint.
     monkeypatch.setattr(Sentinel2ToStac, "data_geometry", lambda self, source: None)
     monkeypatch.setattr(Sentinel2ToStac, "read_href", lambda self, href: b"fake-bytes")
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "remote_file_info",
+        lambda self, href: FileInfo(size=10, checksum="fake-checksum"),
+    )
 
-    # process() now fetches source images up front (for the footprint reads)
-    # regardless of source kind; nothing here needs the actual rasters. Scoped
-    # to just this call (unlike the patches above) so it doesn't leak into
-    # later tests -- e.g. test_fetch_source_images_renames_to_canonical_filenames
-    # exercises the real implementation.
+    # process() now measures the source images up front (for the footprint
+    # reads) regardless of source kind; nothing here needs the actual rasters.
+    # Scoped to just this call (unlike the patches above) so it doesn't leak
+    # into later tests -- e.g.
+    # test_fetch_source_images_renames_to_canonical_filenames exercises the
+    # real implementation.
     fetch_patch = pytest.MonkeyPatch()
     fetch_patch.setattr(
         Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None
+    )
+    fetch_patch.setattr(
+        Sentinel2ToStac,
+        "measure_reference_images",
+        lambda self, image_hrefs: (None, {}),
     )
     try:
         result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()

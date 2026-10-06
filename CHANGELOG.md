@@ -9,6 +9,23 @@ used by this project.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduced peak memory and disk use of the COG pipeline:
+  - `cogify` opens the source image directly instead of copying the whole
+    encoded file through a `MemoryFile`, and writes the COG straight to disk
+    instead of buffering it in a `MemoryFile` and reading it back into memory
+    to checksum it. The checksum now streams the written file.
+  - Source images are deleted from the workdir once their COG has been
+    written, so both representations of every band are no longer held at once.
+- Reduced peak disk and memory use of the `metadata_href` (existing-COGs)
+  path, which used to download all 19 COGs into the workdir and hold them for
+  the whole run, then fetch each asset a second time, in full, in memory, to
+  checksum it. It now fetches only the reflectance bands the footprint
+  actually needs, one at a time, hashing and deleting each before fetching the
+  next, and measures the remaining assets by streaming them from the bucket
+  instead of buffering them.
+
 ## [v2026.09.30]
 
 First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus
