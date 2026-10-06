@@ -293,7 +293,7 @@
       "classification:classes": [
         { "value": 0, "name": "no_data", "title": "No data", "color_hint": "000000", "nodata": true },
         { "value": 1, "name": "saturated_or_defective", "title": "Saturated or defective", "color_hint": "FF0000" },
-        { "value": 2, "name": "topographic_casted_shadows", "title": "Topographic casted shadows", "color_hint": "2F2F2F" },
+        { "value": 2, "name": "cast_shadows", "title": "Cast shadows", "color_hint": "2F2F2F" },
         { "value": 3, "name": "cloud_shadows", "title": "Cloud shadows", "color_hint": "643200" },
         { "value": 4, "name": "vegetation", "title": "Vegetation", "color_hint": "00A000" },
         { "value": 5, "name": "not_vegetated", "title": "Not vegetated", "color_hint": "FFE65A" },
@@ -302,7 +302,7 @@
         { "value": 8, "name": "cloud_medium_probability", "title": "Cloud medium probability", "color_hint": "C0C0C0" },
         { "value": 9, "name": "cloud_high_probability", "title": "Cloud high probability", "color_hint": "FFFFFF" },
         { "value": 10, "name": "thin_cirrus", "title": "Thin cirrus", "color_hint": "64C8FF" },
-        { "value": 11, "name": "snow_or_ice", "title": "Snow or ice", "color_hint": "FF96FF" }
+        { "value": 11, "name": "snow_ice", "title": "Snow/ice", "color_hint": "FF96FF" }
       ],
       "roles": ["data"]
     },
