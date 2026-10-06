@@ -177,10 +177,7 @@ def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
 # see [tool.uv.sources] in pyproject.toml). One aws-s3 scheme,
 # "earthsearch", for assets uploaded to the Earth Search output bucket or
 # already living there. A "local" placeholder scheme is used in --local/test
-# runs where no upload occurs. In v2 `platform` is the access-endpoint
-# URI/template (provider identity moved to `type`), unlike v1's literal
-# "AWS". `bucket` is an additional property required by the aws-s3
-# best-practices template.
+# runs where no upload occurs.
 EARTHSEARCH_SCHEME_KEY = "earthsearch"
 LOCAL_SCHEME_KEY = "local"
 LOCAL_BUCKET = "local"
