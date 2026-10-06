@@ -9,6 +9,11 @@ used by this project.
 
 ## [Unreleased]
 
+### Added
+
+- Classification extension (v2.0.0) on the collection-level `scl` item asset
+  in, with `classification:classes` for SCL values.
+
 ### Changed
 
 - Reduced peak memory and disk use of the COG pipeline:
