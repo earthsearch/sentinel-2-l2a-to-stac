@@ -8,6 +8,7 @@
     "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
     "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/render/v2.0.0/schema.json",
     "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
     "https://stac-extensions.github.io/view/v1.0.0/schema.json"
   ],
@@ -349,6 +350,23 @@
     "thumbnail": {
       "type": "image/jpeg",
       "roles": ["thumbnail"]
+    }
+  },
+  "renders": {
+    "true-color": {
+      "title": "True Color (B04, B03, B02)",
+      "assets": ["red", "green", "blue"],
+      "nodata": 0
+    },
+    "false-color": {
+      "title": "False Color (B08, B04, B03)",
+      "assets": ["nir", "red", "green"],
+      "nodata": 0
+    },
+    "swir": {
+      "title": "SWIR (B12, B8A, B04)",
+      "assets": ["swir22", "nir08", "red"],
+      "nodata": 0
     }
   },
   "links": [
