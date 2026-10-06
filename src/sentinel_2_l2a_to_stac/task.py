@@ -17,7 +17,7 @@ from pystac.extensions.storage import StorageExtension, StorageScheme
 from pystac.layout import LayoutTemplate
 from rasterio.errors import CRSError
 from returns.result import Failure, ResultE, Success
-from stactask import Task
+from stactask import Task, asset_io
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
@@ -31,6 +31,10 @@ from sentinel_2_l2a_to_stac.cogify import (
     stream_file_info,
 )
 from sentinel_2_l2a_to_stac.constants import (
+    ALTERNATE_ASSETS_EXT,
+    ALTERNATE_HTTPS_NAME,
+    ALTERNATE_S3_KEY,
+    ALTERNATE_S3_NAME,
     CANONICAL_L2A_IMAGE_PATHS,
     SENTINEL_BANDS,
 )
@@ -564,6 +568,57 @@ class Sentinel2ToStac(Task):
 
         return cogs
 
+    def upload_item_assets_to_s3(
+        self, item: Item, assets: Optional[list[str]] = None, s3_client: Any = None
+    ) -> Item:
+        """Upload assets, always returning s3:// hrefs.
+
+        Overrides the base class to force `s3_urls=True` regardless of payload
+        upload_options: every step up to `apply_https_hrefs` (storage scheme
+        classification, remote file info) expects s3:// hrefs, and the https
+        conversion happens exactly once, at the end of process().
+        """
+        if not self._upload:
+            self.logger.warning("Skipping upload of new and modified assets")
+            return item
+        upload_options = self.payload.get_collection_upload_options(item.collection_id)
+        uploaded: Item = asset_io.upload_item_assets_to_s3(
+            item=item,
+            assets=assets,
+            s3_client=s3_client,
+            **{**upload_options, "s3_urls": True},
+        )
+        return uploaded
+
+    def apply_https_hrefs(self, item: Item) -> Item:
+        """Publish s3:// asset hrefs as https, keeping s3 as an alternate.
+
+        Runs last in process(): file info and storage scheme steps rely on
+        s3:// hrefs. Local (--local/test) paths are left untouched.
+        """
+        converted = False
+        for asset in item.assets.values():
+            if not asset.href.startswith("s3://"):
+                continue
+            bucket, key = _parse_s3_url(asset.href)
+            asset.extra_fields["alternate:name"] = ALTERNATE_HTTPS_NAME
+            asset.extra_fields["alternate"] = {
+                ALTERNATE_S3_KEY: {
+                    "href": asset.href,
+                    "alternate:name": ALTERNATE_S3_NAME,
+                }
+            }
+            platform = STORAGE_PLATFORM.format(bucket=bucket, region=STORAGE_REGION)
+            asset.href = f"{platform}/{key}"
+            converted = True
+
+        if converted:
+            if item.stac_extensions is None:
+                item.stac_extensions = []
+            if ALTERNATE_ASSETS_EXT not in item.stac_extensions:
+                item.stac_extensions.append(ALTERNATE_ASSETS_EXT)
+        return item
+
     def is_local_asset(self, asset: Asset) -> bool:
         return bool(asset.href.startswith(str(self._workdir)))
 
@@ -880,6 +935,9 @@ class Sentinel2ToStac(Task):
 
         self.logger.info("Adding storage schemes")
         item = self.add_storage_schemes(item)
+
+        self.logger.info("Converting asset hrefs to https with s3 alternates")
+        item = self.apply_https_hrefs(item)
 
         out = self.add_software_version_to_item(item.to_dict())
         return [downgrade_item(out) if v1_output else out]

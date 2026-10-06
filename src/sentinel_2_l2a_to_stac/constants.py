@@ -247,6 +247,16 @@ RASTER_EXT_V2: Final[str] = (
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
 )
 
+# Asset hrefs are published as public https URLs; the s3:// URL is kept as an
+# alternate. Storage refs stay on the asset only.
+ALTERNATE_ASSETS_EXT: Final[str] = (
+    "https://stac-extensions.github.io/alternate-assets/v1.2.0/schema.json"
+)
+ALTERNATE_S3_KEY: Final[str] = "s3"
+# alternate:name labels the access method on both the asset and its alternate.
+ALTERNATE_HTTPS_NAME: Final[str] = "HTTPS"
+ALTERNATE_S3_NAME: Final[str] = "S3"
+
 # Rename maps: old eo/raster band dict keys → STAC 1.1.0 merged `bands` keys.
 # EOBand.to_dict() uses the old unprefixed names; pystac.Band.from_dict() expects
 # the 1.1 `eo:`/`raster:` prefixed names.

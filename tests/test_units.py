@@ -33,13 +33,16 @@ from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
 from rasterio.transform import from_bounds
 from returns.result import Failure, Success
+from stactask import asset_io
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
 from sentinel_2_l2a_to_stac.cogify import CogFile, FileInfo, cogify
 from sentinel_2_l2a_to_stac.constants import (
+    ALTERNATE_ASSETS_EXT,
     CANONICAL_L2A_IMAGE_PATHS,
 )
+from sentinel_2_l2a_to_stac.downgrade import downgrade_item
 from sentinel_2_l2a_to_stac.metadata import parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 from sentinel_2_l2a_to_stac.task import (
@@ -908,16 +911,143 @@ def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
     assert not any("classification" in ext for ext in item["stac_extensions"])
 
 
+_BASELINE_HTTPS = f"https://{_BASELINE_BUCKET}.s3.us-west-2.amazonaws.com/prefix"
+
+
 def test_asset_href_rewriting_and_proj_bbox(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
-    assert item["assets"]["blue"]["href"] == f"s3://{_BASELINE_BUCKET}/prefix/B02.tif"
+    assert item["assets"]["blue"]["href"] == f"{_BASELINE_HTTPS}/B02.tif"
     # apply_earthsearch_hrefs rewrites every asset, including metadata files --
     # this task never leaves an asset pointing at a source bucket in place.
     assert (
-        item["assets"]["granule_metadata"]["href"]
-        == f"s3://{_BASELINE_BUCKET}/prefix/metadata.xml"
+        item["assets"]["granule_metadata"]["href"] == f"{_BASELINE_HTTPS}/metadata.xml"
     )
     assert "proj:bbox" not in item["assets"]["blue"]
+
+
+def test_every_asset_has_https_href_and_s3_alternate(
+    baseline_item_dict: dict[str, Any],
+) -> None:
+    item = baseline_item_dict
+    assert ALTERNATE_ASSETS_EXT in item["stac_extensions"]
+    for name, asset in item["assets"].items():
+        filename = ASSET_FILENAMES[name]
+        assert asset["href"] == f"{_BASELINE_HTTPS}/{filename}", name
+        assert asset["alternate:name"] == "HTTPS", name
+        assert asset["alternate"] == {
+            "s3": {
+                "href": f"s3://{_BASELINE_BUCKET}/prefix/{filename}",
+                "alternate:name": "S3",
+            }
+        }, name
+        # Storage refs stay on the asset, never on the alternate.
+        assert asset["storage:refs"] == ["earthsearch"], name
+
+
+def test_v1_output_keeps_https_href_and_s3_alternate(
+    baseline_item_dict: dict[str, Any],
+) -> None:
+    v1 = downgrade_item(baseline_item_dict)
+    assert ALTERNATE_ASSETS_EXT in v1["stac_extensions"]
+    blue = v1["assets"]["blue"]
+    assert blue["href"] == f"{_BASELINE_HTTPS}/B02.tif"
+    assert blue["alternate:name"] == "HTTPS"
+    assert blue["alternate"] == {
+        "s3": {
+            "href": f"s3://{_BASELINE_BUCKET}/prefix/B02.tif",
+            "alternate:name": "S3",
+        }
+    }
+
+
+def test_apply_https_hrefs_converts_s3_and_skips_local() -> None:
+    item = Item(
+        id="test",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.assets["es_asset"] = Asset(href="s3://earth-search-output/a/b/x.tif")
+    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
+    _set_asset_owners(item)
+
+    result = _minimal_task("test-https").apply_https_hrefs(item).to_dict()
+
+    es = result["assets"]["es_asset"]
+    assert (
+        es["href"] == "https://earth-search-output.s3.us-west-2.amazonaws.com/a/b/x.tif"
+    )
+    assert es["alternate:name"] == "HTTPS"
+    assert es["alternate"] == {
+        "s3": {"href": "s3://earth-search-output/a/b/x.tif", "alternate:name": "S3"}
+    }
+    local = result["assets"]["local_asset"]
+    assert local["href"] == "/tmp/workdir/metadata.xml"
+    assert "alternate" not in local
+    assert "alternate:name" not in local
+    assert result["stac_extensions"].count(ALTERNATE_ASSETS_EXT) == 1
+
+
+def test_apply_https_hrefs_omits_extension_when_nothing_converted() -> None:
+    item = Item(
+        id="test",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
+    _set_asset_owners(item)
+
+    result = _minimal_task("test-https-local").apply_https_hrefs(item).to_dict()
+
+    assert ALTERNATE_ASSETS_EXT not in result.get("stac_extensions", [])
+
+
+def test_upload_always_requests_s3_urls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Even a payload that explicitly asks for http URLs gets s3:// hrefs back:
+    # the https conversion is apply_https_hrefs' job, done once at the end.
+    calls: list[dict[str, Any]] = []
+
+    def _fake_upload(**kwargs: Any) -> Item:
+        calls.append(kwargs)
+        item: Item = kwargs["item"]
+        return item
+
+    monkeypatch.setattr(asset_io, "upload_item_assets_to_s3", _fake_upload)
+
+    task = Sentinel2ToStac(
+        {
+            "id": "test-s3-urls",
+            "metadata_href": "s3://example-bucket/x",
+            "process": [
+                {
+                    "upload_options": {
+                        "path_template": "s3://out-bucket/${id}",
+                        "s3_urls": False,
+                    },
+                    "tasks": {"sentinel-2-l2a-to-stac": {}},
+                }
+            ],
+        },
+        workdir=tmp_path,
+        upload=True,
+    )
+    item = Item(
+        id="S2A_TEST",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
+        properties={},
+    )
+    task.upload_item_assets_to_s3(item, [])
+
+    assert len(calls) == 1
+    assert calls[0]["s3_urls"] is True
+    assert calls[0]["path_template"] == "s3://out-bucket/${id}"
 
 
 # ---------------------------------------------------------------------------
