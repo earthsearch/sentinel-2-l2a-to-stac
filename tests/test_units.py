@@ -1037,7 +1037,7 @@ def test_add_s3_alternates_rejects_s3_href() -> None:
     item.assets["es_asset"] = Asset(href="s3://earth-search-output/a/x.tif")
     _set_asset_owners(item)
 
-    with pytest.raises(Exception, match="not a us-west-2 https S3 URL"):
+    with pytest.raises(Exception, match="was not published as https"):
         _minimal_task("test-alternates-s3").add_s3_alternates(item)
 
 

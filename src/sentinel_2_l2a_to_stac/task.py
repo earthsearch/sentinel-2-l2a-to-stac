@@ -179,13 +179,6 @@ def _parse_bucket_url(url: str) -> tuple[str, str]:
     raise ValueError(f"Not an s3:// or {STORAGE_REGION} https S3 URL: {url}")
 
 
-def _s3_to_https(url: str) -> str:
-    """Public https URL for an S3 object, in the Earth Search region."""
-    bucket, key = _parse_bucket_url(url)
-    platform = STORAGE_PLATFORM.format(bucket=bucket, region=STORAGE_REGION)
-    return f"{platform}/{key}"
-
-
 def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
     """Yield every object key in `bucket` starting with `prefix`, paginated."""
     for page in client.get_paginator("list_objects_v2").paginate(
@@ -250,8 +243,11 @@ def _earthsearch_href(prefix: str, filename: str) -> str:
     An S3 prefix is published as https (the s3:// form becomes an alternate in
     add_s3_alternates); a local prefix (--local/test runs) stays a path.
     """
-    href = f"{prefix}/{filename}"
-    return _s3_to_https(href) if "://" in prefix else href
+    if "://" not in prefix:
+        return f"{prefix}/{filename}"
+    bucket, key_prefix = _parse_bucket_url(prefix)
+    platform = STORAGE_PLATFORM.format(bucket=bucket, region=STORAGE_REGION)
+    return f"{platform}/{key_prefix}/{filename}"
 
 
 def find_existing_stac_doc_filename(
@@ -609,10 +605,8 @@ class Sentinel2ToStac(Task):
         for asset in item.assets.values():
             if "://" not in asset.href:
                 continue
-            if asset.href != _s3_to_https(asset.href):
-                raise Exception(
-                    f"Asset href '{asset.href}' is not a {STORAGE_REGION} https S3 URL"
-                )
+            if asset.href.startswith("s3://"):
+                raise Exception(f"Asset href '{asset.href}' was not published as https")
             bucket, key = _parse_bucket_url(asset.href)
             asset.extra_fields["alternate:name"] = ALTERNATE_HTTPS_NAME
             asset.extra_fields["alternate"] = {
