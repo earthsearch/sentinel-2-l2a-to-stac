@@ -33,7 +33,6 @@ from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
 from rasterio.transform import from_bounds
 from returns.result import Failure, Success
-from stactask import asset_io
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
@@ -49,6 +48,7 @@ from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
+    _parse_bucket_url,
     _set_asset_owners,
     _validate_processing_baseline,
     find_existing_stac_doc_filename,
@@ -349,9 +349,26 @@ def test_apply_earthsearch_hrefs_rewrites_every_asset() -> None:
     result = _minimal_task("test-apply-hrefs").apply_earthsearch_hrefs(
         item, "s3://bucket/prefix"
     )
-    assert result.assets["blue"].href == "s3://bucket/prefix/B02.tif"
-    assert result.assets["scl"].href == "s3://bucket/prefix/SCL.tif"
-    assert result.assets["thumbnail"].href == "s3://bucket/prefix/L2A_PVI.jpg"
+    assert (
+        result.assets["blue"].href
+        == "https://bucket.s3.us-west-2.amazonaws.com/prefix/B02.tif"
+    )
+    assert (
+        result.assets["scl"].href
+        == "https://bucket.s3.us-west-2.amazonaws.com/prefix/SCL.tif"
+    )
+    assert (
+        result.assets["thumbnail"].href
+        == "https://bucket.s3.us-west-2.amazonaws.com/prefix/L2A_PVI.jpg"
+    )
+
+
+def test_apply_earthsearch_hrefs_leaves_local_prefix_as_path() -> None:
+    item = _synthetic_item(["blue"])
+    result = _minimal_task("test-apply-hrefs-local").apply_earthsearch_hrefs(
+        item, "/data/prefix"
+    )
+    assert result.assets["blue"].href == "/data/prefix/B02.tif"
 
 
 def test_add_thumbnail_asset() -> None:
@@ -360,7 +377,7 @@ def test_add_thumbnail_asset() -> None:
         item, "s3://bucket/prefix"
     )
     thumb = result.assets["thumbnail"]
-    assert thumb.href == "s3://bucket/prefix/L2A_PVI.jpg"
+    assert thumb.href == "https://bucket.s3.us-west-2.amazonaws.com/prefix/L2A_PVI.jpg"
     assert thumb.roles == ["thumbnail"]
     assert thumb.type == MediaType.JPEG
     assert thumb.title == "Thumbnail of preview image"
@@ -834,8 +851,9 @@ def test_add_storage_schemes_classification() -> None:
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["es_asset"] = Asset(href="s3://earth-search-output/collection/x.tif")
-    item.assets["es_asset_2"] = Asset(href="s3://earth-search-output/collection/y.tif")
+    es = "https://earth-search-output.s3.us-west-2.amazonaws.com/collection"
+    item.assets["es_asset"] = Asset(href=f"{es}/x.tif")
+    item.assets["es_asset_2"] = Asset(href=f"{es}/y.tif")
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
@@ -868,7 +886,10 @@ def test_earthsearch_storage_scheme_after_upload(
     def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
         for key in asset_keys:
             fname = Path(item.assets[key].href).name
-            item.assets[key].href = f"s3://{ES_BUCKET}/sentinel-2-l2a/S2A_TEST/{fname}"
+            item.assets[key].href = (
+                f"https://{ES_BUCKET}.s3.us-west-2.amazonaws.com"
+                f"/sentinel-2-l2a/S2A_TEST/{fname}"
+            )
         return item
 
     monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
@@ -960,7 +981,7 @@ def test_v1_output_keeps_https_href_and_s3_alternate(
     }
 
 
-def test_apply_https_hrefs_converts_s3_and_skips_local() -> None:
+def test_add_s3_alternates_adds_s3_and_skips_local() -> None:
     item = Item(
         id="test",
         geometry=None,
@@ -968,16 +989,15 @@ def test_apply_https_hrefs_converts_s3_and_skips_local() -> None:
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["es_asset"] = Asset(href="s3://earth-search-output/a/b/x.tif")
+    https = "https://earth-search-output.s3.us-west-2.amazonaws.com/a/b/x.tif"
+    item.assets["es_asset"] = Asset(href=https)
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-https").apply_https_hrefs(item).to_dict()
+    result = _minimal_task("test-alternates").add_s3_alternates(item).to_dict()
 
     es = result["assets"]["es_asset"]
-    assert (
-        es["href"] == "https://earth-search-output.s3.us-west-2.amazonaws.com/a/b/x.tif"
-    )
+    assert es["href"] == https
     assert es["alternate:name"] == "HTTPS"
     assert es["alternate"] == {
         "s3": {"href": "s3://earth-search-output/a/b/x.tif", "alternate:name": "S3"}
@@ -989,7 +1009,7 @@ def test_apply_https_hrefs_converts_s3_and_skips_local() -> None:
     assert result["stac_extensions"].count(ALTERNATE_ASSETS_EXT) == 1
 
 
-def test_apply_https_hrefs_omits_extension_when_nothing_converted() -> None:
+def test_add_s3_alternates_omits_extension_when_nothing_remote() -> None:
     item = Item(
         id="test",
         geometry=None,
@@ -1000,54 +1020,63 @@ def test_apply_https_hrefs_omits_extension_when_nothing_converted() -> None:
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-https-local").apply_https_hrefs(item).to_dict()
+    result = _minimal_task("test-alternates-local").add_s3_alternates(item).to_dict()
 
     assert ALTERNATE_ASSETS_EXT not in result.get("stac_extensions", [])
 
 
-def test_upload_always_requests_s3_urls(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Even a payload that explicitly asks for http URLs gets s3:// hrefs back:
-    # the https conversion is apply_https_hrefs' job, done once at the end.
-    calls: list[dict[str, Any]] = []
-
-    def _fake_upload(**kwargs: Any) -> Item:
-        calls.append(kwargs)
-        item: Item = kwargs["item"]
-        return item
-
-    monkeypatch.setattr(asset_io, "upload_item_assets_to_s3", _fake_upload)
-
-    task = Sentinel2ToStac(
-        {
-            "id": "test-s3-urls",
-            "metadata_href": "s3://example-bucket/x",
-            "process": [
-                {
-                    "upload_options": {
-                        "path_template": "s3://out-bucket/${id}",
-                        "s3_urls": False,
-                    },
-                    "tasks": {"sentinel-2-l2a-to-stac": {}},
-                }
-            ],
-        },
-        workdir=tmp_path,
-        upload=True,
-    )
+def test_add_s3_alternates_rejects_s3_href() -> None:
+    # Upload returned s3:// (payload set upload_options `s3_urls: true`).
     item = Item(
-        id="S2A_TEST",
+        id="test",
         geometry=None,
         bbox=None,
-        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
+        datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    task.upload_item_assets_to_s3(item, [])
+    item.assets["es_asset"] = Asset(href="s3://earth-search-output/a/x.tif")
+    _set_asset_owners(item)
 
-    assert len(calls) == 1
-    assert calls[0]["s3_urls"] is True
-    assert calls[0]["path_template"] == "s3://out-bucket/${id}"
+    with pytest.raises(Exception, match="not a us-west-2 https S3 URL"):
+        _minimal_task("test-alternates-s3").add_s3_alternates(item)
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("s3://bucket/a/b.tif", ("bucket", "a/b.tif")),
+        (
+            "https://bucket.s3.us-west-2.amazonaws.com/a/b.tif",
+            ("bucket", "a/b.tif"),
+        ),
+        (
+            "https://dotted.bucket.name.s3.us-west-2.amazonaws.com/a/b.tif",
+            ("dotted.bucket.name", "a/b.tif"),
+        ),
+    ],
+)
+def test_parse_bucket_url_accepts_s3_and_virtual_hosted_https(
+    url: str, expected: tuple[str, str]
+) -> None:
+    assert _parse_bucket_url(url) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Path-style S3.
+        "https://s3.us-west-2.amazonaws.com/bucket/a/b.tif",
+        # Another region.
+        "https://bucket.s3.eu-central-1.amazonaws.com/a/b.tif",
+        # Non-S3 https.
+        "https://example.com/bucket/a/b.tif",
+        # Local path.
+        "/tmp/workdir/b.tif",
+    ],
+)
+def test_parse_bucket_url_rejects_other_urls(url: str) -> None:
+    with pytest.raises(ValueError, match="Not an s3:// or us-west-2 https S3 URL"):
+        _parse_bucket_url(url)
 
 
 # ---------------------------------------------------------------------------

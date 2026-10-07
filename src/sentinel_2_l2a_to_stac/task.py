@@ -17,7 +17,7 @@ from pystac.extensions.storage import StorageExtension, StorageScheme
 from pystac.layout import LayoutTemplate
 from rasterio.errors import CRSError
 from returns.result import Failure, ResultE, Success
-from stactask import Task, asset_io
+from stactask import Task
 from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
@@ -160,12 +160,30 @@ S3_REQUEST_PAYER = "requester"
 S3_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
 
 
-def _parse_s3_url(url: str) -> tuple[str, str]:
-    """Split an ``s3://bucket/key`` URL into (bucket, key)."""
-    if not url.startswith("s3://"):
-        raise ValueError(f"Not an S3 URL: {url}")
-    bucket, _, key = url.removeprefix("s3://").partition("/")
-    return bucket, key
+def _parse_bucket_url(url: str) -> tuple[str, str]:
+    """Split an ``s3://`` or Earth Search https S3 URL into (bucket, key).
+
+    Asset hrefs are https once built, and S3 I/O reads them back directly, so
+    both forms are accepted. Only the virtual-hosted form in STORAGE_REGION is
+    recognized -- every https href this task handles is one it (or stac-task's
+    upload) produced there; anything else raises rather than being split into
+    a bogus bucket/key.
+    """
+    if url.startswith("s3://"):
+        bucket, _, key = url.removeprefix("s3://").partition("/")
+        return bucket, key
+    host, _, key = url.removeprefix("https://").partition("/")
+    host_suffix = f".s3.{STORAGE_REGION}.amazonaws.com"
+    if url.startswith("https://") and host.endswith(host_suffix):
+        return host.removesuffix(host_suffix), key
+    raise ValueError(f"Not an s3:// or {STORAGE_REGION} https S3 URL: {url}")
+
+
+def _s3_to_https(url: str) -> str:
+    """Public https URL for an S3 object, in the Earth Search region."""
+    bucket, key = _parse_bucket_url(url)
+    platform = STORAGE_PLATFORM.format(bucket=bucket, region=STORAGE_REGION)
+    return f"{platform}/{key}"
 
 
 def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
@@ -224,6 +242,16 @@ ASSET_FILENAMES: dict[str, str] = {
     "granule_metadata": "metadata.xml",
     "product_metadata": "product_metadata.xml",
 }
+
+
+def _earthsearch_href(prefix: str, filename: str) -> str:
+    """Href for a file already in the granule prefix.
+
+    An S3 prefix is published as https (the s3:// form becomes an alternate in
+    add_s3_alternates); a local prefix (--local/test runs) stays a path.
+    """
+    href = f"{prefix}/{filename}"
+    return _s3_to_https(href) if "://" in prefix else href
 
 
 def find_existing_stac_doc_filename(
@@ -373,7 +401,7 @@ class Sentinel2ToStac(Task):
         """List the basenames of every file directly under a prefix, local or S3."""
         if "://" not in s3_path:
             return {p.name for p in Path(s3_path).iterdir() if p.is_file()}
-        bucket, prefix = _parse_s3_url(
+        bucket, prefix = _parse_bucket_url(
             s3_path if s3_path.endswith("/") else f"{s3_path}/"
         )
         return {
@@ -388,12 +416,13 @@ class Sentinel2ToStac(Task):
         """Overwrite every asset href from the flat filename<->key map.
 
         Reference-path-only. One consistent rule for every asset, whether or
-        not it's already in the existing doc: {prefix}/{FILENAME}. Called
-        after update_item, which never touches asset hrefs, so it's harmless
-        that they still point at wherever create_item first put them.
+        not it's already in the existing doc: {prefix}/{FILENAME}, published
+        as https. Called after update_item, which never touches asset hrefs,
+        so it's harmless that they still point at wherever create_item first
+        put them.
         """
         for key, asset in item.assets.items():
-            asset.href = f"{s3_path}/{ASSET_FILENAMES[key]}"
+            asset.href = _earthsearch_href(s3_path, ASSET_FILENAMES[key])
         return item
 
     def add_thumbnail_asset(self, item: Item, s3_path: str) -> Item:
@@ -404,7 +433,7 @@ class Sentinel2ToStac(Task):
         preview that already exists in the bucket.
         """
         asset = Asset(
-            href=f"{s3_path}/{ASSET_FILENAMES[THUMBNAIL_ASSET_NAME]}",
+            href=_earthsearch_href(s3_path, ASSET_FILENAMES[THUMBNAIL_ASSET_NAME]),
             type=MediaType.JPEG,
             roles=["thumbnail"],
             title=THUMBNAIL_TITLE,
@@ -508,7 +537,7 @@ class Sentinel2ToStac(Task):
 
         self.logger.info(f"Downloading {len(remote)} source images")
         for key, href in remote.items():
-            bucket, s3_key = _parse_s3_url(href)
+            bucket, s3_key = _parse_bucket_url(href)
             _s3_client.download_file(
                 bucket,
                 s3_key,
@@ -568,48 +597,30 @@ class Sentinel2ToStac(Task):
 
         return cogs
 
-    def upload_item_assets_to_s3(
-        self, item: Item, assets: Optional[list[str]] = None, s3_client: Any = None
-    ) -> Item:
-        """Upload assets, always returning s3:// hrefs.
+    def add_s3_alternates(self, item: Item) -> Item:
+        """Add the s3:// URL of every remote asset as an alternate.
 
-        Overrides the base class to force `s3_urls=True` regardless of payload
-        upload_options: every step up to `apply_https_hrefs` (storage scheme
-        classification, remote file info) expects s3:// hrefs, and the https
-        conversion happens exactly once, at the end of process().
-        """
-        if not self._upload:
-            self.logger.warning("Skipping upload of new and modified assets")
-            return item
-        upload_options = self.payload.get_collection_upload_options(item.collection_id)
-        uploaded: Item = asset_io.upload_item_assets_to_s3(
-            item=item,
-            assets=assets,
-            s3_client=s3_client,
-            **{**upload_options, "s3_urls": True},
-        )
-        return uploaded
-
-    def apply_https_hrefs(self, item: Item) -> Item:
-        """Publish s3:// asset hrefs as https, keeping s3 as an alternate.
-
-        Runs last in process(): file info and storage scheme steps rely on
-        s3:// hrefs. Local (--local/test) paths are left untouched.
+        Remote hrefs are already https (from upload, or built from the granule
+        prefix). Local (--local/test) paths are left untouched. A leftover
+        s3:// href (e.g. a payload setting upload_options `s3_urls: true`) is an
+        internal failure rather than being silently converted.
         """
         converted = False
         for asset in item.assets.values():
-            if not asset.href.startswith("s3://"):
+            if "://" not in asset.href:
                 continue
-            bucket, key = _parse_s3_url(asset.href)
+            if asset.href != _s3_to_https(asset.href):
+                raise Exception(
+                    f"Asset href '{asset.href}' is not a {STORAGE_REGION} https S3 URL"
+                )
+            bucket, key = _parse_bucket_url(asset.href)
             asset.extra_fields["alternate:name"] = ALTERNATE_HTTPS_NAME
             asset.extra_fields["alternate"] = {
                 ALTERNATE_S3_KEY: {
-                    "href": asset.href,
+                    "href": f"s3://{bucket}/{key}",
                     "alternate:name": ALTERNATE_S3_NAME,
                 }
             }
-            platform = STORAGE_PLATFORM.format(bucket=bucket, region=STORAGE_REGION)
-            asset.href = f"{platform}/{key}"
             converted = True
 
         if converted:
@@ -638,7 +649,7 @@ class Sentinel2ToStac(Task):
         local_keys: list[str] = []
 
         for key, asset in item.assets.items():
-            if asset.href.startswith("s3://"):
+            if "://" in asset.href:
                 earthsearch_keys.append(key)
             else:
                 local_keys.append(key)
@@ -662,7 +673,7 @@ class Sentinel2ToStac(Task):
                 )
 
         if earthsearch_keys:
-            es_bucket, _ = _parse_s3_url(item.assets[earthsearch_keys[0]].href)
+            es_bucket, _ = _parse_bucket_url(item.assets[earthsearch_keys[0]].href)
             _add(EARTHSEARCH_SCHEME_KEY, es_bucket, earthsearch_keys)
         if local_keys:
             _add(LOCAL_SCHEME_KEY, LOCAL_BUCKET, local_keys)
@@ -703,7 +714,7 @@ class Sentinel2ToStac(Task):
 
     @contextmanager
     def _s3_object_body(self, href: str) -> Iterator[Any]:
-        bucket, key = _parse_s3_url(href)
+        bucket, key = _parse_bucket_url(href)
         try:
             response = _s3_client.get_object(
                 Bucket=bucket, Key=key, RequestPayer=S3_REQUEST_PAYER
@@ -724,7 +735,7 @@ class Sentinel2ToStac(Task):
     def list_files(self, prefix: str) -> list[str]:
         """List every file href underneath a prefix, local or S3."""
         if "://" in prefix:
-            bucket, key_prefix = _parse_s3_url(f"{prefix}/")
+            bucket, key_prefix = _parse_bucket_url(f"{prefix}/")
             return [
                 f"s3://{bucket}/{key}"
                 for key in _list_s3_keys(_s3_client, bucket, key_prefix)
@@ -936,8 +947,8 @@ class Sentinel2ToStac(Task):
         self.logger.info("Adding storage schemes")
         item = self.add_storage_schemes(item)
 
-        self.logger.info("Converting asset hrefs to https with s3 alternates")
-        item = self.apply_https_hrefs(item)
+        self.logger.info("Adding s3 alternates")
+        item = self.add_s3_alternates(item)
 
         out = self.add_software_version_to_item(item.to_dict())
         return [downgrade_item(out) if v1_output else out]
