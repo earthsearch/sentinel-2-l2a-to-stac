@@ -812,28 +812,19 @@
           "name": "B01",
           "gsd": 60,
           "proj:shape": [
-            5490,
-            5490
+            1830,
+            1830
           ],
           "proj:transform": [
-            20.0,
+            60.0,
             0.0,
             499980.0,
             0.0,
-            -20.0,
+            -60.0,
             1200040.0
           ],
-          "nodata": 0,
-          "raster:spatial_resolution": 20,
-          "data_type": "uint16",
-          "unit": "cm",
-          "raster:scale": 0.001,
-          "raster:offset": 0,
-          "file:size": 172950,
-          "file:checksum": "1220be1dd7423f0b1dc0366e9bb0c73488d9cbb5026d9ac8e583c44785aeac5a63ef",
-          "storage:refs": [
-            "earthsearch"
-          ],
+          "file:size": 2520768,
+          "file:checksum": "1220660c8e59f574d283feb47000f2cffa50a0e7bc04c257f92e05bb041f7c2609e3",
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -841,10 +832,14 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Coastal - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
-            "data"
+            "data",
+            "reflectance"
           ]
         },
         "blue": {
@@ -873,9 +868,6 @@
           ],
           "file:size": 83353667,
           "file:checksum": "12208c2e5d56da592d2322b0ae3f0dcf51f624b03652b8989ec8230c5832ee916bdd",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -883,6 +875,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Blue - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -916,9 +911,6 @@
           ],
           "file:size": 84079174,
           "file:checksum": "1220b4b995ce29d78f12202fdc3da73696b12bdb8b73743119de9ab9cb81a536f207",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -926,6 +918,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Green - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -959,9 +954,6 @@
           ],
           "file:size": 84802564,
           "file:checksum": "12200f682f94f922bcf7eb21c81424a1ba86caf23c42678ff33d6b733f95c4459f50",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -969,6 +961,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Red - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1002,9 +997,6 @@
           ],
           "file:size": 27372779,
           "file:checksum": "1220303d465876f2dcc3cdfd92feb014067d098812c507c18d5782029adb5b09e667",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1012,6 +1004,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Red Edge 1 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1045,9 +1040,6 @@
           ],
           "file:size": 27544394,
           "file:checksum": "1220ff5e4d4287c33e944dedca51320a0c98516767b24105ff689a29f024a2572d2d",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1055,6 +1047,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Red Edge 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1088,9 +1083,6 @@
           ],
           "file:size": 27366763,
           "file:checksum": "1220dde9230848cfc33814152d5a9758a65a2227633d445a4d8739521f3fd7f5ef75",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1098,6 +1090,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Red Edge 3 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1131,9 +1126,6 @@
           ],
           "file:size": 85846986,
           "file:checksum": "12200cc5d39b0e76fd20293c7c70ad987a5ea139dc86bb6454733845cadf2ed7199a",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1141,6 +1133,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "NIR 1 - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1174,9 +1169,6 @@
           ],
           "file:size": 27978658,
           "file:checksum": "1220ef6445fbedfc6b81225d412bd09e88899b13ae063d28c43f22da7b64705da877",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1184,6 +1176,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "NIR 2 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1204,25 +1199,19 @@
           "name": "B09",
           "gsd": 60,
           "proj:shape": [
-            5490,
-            5490
+            1830,
+            1830
           ],
           "proj:transform": [
-            20.0,
+            60.0,
             0.0,
             499980.0,
             0.0,
-            -20.0,
+            -60.0,
             1200040.0
           ],
-          "nodata": 0,
-          "raster:spatial_resolution": 20,
-          "data_type": "uint8",
-          "file:size": 922455,
-          "file:checksum": "1220183dc783289c20bb96823cef0a33ca4a409d6cc9022a954738c5eca733204dd5",
-          "storage:refs": [
-            "earthsearch"
-          ],
+          "file:size": 2804913,
+          "file:checksum": "1220e1b7b8f0c8c9772bf6716068b5b6b194b6b0da600c543a064b7b6d574d88c2c2",
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1230,59 +1219,14 @@
               "alternate:name": "S3"
             }
           },
-          "title": "NIR 3 - 60m",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "roles": [
-            "data"
-          ]
-        },
-        "visual": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/TCI.tif",
-          "nodata": 0,
-          "raster:spatial_resolution": 10,
-          "data_type": "uint8",
-          "gsd": 10,
-          "proj:shape": [
-            10980,
-            10980
-          ],
-          "proj:transform": [
-            10.0,
-            0.0,
-            499980.0,
-            0.0,
-            -10.0,
-            1200040.0
-          ],
-          "file:size": 723527,
-          "file:checksum": "1220bf54349c1ae2ebc7bd68aa0c4e4d3c4dc58de36dabcf5ec093449c8c996dd08b",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "True color image",
+          "title": "NIR 3 - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
-            "visual"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "red",
-              "eo:center_wavelength": 0.665,
-              "eo:full_width_half_max": 0.038,
-              "name": "B04"
-            },
-            {
-              "eo:common_name": "green",
-              "eo:center_wavelength": 0.56,
-              "eo:full_width_half_max": 0.045,
-              "name": "B03"
-            },
-            {
-              "eo:common_name": "blue",
-              "eo:center_wavelength": 0.49,
-              "eo:full_width_half_max": 0.098,
-              "name": "B02"
-            }
+            "data",
+            "reflectance"
           ]
         },
         "swir16": {
@@ -1311,9 +1255,6 @@
           ],
           "file:size": 21547737,
           "file:checksum": "1220933a9b6736ab54141e2f8aa86e46a44f095a30e24226aa4dcbf62765d4139e74",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1321,6 +1262,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "SWIR 1.6\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1354,9 +1298,6 @@
           ],
           "file:size": 22072603,
           "file:checksum": "12203b0fe9a689e0fba191c23764d9080e1918cf6071ffbdee32489f8371e72abc9d",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1364,6 +1305,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "SWIR 2.2\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1393,9 +1337,6 @@
           "raster:offset": 0,
           "file:size": 171606,
           "file:checksum": "12201aff2cb6bcb80593510739b0ed1c2eb450d8e26934cd05f8d5dc328a44991ee3",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1403,6 +1344,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Aerosol optical thickness (AOT)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1432,9 +1376,6 @@
           "raster:offset": 0,
           "file:size": 172950,
           "file:checksum": "1220be1dd7423f0b1dc0366e9bb0c73488d9cbb5026d9ac8e583c44785aeac5a63ef",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1442,6 +1383,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Water Vapour (WVP)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1468,9 +1412,6 @@
           "data_type": "uint8",
           "file:size": 922455,
           "file:checksum": "1220183dc783289c20bb96823cef0a33ca4a409d6cc9022a954738c5eca733204dd5",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1478,6 +1419,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Scene classification map (SCL)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1504,9 +1448,6 @@
           ],
           "file:size": 723527,
           "file:checksum": "1220bf54349c1ae2ebc7bd68aa0c4e4d3c4dc58de36dabcf5ec093449c8c996dd08b",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1514,6 +1455,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "True color image",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1560,9 +1504,6 @@
           "data_type": "uint8",
           "file:size": 2681928,
           "file:checksum": "12201cfa666e89e168fadd333dc053f27048cb0d57f85c0fc810a38788c541662cfe",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1570,6 +1511,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Cloud Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1596,9 +1540,6 @@
           "data_type": "uint8",
           "file:size": 53931,
           "file:checksum": "122034be4918dc1d1767bcebe51e3f90a7a7fc765fb942345cbaf6cda25f1544dd71",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1606,6 +1547,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Snow Probabilities",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1630,9 +1574,6 @@
           ],
           "file:size": 5867,
           "file:checksum": "1220ee77188d1653f5f2f8ebef349d891f3a83a50c5ef378f096cd438d2b00ff75b7",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1640,6 +1581,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "True color preview",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
@@ -1670,9 +1614,6 @@
           "href": "https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/metadata.xml",
           "file:size": 598739,
           "file:checksum": "12200c3cc22062ac575154668778920b918fe1aae7e8a9adb006a0331b18538582b0",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1680,6 +1621,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "type": "application/xml",
           "roles": [
             "metadata"
@@ -1689,9 +1633,6 @@
           "href": "https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/product_metadata.xml",
           "file:size": 55878,
           "file:checksum": "12201dc7bb01c149e66d56c8293f76fd85721c3180e4260b249ef82ff5a1e72f10b4",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1699,6 +1640,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "type": "application/xml",
           "roles": [
             "metadata"
@@ -1708,9 +1652,6 @@
           "href": "https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/L2A_PVI.jpg",
           "file:size": 5089,
           "file:checksum": "12206e76371506c11a64c8a79b8dbbfee82074f63b80df449a7c23d1b45a8d9fe03d",
-          "storage:refs": [
-            "earthsearch"
-          ],
           "alternate:name": "HTTPS",
           "alternate": {
             "s3": {
@@ -1718,6 +1659,9 @@
               "alternate:name": "S3"
             }
           },
+          "storage:refs": [
+            "earthsearch"
+          ],
           "title": "Thumbnail of preview image",
           "type": "image/jpeg",
           "roles": [

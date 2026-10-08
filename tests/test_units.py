@@ -48,6 +48,8 @@ from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
+    _earthsearch_href,
+    _https_url,
     _parse_bucket_url,
     _set_asset_owners,
     _validate_processing_baseline,
@@ -150,7 +152,7 @@ class _StubMetadata:
 
 def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     """Neutralize metadata parsing + create_item + update_item +
-    add_storage_schemes so download tests stay focused.
+    add_storage_and_alternates so download tests stay focused.
 
     The canned bytes above are not real Sentinel-2 metadata; those stages are
     covered by the update_item / storage tests below against genuine local metadata.
@@ -169,7 +171,9 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda self, image_hrefs: (None, {}),
     )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
-    monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
+    monkeypatch.setattr(
+        Sentinel2ToStac, "add_storage_and_alternates", lambda self, item: item
+    )
     # _StubItem is a bare stand-in, not a real pystac Item -- the reference-path
     # asset-rewriting helpers are exercised for real in the dedicated process()
     # tests below (against _synthetic_full_item), so no-op them here.
@@ -273,6 +277,37 @@ def test_list_bucket_filenames_returns_basenames(
         "tileInfo.json",
         "S2A_T19TDJ_L2A.json",
     }
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected_key_prefix"),
+    [
+        ("s3://bucket", ""),
+        ("s3://bucket/", ""),
+        ("s3://bucket/X.SAFE", "X.SAFE/"),
+        ("s3://bucket/X.SAFE/", "X.SAFE/"),
+    ],
+)
+def test_list_files_never_lists_under_double_slash(
+    monkeypatch: pytest.MonkeyPatch, prefix: str, expected_key_prefix: str
+) -> None:
+    listed_prefixes: list[str] = []
+
+    class _RecordingPaginator:
+        def paginate(self, **kwargs: Any) -> Any:
+            listed_prefixes.append(kwargs["Prefix"])
+            return [{"Contents": [{"Key": f"{kwargs['Prefix']}manifest.safe"}]}]
+
+    class _RecordingClient:
+        def get_paginator(self, name: str) -> Any:
+            return _RecordingPaginator()
+
+    monkeypatch.setattr(task_module, "_s3_client", _RecordingClient())
+    task = _minimal_task("test-list-files")
+    assert task.list_files(prefix) == [
+        f"s3://bucket/{expected_key_prefix}manifest.safe"
+    ]
+    assert listed_prefixes == [expected_key_prefix]
 
 
 def test_find_existing_stac_doc_filename_ignores_non_doc_files() -> None:
@@ -564,7 +599,9 @@ def _stub_pipeline_with_item(monkeypatch: pytest.MonkeyPatch, item: Item) -> Non
         lambda self, image_hrefs: (None, {}),
     )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
-    monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
+    monkeypatch.setattr(
+        Sentinel2ToStac, "add_storage_and_alternates", lambda self, item: item
+    )
 
 
 _STUB_FILE_INFO = FileInfo(size=4, checksum="stub-checksum")
@@ -843,7 +880,7 @@ def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
 
 
 def test_add_storage_schemes_classification() -> None:
-    """add_storage_schemes assigns refs by href: Earth Search or local."""
+    """add_storage_and_alternates assigns refs by href: Earth Search or local."""
     item = Item(
         id="test",
         geometry=None,
@@ -857,7 +894,7 @@ def test_add_storage_schemes_classification() -> None:
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-storage").add_storage_schemes(item)
+    result = _minimal_task("test-storage").add_storage_and_alternates(item)
     result_dict = result.to_dict()
 
     schemes = result_dict["properties"]["storage:schemes"]
@@ -914,7 +951,7 @@ def test_earthsearch_storage_scheme_after_upload(
     )
     local_keys = task.get_local_asset_keys(item)
     item = task.upload_item_assets_to_s3(item, local_keys)
-    item = task.add_storage_schemes(item)
+    item = task.add_storage_and_alternates(item)
 
     result = item.to_dict()
     schemes = result["properties"]["storage:schemes"]
@@ -981,7 +1018,7 @@ def test_v1_output_keeps_https_href_and_s3_alternate(
     }
 
 
-def test_add_s3_alternates_adds_s3_and_skips_local() -> None:
+def test_add_storage_and_alternates_adds_s3_and_skips_local() -> None:
     item = Item(
         id="test",
         geometry=None,
@@ -994,7 +1031,7 @@ def test_add_s3_alternates_adds_s3_and_skips_local() -> None:
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-alternates").add_s3_alternates(item).to_dict()
+    result = _minimal_task("test-alternates").add_storage_and_alternates(item).to_dict()
 
     es = result["assets"]["es_asset"]
     assert es["href"] == https
@@ -1009,7 +1046,7 @@ def test_add_s3_alternates_adds_s3_and_skips_local() -> None:
     assert result["stac_extensions"].count(ALTERNATE_ASSETS_EXT) == 1
 
 
-def test_add_s3_alternates_omits_extension_when_nothing_remote() -> None:
+def test_add_storage_and_alternates_omits_extension_when_nothing_remote() -> None:
     item = Item(
         id="test",
         geometry=None,
@@ -1020,13 +1057,17 @@ def test_add_s3_alternates_omits_extension_when_nothing_remote() -> None:
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-alternates-local").add_s3_alternates(item).to_dict()
+    result = (
+        _minimal_task("test-alternates-local")
+        .add_storage_and_alternates(item)
+        .to_dict()
+    )
 
     assert ALTERNATE_ASSETS_EXT not in result.get("stac_extensions", [])
 
 
-def test_add_s3_alternates_rejects_s3_href() -> None:
-    # Upload returned s3:// (payload set upload_options `s3_urls: true`).
+def test_add_storage_and_alternates_rejects_s3_href() -> None:
+    # Unreachable via a payload (validate rejects `s3_urls`); defensive only.
     item = Item(
         id="test",
         geometry=None,
@@ -1038,7 +1079,62 @@ def test_add_s3_alternates_rejects_s3_href() -> None:
     _set_asset_owners(item)
 
     with pytest.raises(Exception, match="was not published as https"):
-        _minimal_task("test-alternates-s3").add_s3_alternates(item)
+        _minimal_task("test-alternates-s3").add_storage_and_alternates(item)
+
+
+def _remote_item(hrefs: dict[str, str]) -> Item:
+    item = Item(
+        id="test",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
+        properties={},
+    )
+    for key, href in hrefs.items():
+        item.assets[key] = Asset(href=href)
+    _set_asset_owners(item)
+    return item
+
+
+def test_add_storage_and_alternates_merges_existing_alternate() -> None:
+    https = "https://earth-search-output.s3.us-west-2.amazonaws.com/a/x.tif"
+    item = _remote_item({"es_asset": https})
+    mirror = {"href": "https://mirror.example.com/a/x.tif", "alternate:name": "M"}
+    item.assets["es_asset"].extra_fields["alternate"] = {"mirror": mirror}
+
+    result = _minimal_task("test-alternates-merge").add_storage_and_alternates(item)
+
+    alternate = result.to_dict()["assets"]["es_asset"]["alternate"]
+    assert alternate["mirror"] == mirror
+    assert alternate["s3"]["href"] == "s3://earth-search-output/a/x.tif"
+
+
+def test_add_storage_and_alternates_rejects_non_s3_https() -> None:
+    item = _remote_item({"other": "https://example.com/a/x.tif"})
+    with pytest.raises(ValueError, match="Not an s3:// or us-west-2 https S3 URL"):
+        _minimal_task("test-non-s3").add_storage_and_alternates(item)
+
+
+def test_add_storage_and_alternates_rejects_multiple_buckets() -> None:
+    item = _remote_item(
+        {
+            "a": "https://bucket-a.s3.us-west-2.amazonaws.com/x.tif",
+            "b": "https://bucket-b.s3.us-west-2.amazonaws.com/y.tif",
+        }
+    )
+    with pytest.raises(Exception, match="Assets span multiple buckets"):
+        _minimal_task("test-two-buckets").add_storage_and_alternates(item)
+
+
+def test_add_storage_and_alternates_s3_alternate_uses_decoded_key() -> None:
+    https = "https://earth-search-output.s3.us-west-2.amazonaws.com/a%20b/c%2Bd.tif"
+    item = _remote_item({"es_asset": https})
+
+    result = _minimal_task("test-decoded").add_storage_and_alternates(item)
+
+    es = result.to_dict()["assets"]["es_asset"]
+    assert es["href"] == https
+    assert es["alternate"]["s3"]["href"] == "s3://earth-search-output/a b/c+d.tif"
 
 
 @pytest.mark.parametrize(
@@ -1053,6 +1149,12 @@ def test_add_s3_alternates_rejects_s3_href() -> None:
             "https://dotted.bucket.name.s3.us-west-2.amazonaws.com/a/b.tif",
             ("dotted.bucket.name", "a/b.tif"),
         ),
+        # https keys are percent-decoded; s3:// keys are already raw.
+        (
+            "https://bucket.s3.us-west-2.amazonaws.com/a%20b/c%2Bd%25e%23f.tif",
+            ("bucket", "a b/c+d%e#f.tif"),
+        ),
+        ("s3://bucket/a b/c+d%e#f.tif", ("bucket", "a b/c+d%e#f.tif")),
     ],
 )
 def test_parse_bucket_url_accepts_s3_and_virtual_hosted_https(
@@ -1077,6 +1179,148 @@ def test_parse_bucket_url_accepts_s3_and_virtual_hosted_https(
 def test_parse_bucket_url_rejects_other_urls(url: str) -> None:
     with pytest.raises(ValueError, match="Not an s3:// or us-west-2 https S3 URL"):
         _parse_bucket_url(url)
+
+
+def test_parse_bucket_url_decode_false_keeps_raw_key() -> None:
+    url = "https://bucket.s3.us-west-2.amazonaws.com/a%20b.tif"
+    assert _parse_bucket_url(url, decode=False) == ("bucket", "a%20b.tif")
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["a/b.tif", "a b/c+d.tif", "a/100%.tif", "a/#1?.tif", "a/é.tif"],
+)
+def test_https_url_round_trips_through_parse(key: str) -> None:
+    url = _https_url("bucket", key)
+    assert url.startswith("https://bucket.s3.us-west-2.amazonaws.com/")
+    assert " " not in url and "#" not in url and "?" not in url
+    assert _parse_bucket_url(url) == ("bucket", key)
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected"),
+    [
+        ("s3://bucket", "https://bucket.s3.us-west-2.amazonaws.com/B01.tif"),
+        ("s3://bucket/", "https://bucket.s3.us-west-2.amazonaws.com/B01.tif"),
+        ("s3://bucket/a/", "https://bucket.s3.us-west-2.amazonaws.com/a/B01.tif"),
+        ("s3://bucket/a", "https://bucket.s3.us-west-2.amazonaws.com/a/B01.tif"),
+        ("s3://bucket/a b", "https://bucket.s3.us-west-2.amazonaws.com/a%20b/B01.tif"),
+    ],
+)
+def test_earthsearch_href_never_double_slashes(prefix: str, expected: str) -> None:
+    assert _earthsearch_href(prefix, "B01.tif") == expected
+
+
+# ---------------------------------------------------------------------------
+# validate / upload
+# ---------------------------------------------------------------------------
+
+
+def _upload_payload(**upload_options: Any) -> dict[str, Any]:
+    return {
+        "id": "test-upload",
+        "metadata_href": "s3://example-bucket/prefix/metadata.xml",
+        "process": [
+            {
+                "upload_options": {
+                    "path_template": "s3://out-bucket/${collection}/${id}",
+                    **upload_options,
+                },
+                "tasks": {"sentinel-2-l2a-to-stac": {}},
+            }
+        ],
+    }
+
+
+def test_validate_rejects_s3_urls() -> None:
+    with pytest.raises(InvalidInput, match="s3_urls"):
+        Sentinel2ToStac(_upload_payload(s3_urls=True), upload=False)
+
+
+def test_validate_rejects_collection_s3_urls() -> None:
+    payload = _upload_payload()
+    payload["process"][0]["collection_options"] = {
+        "sentinel-2-l2a": {
+            "upload_options": {"path_template": "s3://x/${id}", "s3_urls": True}
+        }
+    }
+    with pytest.raises(InvalidInput, match="s3_urls"):
+        Sentinel2ToStac(payload, upload=False)
+
+
+class _StubS3:
+    region: ClassVar[str] = ""
+    buckets: ClassVar[list[str]] = []
+
+    def get_bucket_region(self, bucket: str) -> str:
+        _StubS3.buckets.append(bucket)
+        return _StubS3.region
+
+
+def _upload_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, region: str
+) -> tuple[Sentinel2ToStac, Item, list[str]]:
+    """Task with upload on, one local asset, and S3 + upload stubbed out."""
+    monkeypatch.setattr(_StubS3, "region", region)
+    monkeypatch.setattr(_StubS3, "buckets", [])
+    monkeypatch.setattr(task_module, "s3", _StubS3)
+    uploaded: list[str] = []
+
+    def _fake_upload(self: Sentinel2ToStac, item: Item, keys: list[str]) -> Item:
+        # stac-task's upload returns https with the key left unencoded.
+        for key in keys:
+            uploaded.append(key)
+            item.assets[
+                key
+            ].href = "https://out-bucket.s3.us-west-2.amazonaws.com/c/a b+c.tif"
+        return item
+
+    monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
+
+    local_file = tmp_path / "B01.tif"
+    local_file.write_bytes(b"fake")
+    item = _remote_item({"blue": str(local_file)})
+    item.set_collection("sentinel-2-l2a")
+    task = Sentinel2ToStac(_upload_payload(), workdir=tmp_path, upload=True)
+    return task, item, uploaded
+
+
+def test_upload_assets_rejects_other_region_before_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task, item, uploaded = _upload_task(tmp_path, monkeypatch, "eu-central-1")
+    with pytest.raises(InvalidInput, match="Upload bucket 'out-bucket' is in"):
+        task.upload_assets(item)
+    assert _StubS3.buckets == ["out-bucket"]
+    assert uploaded == []
+
+
+def test_upload_assets_encodes_uploaded_hrefs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task, item, uploaded = _upload_task(tmp_path, monkeypatch, "us-west-2")
+    result = task.upload_assets(item)
+    assert uploaded == ["blue"]
+    assert (
+        result.assets["blue"].href
+        == "https://out-bucket.s3.us-west-2.amazonaws.com/c/a%20b%2Bc.tif"
+    )
+
+
+def test_upload_assets_skips_region_check_without_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_StubS3, "buckets", [])
+    monkeypatch.setattr(task_module, "s3", _StubS3)
+    local_file = tmp_path / "B01.tif"
+    local_file.write_bytes(b"fake")
+    item = _remote_item({"blue": str(local_file)})
+    task = Sentinel2ToStac(_upload_payload(), workdir=tmp_path, upload=False)
+
+    result = task.upload_assets(item)
+
+    assert _StubS3.buckets == []
+    assert result.assets["blue"].href == str(local_file)
 
 
 # ---------------------------------------------------------------------------
