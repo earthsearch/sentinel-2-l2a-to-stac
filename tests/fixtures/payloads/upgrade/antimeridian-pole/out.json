@@ -793,77 +793,41 @@
           }
         },
         "processing:software": {
-          "sentinel-2-l2a-to-stac": "v2026.09.18"
+          "sentinel-2-l2a-to-stac": "v2026.09.30"
         }
       },
       "links": [],
       "assets": {
-        "red": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B04.tif",
-          "eo:common_name": "red",
-          "eo:center_wavelength": 0.665,
-          "eo:full_width_half_max": 0.038,
+        "coastal": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B01.tif",
+          "eo:common_name": "coastal",
+          "eo:center_wavelength": 0.443,
+          "eo:full_width_half_max": 0.027,
           "nodata": 0,
-          "raster:spatial_resolution": 10,
+          "raster:spatial_resolution": 60,
           "data_type": "uint16",
           "raster:scale": 0.0001,
           "raster:offset": -0.1,
-          "name": "B04",
-          "gsd": 10,
+          "name": "B01",
+          "gsd": 60,
           "proj:shape": [
-            10980,
-            10980
+            1830,
+            1830
           ],
           "proj:transform": [
-            10.0,
+            60.0,
             0.0,
             499980.0,
             0.0,
-            -10.0,
+            -60.0,
             1200040.0
           ],
-          "file:size": 84802564,
-          "file:checksum": "12200f682f94f922bcf7eb21c81424a1ba86caf23c42678ff33d6b733f95c4459f50",
+          "file:size": 2520768,
+          "file:checksum": "1220660c8e59f574d283feb47000f2cffa50a0e7bc04c257f92e05bb041f7c2609e3",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "Red - 10m",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "roles": [
-            "data",
-            "reflectance"
-          ]
-        },
-        "green": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B03.tif",
-          "eo:common_name": "green",
-          "eo:center_wavelength": 0.56,
-          "eo:full_width_half_max": 0.045,
-          "nodata": 0,
-          "raster:spatial_resolution": 10,
-          "data_type": "uint16",
-          "raster:scale": 0.0001,
-          "raster:offset": -0.1,
-          "name": "B03",
-          "gsd": 10,
-          "proj:shape": [
-            10980,
-            10980
-          ],
-          "proj:transform": [
-            10.0,
-            0.0,
-            499980.0,
-            0.0,
-            -10.0,
-            1200040.0
-          ],
-          "file:size": 84079174,
-          "file:checksum": "1220b4b995ce29d78f12202fdc3da73696b12bdb8b73743119de9ab9cb81a536f207",
-          "storage:refs": [
-            "earthsearch"
-          ],
-          "title": "Green - 10m",
+          "title": "Coastal - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
@@ -906,66 +870,17 @@
             "reflectance"
           ]
         },
-        "visual": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/TCI.tif",
-          "nodata": 0,
-          "raster:spatial_resolution": 10,
-          "data_type": "uint8",
-          "gsd": 10,
-          "proj:shape": [
-            10980,
-            10980
-          ],
-          "proj:transform": [
-            10.0,
-            0.0,
-            499980.0,
-            0.0,
-            -10.0,
-            1200040.0
-          ],
-          "file:size": 723527,
-          "file:checksum": "1220bf54349c1ae2ebc7bd68aa0c4e4d3c4dc58de36dabcf5ec093449c8c996dd08b",
-          "storage:refs": [
-            "earthsearch"
-          ],
-          "title": "True color image",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "roles": [
-            "visual"
-          ],
-          "bands": [
-            {
-              "eo:common_name": "red",
-              "eo:center_wavelength": 0.665,
-              "eo:full_width_half_max": 0.038,
-              "name": "B04"
-            },
-            {
-              "eo:common_name": "green",
-              "eo:center_wavelength": 0.56,
-              "eo:full_width_half_max": 0.045,
-              "name": "B03"
-            },
-            {
-              "eo:common_name": "blue",
-              "eo:center_wavelength": 0.49,
-              "eo:full_width_half_max": 0.098,
-              "name": "B02"
-            }
-          ]
-        },
-        "nir": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B08.tif",
-          "eo:common_name": "nir",
-          "eo:center_wavelength": 0.842,
-          "eo:full_width_half_max": 0.145,
+        "green": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B03.tif",
+          "eo:common_name": "green",
+          "eo:center_wavelength": 0.56,
+          "eo:full_width_half_max": 0.045,
           "nodata": 0,
           "raster:spatial_resolution": 10,
           "data_type": "uint16",
           "raster:scale": 0.0001,
           "raster:offset": -0.1,
-          "name": "B08",
+          "name": "B03",
           "gsd": 10,
           "proj:shape": [
             10980,
@@ -979,29 +894,65 @@
             -10.0,
             1200040.0
           ],
-          "file:size": 85846986,
-          "file:checksum": "12200cc5d39b0e76fd20293c7c70ad987a5ea139dc86bb6454733845cadf2ed7199a",
+          "file:size": 84079174,
+          "file:checksum": "1220b4b995ce29d78f12202fdc3da73696b12bdb8b73743119de9ab9cb81a536f207",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "NIR 1 - 10m",
+          "title": "Green - 10m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
           ]
         },
-        "swir22": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B12.tif",
-          "eo:common_name": "swir22",
-          "eo:center_wavelength": 2.19,
-          "eo:full_width_half_max": 0.242,
+        "red": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B04.tif",
+          "eo:common_name": "red",
+          "eo:center_wavelength": 0.665,
+          "eo:full_width_half_max": 0.038,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B04",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            499980.0,
+            0.0,
+            -10.0,
+            1200040.0
+          ],
+          "file:size": 84802564,
+          "file:checksum": "12200f682f94f922bcf7eb21c81424a1ba86caf23c42678ff33d6b733f95c4459f50",
+          "storage:refs": [
+            "earthsearch"
+          ],
+          "title": "Red - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "rededge1": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B05.tif",
+          "eo:common_name": "rededge",
+          "eo:center_wavelength": 0.704,
+          "eo:full_width_half_max": 0.019,
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint16",
           "raster:scale": 0.0001,
           "raster:offset": -0.1,
-          "name": "B12",
+          "name": "B05",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -1015,12 +966,12 @@
             -20.0,
             1200040.0
           ],
-          "file:size": 22072603,
-          "file:checksum": "12203b0fe9a689e0fba191c23764d9080e1918cf6071ffbdee32489f8371e72abc9d",
+          "file:size": 27372779,
+          "file:checksum": "1220303d465876f2dcc3cdfd92feb014067d098812c507c18d5782029adb5b09e667",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "SWIR 2.2\u03bcm - 20m",
+          "title": "Red Edge 1 - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
@@ -1099,17 +1050,53 @@
             "reflectance"
           ]
         },
-        "rededge1": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B05.tif",
-          "eo:common_name": "rededge",
-          "eo:center_wavelength": 0.704,
-          "eo:full_width_half_max": 0.019,
+        "nir": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B08.tif",
+          "eo:common_name": "nir",
+          "eo:center_wavelength": 0.842,
+          "eo:full_width_half_max": 0.145,
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B08",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            499980.0,
+            0.0,
+            -10.0,
+            1200040.0
+          ],
+          "file:size": 85846986,
+          "file:checksum": "12200cc5d39b0e76fd20293c7c70ad987a5ea139dc86bb6454733845cadf2ed7199a",
+          "storage:refs": [
+            "earthsearch"
+          ],
+          "title": "NIR 1 - 10m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "nir08": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B8A.tif",
+          "eo:common_name": "nir08",
+          "eo:center_wavelength": 0.865,
+          "eo:full_width_half_max": 0.033,
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint16",
           "raster:scale": 0.0001,
           "raster:offset": -0.1,
-          "name": "B05",
+          "name": "B8A",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -1123,12 +1110,48 @@
             -20.0,
             1200040.0
           ],
-          "file:size": 27372779,
-          "file:checksum": "1220303d465876f2dcc3cdfd92feb014067d098812c507c18d5782029adb5b09e667",
+          "file:size": 27978658,
+          "file:checksum": "1220ef6445fbedfc6b81225d412bd09e88899b13ae063d28c43f22da7b64705da877",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "Red Edge 1 - 20m",
+          "title": "NIR 2 - 20m",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "data",
+            "reflectance"
+          ]
+        },
+        "nir09": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B09.tif",
+          "eo:common_name": "nir09",
+          "eo:center_wavelength": 0.945,
+          "eo:full_width_half_max": 0.026,
+          "nodata": 0,
+          "raster:spatial_resolution": 60,
+          "data_type": "uint16",
+          "raster:scale": 0.0001,
+          "raster:offset": -0.1,
+          "name": "B09",
+          "gsd": 60,
+          "proj:shape": [
+            1830,
+            1830
+          ],
+          "proj:transform": [
+            60.0,
+            0.0,
+            499980.0,
+            0.0,
+            -60.0,
+            1200040.0
+          ],
+          "file:size": 2804913,
+          "file:checksum": "1220e1b7b8f0c8c9772bf6716068b5b6b194b6b0da600c543a064b7b6d574d88c2c2",
+          "storage:refs": [
+            "earthsearch"
+          ],
+          "title": "NIR 3 - 60m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
@@ -1171,49 +1194,17 @@
             "reflectance"
           ]
         },
-        "wvp": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/WVP.tif",
-          "gsd": 20,
-          "proj:shape": [
-            5490,
-            5490
-          ],
-          "proj:transform": [
-            20.0,
-            0.0,
-            499980.0,
-            0.0,
-            -20.0,
-            1200040.0
-          ],
-          "nodata": 0,
-          "raster:spatial_resolution": 20,
-          "data_type": "uint16",
-          "unit": "cm",
-          "raster:scale": 0.001,
-          "raster:offset": 0,
-          "file:size": 172950,
-          "file:checksum": "1220be1dd7423f0b1dc0366e9bb0c73488d9cbb5026d9ac8e583c44785aeac5a63ef",
-          "storage:refs": [
-            "earthsearch"
-          ],
-          "title": "Water Vapour (WVP)",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "roles": [
-            "data"
-          ]
-        },
-        "nir08": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B8A.tif",
-          "eo:common_name": "nir08",
-          "eo:center_wavelength": 0.865,
-          "eo:full_width_half_max": 0.033,
+        "swir22": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B12.tif",
+          "eo:common_name": "swir22",
+          "eo:center_wavelength": 2.19,
+          "eo:full_width_half_max": 0.242,
           "nodata": 0,
           "raster:spatial_resolution": 20,
           "data_type": "uint16",
           "raster:scale": 0.0001,
           "raster:offset": -0.1,
-          "name": "B8A",
+          "name": "B12",
           "gsd": 20,
           "proj:shape": [
             5490,
@@ -1227,45 +1218,16 @@
             -20.0,
             1200040.0
           ],
-          "file:size": 27978658,
-          "file:checksum": "1220ef6445fbedfc6b81225d412bd09e88899b13ae063d28c43f22da7b64705da877",
+          "file:size": 22072603,
+          "file:checksum": "12203b0fe9a689e0fba191c23764d9080e1918cf6071ffbdee32489f8371e72abc9d",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "NIR 2 - 20m",
+          "title": "SWIR 2.2\u03bcm - 20m",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
             "data",
             "reflectance"
-          ]
-        },
-        "scl": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/SCL.tif",
-          "gsd": 20,
-          "proj:shape": [
-            5490,
-            5490
-          ],
-          "proj:transform": [
-            20.0,
-            0.0,
-            499980.0,
-            0.0,
-            -20.0,
-            1200040.0
-          ],
-          "nodata": 0,
-          "raster:spatial_resolution": 20,
-          "data_type": "uint8",
-          "file:size": 922455,
-          "file:checksum": "1220183dc783289c20bb96823cef0a33ca4a409d6cc9022a954738c5eca733204dd5",
-          "storage:refs": [
-            "earthsearch"
-          ],
-          "title": "Scene classification map (SCL)",
-          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
-          "roles": [
-            "data"
           ]
         },
         "aot": {
@@ -1299,76 +1261,114 @@
             "data"
           ]
         },
-        "coastal": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B01.tif",
-          "eo:common_name": "coastal",
-          "eo:center_wavelength": 0.443,
-          "eo:full_width_half_max": 0.027,
-          "nodata": 0,
-          "raster:spatial_resolution": 60,
-          "data_type": "uint16",
-          "raster:scale": 0.0001,
-          "raster:offset": -0.1,
-          "name": "B01",
-          "gsd": 60,
+        "wvp": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/WVP.tif",
+          "gsd": 20,
           "proj:shape": [
-            1830,
-            1830
+            5490,
+            5490
           ],
           "proj:transform": [
-            60.0,
+            20.0,
             0.0,
             499980.0,
             0.0,
-            -60.0,
+            -20.0,
             1200040.0
           ],
-          "file:size": 2520768,
-          "file:checksum": "1220660c8e59f574d283feb47000f2cffa50a0e7bc04c257f92e05bb041f7c2609e3",
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint16",
+          "unit": "cm",
+          "raster:scale": 0.001,
+          "raster:offset": 0,
+          "file:size": 172950,
+          "file:checksum": "1220be1dd7423f0b1dc0366e9bb0c73488d9cbb5026d9ac8e583c44785aeac5a63ef",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "Coastal - 60m",
+          "title": "Water Vapour (WVP)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
-            "data",
-            "reflectance"
+            "data"
           ]
         },
-        "nir09": {
-          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/B09.tif",
-          "eo:common_name": "nir09",
-          "eo:center_wavelength": 0.945,
-          "eo:full_width_half_max": 0.026,
-          "nodata": 0,
-          "raster:spatial_resolution": 60,
-          "data_type": "uint16",
-          "raster:scale": 0.0001,
-          "raster:offset": -0.1,
-          "name": "B09",
-          "gsd": 60,
+        "scl": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/SCL.tif",
+          "gsd": 20,
           "proj:shape": [
-            1830,
-            1830
+            5490,
+            5490
           ],
           "proj:transform": [
-            60.0,
+            20.0,
             0.0,
             499980.0,
             0.0,
-            -60.0,
+            -20.0,
             1200040.0
           ],
-          "file:size": 2804913,
-          "file:checksum": "1220e1b7b8f0c8c9772bf6716068b5b6b194b6b0da600c543a064b7b6d574d88c2c2",
+          "nodata": 0,
+          "raster:spatial_resolution": 20,
+          "data_type": "uint8",
+          "file:size": 922455,
+          "file:checksum": "1220183dc783289c20bb96823cef0a33ca4a409d6cc9022a954738c5eca733204dd5",
           "storage:refs": [
             "earthsearch"
           ],
-          "title": "NIR 3 - 60m",
+          "title": "Scene classification map (SCL)",
           "type": "image/tiff; application=geotiff; profile=cloud-optimized",
           "roles": [
-            "data",
-            "reflectance"
+            "data"
+          ]
+        },
+        "visual": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/60/C/WS/2024/1/S2A_T60CWS_20240109T184746_L2A/TCI.tif",
+          "nodata": 0,
+          "raster:spatial_resolution": 10,
+          "data_type": "uint8",
+          "gsd": 10,
+          "proj:shape": [
+            10980,
+            10980
+          ],
+          "proj:transform": [
+            10.0,
+            0.0,
+            499980.0,
+            0.0,
+            -10.0,
+            1200040.0
+          ],
+          "file:size": 723527,
+          "file:checksum": "1220bf54349c1ae2ebc7bd68aa0c4e4d3c4dc58de36dabcf5ec093449c8c996dd08b",
+          "storage:refs": [
+            "earthsearch"
+          ],
+          "title": "True color image",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "roles": [
+            "visual"
+          ],
+          "bands": [
+            {
+              "eo:common_name": "red",
+              "eo:center_wavelength": 0.665,
+              "eo:full_width_half_max": 0.038,
+              "name": "B04"
+            },
+            {
+              "eo:common_name": "green",
+              "eo:center_wavelength": 0.56,
+              "eo:full_width_half_max": 0.045,
+              "name": "B03"
+            },
+            {
+              "eo:common_name": "blue",
+              "eo:center_wavelength": 0.49,
+              "eo:full_width_half_max": 0.098,
+              "name": "B02"
+            }
           ]
         },
         "cloud": {
@@ -1507,11 +1507,11 @@
           "storage:refs": [
             "earthsearch"
           ],
+          "title": "Thumbnail of preview image",
           "type": "image/jpeg",
           "roles": [
             "thumbnail"
-          ],
-          "title": "Thumbnail of preview image"
+          ]
         }
       },
       "collection": "sentinel-2-l2a"

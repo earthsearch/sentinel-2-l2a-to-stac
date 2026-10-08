@@ -11,9 +11,19 @@
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
     "https://stac-extensions.github.io/render/v2.0.0/schema.json",
     "https://stac-extensions.github.io/scientific/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/storage/v2.0.0/schema.json",
     "https://stac-extensions.github.io/view/v1.0.0/schema.json"
   ],
   "license": "other",
+  "storage:schemes": {
+    "earthsearch": {
+      "type": "aws-s3",
+      "platform": "https://{bucket}.s3.{region}.amazonaws.com",
+      "region": "us-west-2",
+      "requester_pays": false,
+      "bucket": "e84-earth-search-sentinel-data"
+    }
+  },
   "keywords": [
     "sentinel",
     "earth observation",
