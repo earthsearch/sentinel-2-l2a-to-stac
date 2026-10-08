@@ -24,6 +24,9 @@ THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 THUMBNAIL_TITLE = "Thumbnail of preview image"
 
+# Decimal places kept on `statistics` values
+STATISTICS_ROUNDING = 4
+
 ASSET_TO_RESAMPLE_ALGORITHM: dict[str | None, str] = {
     None: "AVERAGE",  # default case
     "scl": "MODE",
@@ -44,6 +47,7 @@ class CogFile:
     path: Path
     size: int
     checksum: str
+    statistics: dict[str, float] | None
 
     @property
     def filename(self) -> str:
@@ -72,6 +76,44 @@ def stream_file_info(chunks: Iterable[bytes]) -> FileInfo:
         size += len(chunk)
         digest.update(chunk)
     return FileInfo(size, str(multihash.wrap(digest.digest(), "sha2-256").hex()))
+
+
+def read_statistics(path: str | Path) -> dict[str, float] | None:
+    """Exact band-1 statistics of a local or remote raster, in raw (unscaled) values.
+
+    COGs written by :func:`write_cog` (and the legacy task) already store
+    exact ``STATISTICS_*`` tags, which GDAL returns from the header without
+    touching pixel data; anything else is computed exactly on the spot.
+    See :func:`band_statistics` for the None / raise contract.
+    """
+    # PAM off so computing stats never drops a .aux.xml sidecar next to the
+    # file, where it could be picked up as a workdir asset.
+    with rasterio.Env(GDAL_PAM_ENABLED=False), rasterio.open(path) as src:
+        return band_statistics(src.stats(indexes=[1])[0], src.tags(1), str(path))
+
+
+def band_statistics(
+    stats: Any, tags: dict[str, str], source: str
+) -> dict[str, float] | None:
+    """The `statistics` object for one band, from a just-run ``stats()`` call.
+
+    GDAL sets ``STATISTICS_VALID_PERCENT=0`` (and nothing else) for an
+    all-nodata band, which returns None. Any other run that leaves the tags
+    incomplete failed outright.
+    """
+    if float(tags.get("STATISTICS_VALID_PERCENT", "nan")) == 0:
+        return None
+    if not {"STATISTICS_MEAN", "STATISTICS_VALID_PERCENT"} <= tags.keys():
+        raise Exception(f"Failed to compute statistics for '{source}'")
+    return {
+        "minimum": round(stats.min, STATISTICS_ROUNDING),
+        "maximum": round(stats.max, STATISTICS_ROUNDING),
+        "mean": round(stats.mean, STATISTICS_ROUNDING),
+        "stddev": round(stats.std, STATISTICS_ROUNDING),
+        "valid_percent": round(
+            float(tags["STATISTICS_VALID_PERCENT"]), STATISTICS_ROUNDING
+        ),
+    }
 
 
 def make_thumbnail(item: Item) -> Item:
@@ -112,7 +154,12 @@ def write_cog(
     scales: Sequence[float] | None = None,
     offsets: Sequence[float | int] | None = None,
     colorinterp: Sequence[ColorInterp] | None = None,
-) -> None:
+) -> dict[str, float] | None:
+    """Write ``array`` as a COG with exact statistics stored for every band.
+
+    Returns band 1's `statistics` object (see :func:`band_statistics`), so
+    callers don't have to reopen the file to read back what was just computed.
+    """
     profile = {
         "driver": "COG",
         "dtype": array.dtype,
@@ -157,7 +204,8 @@ def write_cog(
             dst.update_tags(**tags)
             dst.write(array)
             dst.build_overviews(overviews, Resampling[overview_resampling.lower()])
-            dst.stats()
+            stats = dst.stats()
+            return band_statistics(stats[0], dst.tags(1), str(fout))
 
 
 def cogify(asset_name: str, asset: Asset) -> CogFile:
@@ -213,7 +261,7 @@ def cogify(asset_name: str, asset: Asset) -> CogFile:
     # Written straight to disk and hashed by streaming it back, so no copy of
     # the encoded COG is ever held in memory.
     cogfile_tmp = cogfile.with_name("." + cogfile.name + ".tmp")
-    write_cog(
+    statistics = write_cog(
         array,
         cogfile_tmp,
         src_crs,
@@ -235,6 +283,7 @@ def cogify(asset_name: str, asset: Asset) -> CogFile:
         path=cogfile,
         size=cogfile.stat().st_size,
         checksum=sha256sum_multihash(str(cogfile)),
+        statistics=statistics,
     )
 
 

@@ -144,6 +144,11 @@ SENTINEL_BANDS: Final[dict[str, EOBand]] = {
     ),
 }
 
+STATISTICS_ASSET_KEYS: Final[frozenset[str]] = frozenset(SENTINEL_BANDS) | {
+    "aot",
+    "wvp",
+}
+
 UNSUFFIXED_BAND_RESOLUTION: Final[dict[str, int]] = {
     "coastal": 60,
     "blue": 10,
