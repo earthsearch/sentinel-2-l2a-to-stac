@@ -5,6 +5,7 @@
   "description": "Global Sentinel-2 data from the Multispectral Instrument (MSI) onboard Sentinel-2, processed to Level-2A (Bottom-of-Atmosphere) and reorganized as Cloud-Optimized GeoTIFFs.",
   "title": "Sentinel-2 Level-2A",
   "stac_extensions": [
+    "https://stac-extensions.github.io/classification/v2.0.0/schema.json",
     "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
     "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
@@ -289,6 +290,20 @@
       "nodata": 0,
       "data_type": "uint8",
       "raster:spatial_resolution": 20,
+      "classification:classes": [
+        { "value": 0, "name": "no_data", "title": "No data", "color_hint": "000000", "nodata": true },
+        { "value": 1, "name": "saturated_or_defective", "title": "Saturated or defective", "color_hint": "FF0000" },
+        { "value": 2, "name": "cast_shadows", "title": "Cast shadows", "color_hint": "2F2F2F" },
+        { "value": 3, "name": "cloud_shadows", "title": "Cloud shadows", "color_hint": "643200" },
+        { "value": 4, "name": "vegetation", "title": "Vegetation", "color_hint": "00A000" },
+        { "value": 5, "name": "not_vegetated", "title": "Not vegetated", "color_hint": "FFE65A" },
+        { "value": 6, "name": "water", "title": "Water", "color_hint": "0000FF" },
+        { "value": 7, "name": "unclassified", "title": "Unclassified", "color_hint": "808080" },
+        { "value": 8, "name": "cloud_medium_probability", "title": "Cloud medium probability", "color_hint": "C0C0C0" },
+        { "value": 9, "name": "cloud_high_probability", "title": "Cloud high probability", "color_hint": "FFFFFF" },
+        { "value": 10, "name": "thin_cirrus", "title": "Thin cirrus", "color_hint": "64C8FF" },
+        { "value": 11, "name": "snow_ice", "title": "Snow/ice", "color_hint": "FF96FF" }
+      ],
       "roles": ["data"]
     },
     "cloud": {
