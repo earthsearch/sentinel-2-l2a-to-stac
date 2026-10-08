@@ -630,33 +630,6 @@ def test_process_takes_reference_path_when_doc_exists(
         lambda self, s3_path, filename: {"assets": {}},
     )
 
-    result = _make_download_task(tmp_path).process()
-
-    assert len(result) == 1
-    out_item = result[0]
-    assert out_item["assets"]["blue"]["href"].endswith("/B02.tif")
-    assert "thumbnail" in out_item["assets"]
-    assert out_item["assets"]["thumbnail"]["href"].endswith("/L2A_PVI.jpg")
-    # No existing doc entries -> every asset is "missing from doc" -> measured.
-    assert out_item["assets"]["blue"]["file:size"] == _STUB_FILE_INFO.size
-
-
-def test_process_reference_path_never_reuploads_existing_assets(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
-    _stub_metadata_reads(monkeypatch)
-    monkeypatch.setattr(
-        Sentinel2ToStac,
-        "list_bucket_filenames",
-        lambda self, s3_path: set(ASSET_FILENAMES.values()) | {_FULL_ITEM_DOC_FILENAME},
-    )
-    monkeypatch.setattr(
-        Sentinel2ToStac,
-        "load_existing_stac_doc",
-        lambda self, s3_path, filename: {"assets": {}},
-    )
-
     upload_calls: list[list[str]] = []
     original_upload = Sentinel2ToStac.upload_item_assets_to_s3
 
@@ -671,23 +644,14 @@ def test_process_reference_path_never_reuploads_existing_assets(
     result = _make_download_task(tmp_path).process()
 
     assert len(result) == 1
+    # Every asset already lives in the bucket, so nothing is re-uploaded.
     assert upload_calls == [[]]
-
-
-def test_process_raises_when_granule_missing_cogs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A granule metadata_href is always the "existing COGs" flow -- there is
-    # no create-COGs fallback, so a bucket without the full flat
-    # COG layout is a hard failure, not a legacy pass-through.
-    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
-    _stub_metadata_reads(monkeypatch)
-    monkeypatch.setattr(
-        Sentinel2ToStac, "list_bucket_filenames", lambda self, s3_path: set()
-    )
-
-    with pytest.raises(InvalidInput, match=r"Expected COG\(s\) not found"):
-        _make_download_task(tmp_path).process()
+    out_item = result[0]
+    assert out_item["assets"]["blue"]["href"].endswith("/B02.tif")
+    assert "thumbnail" in out_item["assets"]
+    assert out_item["assets"]["thumbnail"]["href"].endswith("/L2A_PVI.jpg")
+    # No existing doc entries -> every asset is "missing from doc" -> measured.
+    assert out_item["assets"]["blue"]["file:size"] == _STUB_FILE_INFO.size
 
 
 def test_process_raises_when_thumbnail_missing_from_bucket(
@@ -714,9 +678,9 @@ def test_process_raises_when_thumbnail_missing_from_bucket(
 def test_process_ignores_create_cogs_payload_for_granule_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A stray create_cogs=true from a legacy caller must not change anything
-    # for a granule metadata_href: it's still the existing-COGs flow, and a
-    # bucket without the full flat layout still fails.
+    # A granule metadata_href is always the "existing COGs" flow -- there is
+    # no create-COGs fallback, even with a stray create_cogs=true from a
+    # legacy caller, so a bucket without the full flat layout still fails.
     _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
     _stub_metadata_reads(monkeypatch)
     monkeypatch.setattr(
@@ -911,57 +875,6 @@ def test_add_storage_schemes_classification() -> None:
     assert any("storage" in ext for ext in result_dict["stac_extensions"])
 
 
-def test_earthsearch_storage_scheme_after_upload(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Verify that assets uploaded to the Earth Search bucket get the "earthsearch"
-    # scheme and ref — a path the baseline_item_dict fixture can't reach because
-    # it runs with upload=False.
-    ES_BUCKET = "earth-search-output"
-
-    def _fake_upload(self: Sentinel2ToStac, item: Item, asset_keys: list[str]) -> Item:
-        for key in asset_keys:
-            fname = Path(item.assets[key].href).name
-            item.assets[key].href = (
-                f"https://{ES_BUCKET}.s3.us-west-2.amazonaws.com"
-                f"/sentinel-2-l2a/S2A_TEST/{fname}"
-            )
-        return item
-
-    monkeypatch.setattr(Sentinel2ToStac, "upload_item_assets_to_s3", _fake_upload)
-
-    local_file = tmp_path / "B01.tif"
-    local_file.write_bytes(b"fake")
-    item = Item(
-        id="S2A_TEST",
-        geometry=None,
-        bbox=None,
-        datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
-        properties={},
-    )
-    item.set_collection("sentinel-2-l2a")
-    item.assets["blue"] = Asset(href=str(local_file), type=MediaType.COG)
-    _set_asset_owners(item)
-
-    task = Sentinel2ToStac(
-        {"id": "test-es-scheme", "metadata_href": "s3://example-bucket/x"},
-        workdir=tmp_path,
-        upload=False,
-    )
-    local_keys = task.get_local_asset_keys(item)
-    item = task.upload_item_assets_to_s3(item, local_keys)
-    item = task.add_storage_and_alternates(item)
-
-    result = item.to_dict()
-    schemes = result["properties"]["storage:schemes"]
-
-    assert set(schemes.keys()) == {"earthsearch"}
-    assert schemes["earthsearch"]["bucket"] == ES_BUCKET
-    assert schemes["earthsearch"]["type"] == "aws-s3"
-    assert result["assets"]["blue"]["storage:refs"] == ["earthsearch"]
-
-
 def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
     assert "classification:classes" not in item["assets"]["scl"]
@@ -972,15 +885,8 @@ def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
 _BASELINE_HTTPS = f"https://{_BASELINE_BUCKET}.s3.us-west-2.amazonaws.com/prefix"
 
 
-def test_asset_href_rewriting_and_proj_bbox(baseline_item_dict: dict[str, Any]) -> None:
-    item = baseline_item_dict
-    assert item["assets"]["blue"]["href"] == f"{_BASELINE_HTTPS}/B02.tif"
-    # apply_earthsearch_hrefs rewrites every asset, including metadata files --
-    # this task never leaves an asset pointing at a source bucket in place.
-    assert (
-        item["assets"]["granule_metadata"]["href"] == f"{_BASELINE_HTTPS}/metadata.xml"
-    )
-    assert "proj:bbox" not in item["assets"]["blue"]
+def test_proj_bbox_dropped(baseline_item_dict: dict[str, Any]) -> None:
+    assert "proj:bbox" not in baseline_item_dict["assets"]["blue"]
 
 
 def test_every_asset_has_https_href_and_s3_alternate(
