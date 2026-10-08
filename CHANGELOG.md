@@ -25,6 +25,7 @@ used by this project.
   actually needs, one at a time, hashing and deleting each before fetching the
   next, and measures the remaining assets by streaming them from the bucket
   instead of buffering them.
+- Update collection bounds to match S2 orbit
 
 ## [v2026.09.30]
 
