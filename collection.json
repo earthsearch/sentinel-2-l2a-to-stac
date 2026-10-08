@@ -356,17 +356,67 @@
     "true-color": {
       "title": "True Color (B04, B03, B02)",
       "assets": ["red", "green", "blue"],
-      "nodata": 0
+      "rescale": [[0, 0.6], [0, 0.6], [0, 0.6]],
+      "color_formula": "Gamma RGB 2.0 Saturation 1.2 Sigmoidal RGB 4 0.3",
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
     },
     "false-color": {
-      "title": "False Color (B08, B04, B03)",
+      "title": "False Color Infrared (B08, B04, B03)",
       "assets": ["nir", "red", "green"],
-      "nodata": 0
+      "rescale": [[0, 0.4], [0, 0.4], [0, 0.4]],
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
     },
     "swir": {
       "title": "SWIR (B12, B8A, B04)",
       "assets": ["swir22", "nir08", "red"],
-      "nodata": 0
+      "rescale": [[0, 0.4], [0, 0.4], [0, 0.4]],
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
+    },
+    "agriculture": {
+      "title": "Agriculture (B11, B08, B02)",
+      "assets": ["swir16", "nir", "blue"],
+      "rescale": [[0, 0.4], [0, 0.4], [0, 0.4]],
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
+    },
+    "scene-classification": {
+      "title": "Scene Classification (SCL)",
+      "assets": ["scl"],
+      "colormap": {
+        "0": [0, 0, 0, 0],
+        "1": [255, 0, 0, 255],
+        "2": [47, 47, 47, 255],
+        "3": [100, 50, 0, 255],
+        "4": [0, 160, 0, 255],
+        "5": [255, 230, 90, 255],
+        "6": [0, 0, 255, 255],
+        "7": [128, 128, 128, 255],
+        "8": [192, 192, 192, 255],
+        "9": [255, 255, 255, 255],
+        "10": [100, 200, 255, 255],
+        "11": [255, 150, 255, 255]
+      },
+      "resampling": "nearest",
+      "minmax_zoom": [6, 14]
+    },
+    "cloud-probability": {
+      "title": "Cloud Probability",
+      "assets": ["cloud"],
+      "rescale": [[0, 100]],
+      "colormap_name": "blues",
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
+    },
+    "snow-probability": {
+      "title": "Snow Probability",
+      "assets": ["snow"],
+      "rescale": [[0, 100]],
+      "colormap_name": "ice",
+      "resampling": "bilinear",
+      "minmax_zoom": [6, 14]
     }
   },
   "links": [
