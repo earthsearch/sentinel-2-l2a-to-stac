@@ -16,7 +16,7 @@ from pystac.errors import TemplateError
 from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from pystac.layout import LayoutTemplate
-from rasterio.errors import CRSError
+from rasterio.errors import CRSError, RasterioError
 from returns.result import Failure, ResultE, Success
 from stactask import Task
 from stactask.exceptions import InvalidInput
@@ -158,8 +158,9 @@ S3_REQUEST_PAYER = "requester"
 # Read size for streamed S3 bodies, which are measured rather than buffered.
 S3_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
 
-# Explicit GDAL HTTP retries for remote statistics reads (normally a header
-# read), so a transient S3 error doesn't fail the task.
+# Explicit GDAL HTTP retries for remote statistics reads (a header read, or a
+# full-resolution read for a COG without exact stored STATISTICS_* tags), so a
+# transient S3 error doesn't fail the task.
 GDAL_HTTP_MAX_RETRY = 3
 GDAL_HTTP_RETRY_DELAY = 1
 
@@ -268,9 +269,10 @@ class RasterMeasurements:
     """What the reference path learns from each raster while it is on disk."""
 
     geometry: Optional[dict[str, Any]] = None
-    # Canonical asset key -> file info / `statistics` object.
+    # Canonical asset key -> file info / `statistics` object (None when the
+    # raster has no valid pixels).
     file_info: dict[str, FileInfo] = field(default_factory=dict)
-    statistics: dict[str, dict[str, float]] = field(default_factory=dict)
+    statistics: dict[str, Optional[dict[str, float]]] = field(default_factory=dict)
 
 
 def _validate_processing_baseline(processing_baseline: str) -> None:
@@ -485,7 +487,7 @@ class Sentinel2ToStac(Task):
         hrefs = {k: h for k, h in image_hrefs.items() if k in SENTINEL_BANDS}
         self.logger.info(f"Computing the data footprint from {len(hrefs)} rasters")
         file_info: dict[str, FileInfo] = {}
-        statistics: dict[str, dict[str, float]] = {}
+        statistics: dict[str, Optional[dict[str, float]]] = {}
 
         def staged() -> Iterator[str]:
             for key, href in hrefs.items():
@@ -495,8 +497,7 @@ class Sentinel2ToStac(Task):
                     file_info[key] = FileInfo(
                         local.stat().st_size, sha256sum_multihash(str(local))
                     )
-                    if (stats := self.asset_statistics(key, local)) is not None:
-                        statistics[key] = stats
+                    statistics[key] = self.asset_statistics(local)
                     # data_footprint is done with each href before it asks for
                     # the next one, so the file can go as soon as it resumes.
                     yield str(local)
@@ -508,29 +509,15 @@ class Sentinel2ToStac(Task):
 
     def measure_remote_statistics(
         self, image_hrefs: dict[str, str]
-    ) -> dict[str, dict[str, float]]:
+    ) -> dict[str, Optional[dict[str, float]]]:
         """Statistics for the non-reflectance statistics assets (AOT/WVP).
 
         These are never fetched; each is read in place off the bucket, which
-        is normally just a header read. Run only after the freshness gate, so
-        a skipped scene never pays for the remote opens.
+        is a header read when the COG stores exact STATISTICS_* tags and a
+        full-resolution remote read otherwise (see `read_statistics`). Run only
+        after the freshness gate, so a skipped scene never pays for the reads.
         """
-        statistics: dict[str, dict[str, float]] = {}
-        for key, href in image_hrefs.items():
-            if key in STATISTICS_ASSET_KEYS and key not in SENTINEL_BANDS:
-                if (stats := self.asset_statistics(key, href)) is not None:
-                    statistics[key] = stats
-        return statistics
-
-    def asset_statistics(
-        self, key: str, href: str | Path
-    ) -> Optional[dict[str, float]]:
-        """Exact statistics for one asset, from a local file or remote COG.
-
-        Remote Earth Search COGs store exact STATISTICS_* tags, so a remote
-        href costs a header read; GDAL only falls back to reading every pixel
-        if the tags are missing, which is what the HTTP retries are for.
-        """
+        # One Env (one AWS session) for all of the reads.
         with rasterio.Env(
             AWS_REQUEST_PAYER=S3_REQUEST_PAYER,
             # Don't list the whole granule prefix just to open one file.
@@ -538,20 +525,43 @@ class Sentinel2ToStac(Task):
             GDAL_HTTP_MAX_RETRY=GDAL_HTTP_MAX_RETRY,
             GDAL_HTTP_RETRY_DELAY=GDAL_HTTP_RETRY_DELAY,
         ):
-            stats = read_statistics(href)
-        if stats is None:
-            self.log_no_valid_pixels(key)
-        return stats
-
-    def log_no_valid_pixels(self, key: str) -> None:
-        self.logger.warning(f"No valid pixels in '{key}'; omitting its statistics")
+            return {
+                key: self.asset_statistics(href)
+                for key, href in image_hrefs.items()
+                if key in STATISTICS_ASSET_KEYS and key not in SENTINEL_BANDS
+            }
 
     @staticmethod
-    def apply_statistics(item: Item, statistics: dict[str, dict[str, float]]) -> Item:
-        """Set asset-level `statistics`; every statistics asset is single-band,
-        so per STAC 1.1 the band fields live on the asset itself."""
+    def asset_statistics(href: str | Path) -> Optional[dict[str, float]]:
+        """Exact statistics for one granule COG, local or remote.
+
+        An unreadable COG (corrupt, truncated, or a remote read that still
+        fails after GDAL's HTTP retries) is the upstream granule's fault, so
+        it is reported as InvalidInput rather than retried as a task failure.
+        """
+        try:
+            return read_statistics(href)
+        except RasterioError as e:
+            raise InvalidInput(f"Cannot read statistics from '{href}': {e}") from e
+
+    def apply_statistics(
+        self, item: Item, statistics: dict[str, Optional[dict[str, float]]]
+    ) -> Item:
+        """Set asset-level `statistics` on each statistics asset; every one is
+        single-band, so per STAC 1.1 the band fields live on the asset itself.
+
+        Keys outside STATISTICS_ASSET_KEYS are ignored, and an asset with no
+        valid pixels (None) is logged and left without `statistics`.
+        """
         for key, stats in statistics.items():
-            item.assets[key].extra_fields["statistics"] = stats
+            if key not in STATISTICS_ASSET_KEYS:
+                continue
+            if stats is None:
+                self.logger.warning(
+                    f"No valid pixels in '{key}'; omitting its statistics"
+                )
+            else:
+                item.assets[key].extra_fields["statistics"] = stats
         return item
 
     def fetch_source_images(self, image_hrefs: dict[str, str]) -> None:
@@ -928,15 +938,9 @@ class Sentinel2ToStac(Task):
                 FileExtension.ext(item.assets[key], add_if_missing=True).apply(
                     checksum=cog.checksum, size=cog.size
                 )
-            statistics: dict[str, dict[str, float]] = {}
-            for key, cog in cogs.items():
-                if key not in STATISTICS_ASSET_KEYS:
-                    continue
-                if cog.statistics is None:
-                    self.log_no_valid_pixels(key)
-                else:
-                    statistics[key] = cog.statistics
-            item = self.apply_statistics(item, statistics)
+            item = self.apply_statistics(
+                item, {key: cog.statistics for key, cog in cogs.items()}
+            )
 
             self.logger.info("Making preview thumbnail")
             try:

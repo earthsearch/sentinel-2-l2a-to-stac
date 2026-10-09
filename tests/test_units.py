@@ -22,7 +22,6 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import numpy as np
@@ -40,7 +39,6 @@ import sentinel_2_l2a_to_stac.task as task_module
 from sentinel_2_l2a_to_stac.cogify import (
     CogFile,
     FileInfo,
-    band_statistics,
     cogify,
     read_statistics,
 )
@@ -1266,7 +1264,7 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
     src_path = tmp_path / "B01.jp2"
     _make_synthetic_raster(src_path, width=64, height=64)
 
-    cog = cogify("B01", Asset(href=str(src_path), media_type="image/jp2"))
+    cog = cogify("coastal", Asset(href=str(src_path), media_type="image/jp2"))
 
     assert cog.path.suffix == ".tif"
     assert cog.filename == "B01.tif"
@@ -1286,6 +1284,17 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
         assert ds.count == 1
         assert ds.width == 64
         assert ds.height == 64
+
+
+def test_cogify_skips_statistics_for_non_statistics_assets(tmp_path: Path) -> None:
+    # SCL/cloud/snow/visual stats are never published, so cogify never reads
+    # them back (and a stats problem on one can't fail the task).
+    src_path = tmp_path / "SCL.jp2"
+    _make_synthetic_raster(src_path)
+
+    cog = cogify("scl", Asset(href=str(src_path), media_type="image/jp2"))
+
+    assert cog.statistics is None
 
 
 # ---------------------------------------------------------------------------
@@ -1343,13 +1352,62 @@ def test_read_statistics_all_nodata_returns_none(tmp_path: Path) -> None:
     assert read_statistics(path) is None
 
 
-def test_band_statistics_raises_when_stats_call_failed() -> None:
-    # rasterio's stats() ignores GDAL's return code; a failed run (e.g. a
-    # remote read error) leaves no STATISTICS_* tags and must not be mistaken
-    # for an all-nodata band.
-    garbage = SimpleNamespace(min=0.0, max=0.0, mean=0.0, std=0.0)
-    with pytest.raises(Exception, match="Failed to compute statistics"):
-        band_statistics(garbage, {}, "s3://bucket/WVP.tif")
+def test_read_statistics_recomputes_when_valid_percent_missing(
+    tmp_path: Path,
+) -> None:
+    # Stored tags from GDAL < 3.2 (or other tooling) lack VALID_PERCENT;
+    # they're ignored in favour of an exact recompute rather than failing.
+    path = tmp_path / "WVP.tif"
+    _make_synthetic_raster(path)
+    with rasterio.open(path, "r+") as dst:
+        dst.update_tags(
+            1,
+            STATISTICS_MINIMUM="1",
+            STATISTICS_MAXIMUM="2",
+            STATISTICS_MEAN="1.5",
+            STATISTICS_STDDEV="0.5",
+        )
+
+    values = np.arange(64 * 64, dtype="float64")
+    assert read_statistics(path) == {
+        "minimum": 0.0,
+        "maximum": float(values.max()),
+        "mean": round(float(values.mean()), 4),
+        "stddev": round(float(values.std()), 4),
+        "valid_percent": 100.0,
+    }
+
+
+def test_read_statistics_recomputes_when_approximate(tmp_path: Path) -> None:
+    path = tmp_path / "AOT.tif"
+    _make_synthetic_raster(path)
+    with rasterio.open(path, "r+") as dst:
+        dst.update_tags(
+            1,
+            STATISTICS_APPROXIMATE="YES",
+            STATISTICS_MINIMUM="1",
+            STATISTICS_MAXIMUM="2",
+            STATISTICS_MEAN="1.5",
+            STATISTICS_STDDEV="0.5",
+            STATISTICS_VALID_PERCENT="100",
+        )
+
+    stats = read_statistics(path)
+
+    assert stats is not None
+    assert stats["minimum"] == 0.0
+    assert stats["maximum"] == float(64 * 64 - 1)
+
+
+def test_asset_statistics_raises_invalid_input_for_unreadable_cog(
+    tmp_path: Path,
+) -> None:
+    # A corrupt upstream COG is the input's fault, not a retryable failure.
+    path = tmp_path / "AOT.tif"
+    path.write_bytes(b"not a tiff")
+
+    with pytest.raises(InvalidInput, match="Cannot read statistics"):
+        Sentinel2ToStac.asset_statistics(path)
 
 
 def test_apply_statistics_sets_asset_level_field() -> None:
@@ -1362,10 +1420,15 @@ def test_apply_statistics_sets_asset_level_field() -> None:
         "valid_percent": 100.0,
     }
 
-    Sentinel2ToStac.apply_statistics(item, {"blue": stats})
+    _minimal_task("test-apply-stats").apply_statistics(
+        # scl is outside STATISTICS_ASSET_KEYS; green has no valid pixels.
+        item,
+        {"blue": stats, "scl": stats, "green": None},
+    )
 
     assert item.assets["blue"].extra_fields["statistics"] == stats
     assert "statistics" not in item.assets["scl"].extra_fields
+    assert "statistics" not in item.assets["green"].extra_fields
 
 
 def test_downgrade_moves_statistics_into_raster_bands() -> None:
