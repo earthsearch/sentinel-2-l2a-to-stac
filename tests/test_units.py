@@ -1134,7 +1134,7 @@ def test_measure_reference_images_discards_each_raster(
 
 
 def _make_synthetic_raster(path: Path, *, width: int = 64, height: int = 64) -> None:
-    transform = from_bounds(0.0, 0.0, 1.0, 1.0, width, height)
+    transform = from_bounds(0.0, 0.0, width * 10.0, height * 10.0, width, height)
     profile = {
         "driver": "GTiff",
         "dtype": "uint16",
