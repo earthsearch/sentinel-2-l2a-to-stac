@@ -822,6 +822,13 @@
             -60.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 8.0,
+            "maximum": 12992.0,
+            "mean": 10804.7838,
+            "stddev": 379.1655,
+            "valid_percent": 52.2
+          },
           "file:size": 2520768,
           "file:checksum": "1220660c8e59f574d283feb47000f2cffa50a0e7bc04c257f92e05bb041f7c2609e3",
           "storage:refs": [
@@ -858,6 +865,13 @@
             -10.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 1.0,
+            "maximum": 14088.0,
+            "mean": 10670.0082,
+            "stddev": 325.2863,
+            "valid_percent": 52.15
+          },
           "file:size": 83353667,
           "file:checksum": "12208c2e5d56da592d2322b0ae3f0dcf51f624b03652b8989ec8230c5832ee916bdd",
           "storage:refs": [
@@ -894,6 +908,13 @@
             -10.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 4384.0,
+            "maximum": 14856.0,
+            "mean": 10541.0551,
+            "stddev": 364.2653,
+            "valid_percent": 52.15
+          },
           "file:size": 84079174,
           "file:checksum": "1220b4b995ce29d78f12202fdc3da73696b12bdb8b73743119de9ab9cb81a536f207",
           "storage:refs": [
@@ -930,6 +951,13 @@
             -10.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 3498.0,
+            "maximum": 15336.0,
+            "mean": 10412.9516,
+            "stddev": 406.5524,
+            "valid_percent": 52.15
+          },
           "file:size": 84802564,
           "file:checksum": "12200f682f94f922bcf7eb21c81424a1ba86caf23c42678ff33d6b733f95c4459f50",
           "storage:refs": [
@@ -966,6 +994,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 3012.0,
+            "maximum": 15464.0,
+            "mean": 10674.98,
+            "stddev": 400.3067,
+            "valid_percent": 52.15
+          },
           "file:size": 27372779,
           "file:checksum": "1220303d465876f2dcc3cdfd92feb014067d098812c507c18d5782029adb5b09e667",
           "storage:refs": [
@@ -1002,6 +1037,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 3323.0,
+            "maximum": 15527.0,
+            "mean": 10296.9612,
+            "stddev": 395.3782,
+            "valid_percent": 52.15
+          },
           "file:size": 27544394,
           "file:checksum": "1220ff5e4d4287c33e944dedca51320a0c98516767b24105ff689a29f024a2572d2d",
           "storage:refs": [
@@ -1038,6 +1080,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 2695.0,
+            "maximum": 15596.0,
+            "mean": 9880.046,
+            "stddev": 386.2548,
+            "valid_percent": 52.15
+          },
           "file:size": 27366763,
           "file:checksum": "1220dde9230848cfc33814152d5a9758a65a2227633d445a4d8739521f3fd7f5ef75",
           "storage:refs": [
@@ -1074,6 +1123,13 @@
             -10.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 776.0,
+            "maximum": 15680.0,
+            "mean": 10139.3255,
+            "stddev": 441.7822,
+            "valid_percent": 52.15
+          },
           "file:size": 85846986,
           "file:checksum": "12200cc5d39b0e76fd20293c7c70ad987a5ea139dc86bb6454733845cadf2ed7199a",
           "storage:refs": [
@@ -1110,6 +1166,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 2843.0,
+            "maximum": 15198.0,
+            "mean": 9480.0548,
+            "stddev": 382.695,
+            "valid_percent": 52.15
+          },
           "file:size": 27978658,
           "file:checksum": "1220ef6445fbedfc6b81225d412bd09e88899b13ae063d28c43f22da7b64705da877",
           "storage:refs": [
@@ -1146,6 +1209,13 @@
             -60.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 130.0,
+            "maximum": 13139.0,
+            "mean": 9606.6405,
+            "stddev": 490.4781,
+            "valid_percent": 52.2
+          },
           "file:size": 2804913,
           "file:checksum": "1220e1b7b8f0c8c9772bf6716068b5b6b194b6b0da600c543a064b7b6d574d88c2c2",
           "storage:refs": [
@@ -1182,6 +1252,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 1347.0,
+            "maximum": 7456.0,
+            "mean": 2648.8032,
+            "stddev": 402.9646,
+            "valid_percent": 52.15
+          },
           "file:size": 21547737,
           "file:checksum": "1220933a9b6736ab54141e2f8aa86e46a44f095a30e24226aa4dcbf62765d4139e74",
           "storage:refs": [
@@ -1218,6 +1295,13 @@
             -20.0,
             1200040.0
           ],
+          "statistics": {
+            "minimum": 1328.0,
+            "maximum": 7922.0,
+            "mean": 2759.0016,
+            "stddev": 403.6169,
+            "valid_percent": 52.15
+          },
           "file:size": 22072603,
           "file:checksum": "12203b0fe9a689e0fba191c23764d9080e1918cf6071ffbdee32489f8371e72abc9d",
           "storage:refs": [
@@ -1250,6 +1334,13 @@
           "data_type": "uint16",
           "raster:scale": 0.001,
           "raster:offset": 0,
+          "statistics": {
+            "minimum": 59.0,
+            "maximum": 59.0,
+            "mean": 59.0,
+            "stddev": 0.0,
+            "valid_percent": 52.15
+          },
           "file:size": 171606,
           "file:checksum": "12201aff2cb6bcb80593510739b0ed1c2eb450d8e26934cd05f8d5dc328a44991ee3",
           "storage:refs": [
@@ -1282,6 +1373,13 @@
           "unit": "cm",
           "raster:scale": 0.001,
           "raster:offset": 0,
+          "statistics": {
+            "minimum": 357.0,
+            "maximum": 387.0,
+            "mean": 371.0001,
+            "stddev": 0.0601,
+            "valid_percent": 52.15
+          },
           "file:size": 172950,
           "file:checksum": "1220be1dd7423f0b1dc0366e9bb0c73488d9cbb5026d9ac8e583c44785aeac5a63ef",
           "storage:refs": [

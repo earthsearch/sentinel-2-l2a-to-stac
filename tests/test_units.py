@@ -36,15 +36,22 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
-from sentinel_2_l2a_to_stac.cogify import CogFile, FileInfo, cogify
+from sentinel_2_l2a_to_stac.cogify import (
+    CogFile,
+    FileInfo,
+    cogify,
+    read_statistics,
+)
 from sentinel_2_l2a_to_stac.constants import (
     CANONICAL_L2A_IMAGE_PATHS,
 )
+from sentinel_2_l2a_to_stac.downgrade import downgrade_bands
 from sentinel_2_l2a_to_stac.metadata import parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
     THUMBNAIL_ASSET_NAME,
+    RasterMeasurements,
     Sentinel2ToStac,
     _set_asset_owners,
     _validate_processing_baseline,
@@ -163,7 +170,10 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         Sentinel2ToStac,
         "measure_reference_images",
-        lambda self, image_hrefs: (None, {}),
+        lambda self, image_hrefs: RasterMeasurements(),
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac, "measure_remote_statistics", lambda self, image_hrefs: {}
     )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
@@ -541,7 +551,10 @@ def _stub_pipeline_with_item(monkeypatch: pytest.MonkeyPatch, item: Item) -> Non
     monkeypatch.setattr(
         Sentinel2ToStac,
         "measure_reference_images",
-        lambda self, image_hrefs: (None, {}),
+        lambda self, image_hrefs: RasterMeasurements(),
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac, "measure_remote_statistics", lambda self, image_hrefs: {}
     )
     monkeypatch.setattr(Sentinel2ToStac, "update_item", lambda self, item: item)
     monkeypatch.setattr(Sentinel2ToStac, "add_storage_schemes", lambda self, item: item)
@@ -1052,7 +1065,9 @@ def test_cogify_source_images_covers_the_canonical_set(
     monkeypatch.setattr(
         task_module,
         "cogify",
-        lambda asset_name, asset: CogFile(Path(asset.href).with_suffix(".tif"), 1, "a"),
+        lambda asset_name, asset: CogFile(
+            Path(asset.href).with_suffix(".tif"), 1, "a", None
+        ),
     )
 
     cogs = _minimal_task("test-cogify").cogify_source_images(
@@ -1118,22 +1133,114 @@ def test_measure_reference_images_discards_each_raster(
         upload=False,
     )
 
-    _, file_info = task.measure_reference_images(
+    measured = task.measure_reference_images(
         {
             "blue": str(source / "B02.tif"),
-            # Not a reflectance band: never fetched, left for the bucket.
+            # Not reflectance bands: never fetched or read here (neither file
+            # exists, so any read would fail). AOT's stats come later, from
+            # measure_remote_statistics after the freshness gate.
             "aot": str(source / "AOT.tif"),
+            "scl": str(source / "SCL.tif"),
         }
     )
 
-    assert set(file_info) == {"blue"}
-    assert file_info["blue"].size == (source / "B02.tif").stat().st_size
-    assert file_info["blue"].checksum
+    assert set(measured.file_info) == {"blue"}
+    assert measured.file_info["blue"].size == (source / "B02.tif").stat().st_size
+    assert measured.file_info["blue"].checksum
+    assert set(measured.statistics) == {"blue"}
     assert held == [1]
     assert list(workdir.iterdir()) == []
 
 
-def _make_synthetic_raster(path: Path, *, width: int = 64, height: int = 64) -> None:
+def test_measure_reference_images_fetches_and_footprints_only_reflectance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    _make_synthetic_raster(source / "B02.tif")
+
+    fetched: list[str] = []
+
+    def _fake_fetch(self: Sentinel2ToStac, image_hrefs: dict[str, str]) -> None:
+        for key, href in image_hrefs.items():
+            fetched.append(key)
+            shutil.copy(href, tmp_path / task_module.CANONICAL_IMAGE_FILENAMES[key])
+
+    footprinted: list[str] = []
+
+    def _fake_footprint(hrefs: Any) -> None:
+        footprinted.extend(Path(h).name for h in hrefs)
+
+    monkeypatch.setattr(Sentinel2ToStac, "fetch_source_images", _fake_fetch)
+    monkeypatch.setattr(task_module, "data_footprint", _fake_footprint)
+    task = Sentinel2ToStac(
+        {"id": "test-footprint", "metadata_href": _METADATA_HREF},
+        workdir=tmp_path,
+        upload=False,
+    )
+
+    measured = task.measure_reference_images(
+        {"blue": str(source / "B02.tif"), "wvp": str(source / "WVP.tif")}
+    )
+
+    assert fetched == ["blue"]
+    assert [n.split(".")[0] for n in footprinted] == ["B02"]
+    assert set(measured.statistics) == {"blue"}
+
+
+def test_measure_remote_statistics_reads_only_non_reflectance_stats_assets(
+    tmp_path: Path,
+) -> None:
+    for name in ("AOT", "WVP"):
+        _make_synthetic_raster(tmp_path / f"{name}.tif", nodata=0)
+    task = _minimal_task("test-remote-stats")
+
+    # B02/SCL don't exist, so reading either would raise.
+    statistics = task.measure_remote_statistics(
+        {
+            "blue": str(tmp_path / "B02.tif"),
+            "scl": str(tmp_path / "SCL.tif"),
+            "aot": str(tmp_path / "AOT.tif"),
+            "wvp": str(tmp_path / "WVP.tif"),
+        }
+    )
+
+    assert set(statistics) == {"aot", "wvp"}
+
+
+def test_process_skips_remote_statistics_when_not_newer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
+    _stub_metadata_reads(monkeypatch)
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "list_bucket_filenames",
+        lambda self, s3_path: set(ASSET_FILENAMES.values()),
+    )
+    monkeypatch.setattr(
+        Sentinel2ToStac, "is_newer_than_existing", lambda self, item: Success(False)
+    )
+    remote_calls: list[dict[str, str]] = []
+
+    def _spy(self: Sentinel2ToStac, image_hrefs: dict[str, str]) -> dict[str, Any]:
+        remote_calls.append(image_hrefs)
+        return {}
+
+    monkeypatch.setattr(Sentinel2ToStac, "measure_remote_statistics", _spy)
+
+    assert _make_download_task(tmp_path).process() == []
+    assert remote_calls == []
+
+
+def _make_synthetic_raster(
+    path: Path,
+    *,
+    width: int = 64,
+    height: int = 64,
+    nodata: int | None = None,
+    data: np.ndarray | None = None,
+) -> None:
     transform = from_bounds(0.0, 0.0, 1.0, 1.0, width, height)
     profile = {
         "driver": "GTiff",
@@ -1143,8 +1250,10 @@ def _make_synthetic_raster(path: Path, *, width: int = 64, height: int = 64) -> 
         "count": 1,
         "crs": "EPSG:32619",
         "transform": transform,
+        "nodata": nodata,
     }
-    data = np.arange(width * height, dtype=np.uint16).reshape(1, height, width)
+    if data is None:
+        data = np.arange(width * height, dtype=np.uint16).reshape(1, height, width)
     with rasterio.open(str(path), "w", **profile) as dst:
         dst.write(data)
 
@@ -1155,17 +1264,229 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
     src_path = tmp_path / "B01.jp2"
     _make_synthetic_raster(src_path, width=64, height=64)
 
-    cog = cogify("B01", Asset(href=str(src_path), media_type="image/jp2"))
+    cog = cogify("coastal", Asset(href=str(src_path), media_type="image/jp2"))
 
     assert cog.path.suffix == ".tif"
     assert cog.filename == "B01.tif"
     assert cog.checksum
     assert cog.size > 0
+    # arange data with no nodata: every pixel is valid.
+    values = np.arange(64 * 64, dtype="float64")
+    assert cog.statistics == {
+        "minimum": 0.0,
+        "maximum": float(values.max()),
+        "mean": round(float(values.mean()), 4),
+        "stddev": round(float(values.std()), 4),
+        "valid_percent": 100.0,
+    }
 
     with rasterio.open(str(cog.path)) as ds:
         assert ds.count == 1
         assert ds.width == 64
         assert ds.height == 64
+
+
+def test_cogify_skips_statistics_for_non_statistics_assets(tmp_path: Path) -> None:
+    # SCL/cloud/snow/visual stats are never published, so cogify never reads
+    # them back (and a stats problem on one can't fail the task).
+    src_path = tmp_path / "SCL.jp2"
+    _make_synthetic_raster(src_path)
+
+    cog = cogify("scl", Asset(href=str(src_path), media_type="image/jp2"))
+
+    assert cog.statistics is None
+
+
+# ---------------------------------------------------------------------------
+# statistics
+# ---------------------------------------------------------------------------
+
+
+def test_read_statistics_computes_exact_excluding_nodata(tmp_path: Path) -> None:
+    data = np.arange(64 * 64, dtype=np.uint16).reshape(1, 64, 64)
+    data[:, :32] = 0  # top half is nodata
+    path = tmp_path / "B02.tif"
+    _make_synthetic_raster(path, nodata=0, data=data)
+
+    valid = data[data != 0].astype("float64")
+    assert read_statistics(path) == {
+        "minimum": float(valid.min()),
+        "maximum": float(valid.max()),
+        "mean": round(float(valid.mean()), 4),
+        "stddev": round(float(valid.std()), 4),
+        "valid_percent": 50.0,
+    }
+    # Computing must not leave a PAM sidecar behind in the workdir.
+    assert [p.name for p in tmp_path.iterdir()] == ["B02.tif"]
+
+
+def test_read_statistics_prefers_stored_tags(tmp_path: Path) -> None:
+    # COGs from write_cog/legacy carry exact STATISTICS_* tags; those are
+    # returned as-is (header read) rather than recomputed from pixels.
+    path = tmp_path / "B02.tif"
+    _make_synthetic_raster(path, nodata=0)
+    with rasterio.open(path, "r+") as dst:
+        dst.update_tags(
+            1,
+            STATISTICS_MINIMUM="1",
+            STATISTICS_MAXIMUM="2",
+            STATISTICS_MEAN="1.234567",
+            STATISTICS_STDDEV="0.5",
+            STATISTICS_VALID_PERCENT="99.5",
+        )
+
+    assert read_statistics(path) == {
+        "minimum": 1.0,
+        "maximum": 2.0,
+        "mean": 1.2346,
+        "stddev": 0.5,
+        "valid_percent": 99.5,
+    }
+
+
+def test_read_statistics_all_nodata_returns_none(tmp_path: Path) -> None:
+    # GDAL reports an all-nodata band as zeros rather than raising.
+    path = tmp_path / "B02.tif"
+    _make_synthetic_raster(path, nodata=0, data=np.zeros((1, 64, 64), np.uint16))
+
+    assert read_statistics(path) is None
+
+
+def test_read_statistics_recomputes_when_valid_percent_missing(
+    tmp_path: Path,
+) -> None:
+    # Stored tags from GDAL < 3.2 (or other tooling) lack VALID_PERCENT;
+    # they're ignored in favour of an exact recompute rather than failing.
+    path = tmp_path / "WVP.tif"
+    _make_synthetic_raster(path)
+    with rasterio.open(path, "r+") as dst:
+        dst.update_tags(
+            1,
+            STATISTICS_MINIMUM="1",
+            STATISTICS_MAXIMUM="2",
+            STATISTICS_MEAN="1.5",
+            STATISTICS_STDDEV="0.5",
+        )
+
+    values = np.arange(64 * 64, dtype="float64")
+    assert read_statistics(path) == {
+        "minimum": 0.0,
+        "maximum": float(values.max()),
+        "mean": round(float(values.mean()), 4),
+        "stddev": round(float(values.std()), 4),
+        "valid_percent": 100.0,
+    }
+
+
+def test_read_statistics_recomputes_when_approximate(tmp_path: Path) -> None:
+    path = tmp_path / "AOT.tif"
+    _make_synthetic_raster(path)
+    with rasterio.open(path, "r+") as dst:
+        dst.update_tags(
+            1,
+            STATISTICS_APPROXIMATE="YES",
+            STATISTICS_MINIMUM="1",
+            STATISTICS_MAXIMUM="2",
+            STATISTICS_MEAN="1.5",
+            STATISTICS_STDDEV="0.5",
+            STATISTICS_VALID_PERCENT="100",
+        )
+
+    stats = read_statistics(path)
+
+    assert stats is not None
+    assert stats["minimum"] == 0.0
+    assert stats["maximum"] == float(64 * 64 - 1)
+
+
+def test_asset_statistics_raises_invalid_input_for_unreadable_cog(
+    tmp_path: Path,
+) -> None:
+    # A corrupt upstream COG is the input's fault, not a retryable failure.
+    path = tmp_path / "AOT.tif"
+    path.write_bytes(b"not a tiff")
+
+    with pytest.raises(InvalidInput, match="Cannot read statistics"):
+        Sentinel2ToStac.asset_statistics(path)
+
+
+def test_apply_statistics_sets_asset_level_field() -> None:
+    item = _synthetic_full_item()
+    stats = {
+        "minimum": 1.0,
+        "maximum": 2.0,
+        "mean": 1.5,
+        "stddev": 0.5,
+        "valid_percent": 100.0,
+    }
+
+    _minimal_task("test-apply-stats").apply_statistics(
+        # scl is outside STATISTICS_ASSET_KEYS; green has no valid pixels.
+        item,
+        {"blue": stats, "scl": stats, "green": None},
+    )
+
+    assert item.assets["blue"].extra_fields["statistics"] == stats
+    assert "statistics" not in item.assets["scl"].extra_fields
+    assert "statistics" not in item.assets["green"].extra_fields
+
+
+def test_downgrade_moves_statistics_into_raster_bands() -> None:
+    stats = {"minimum": 1.0, "maximum": 2.0}
+    item: dict[str, Any] = {
+        "assets": {"blue": {"href": "x", "data_type": "uint16", "statistics": stats}}
+    }
+
+    downgrade_bands(item)
+
+    assert item["assets"]["blue"]["raster:bands"] == [
+        {"data_type": "uint16", "statistics": stats}
+    ]
+    assert "statistics" not in item["assets"]["blue"]
+
+
+def test_process_cog_path_applies_statistics_to_statistics_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "resolve_source",
+        lambda self: task_module.SourceProduct(
+            prefix="/safe/root",
+            image_hrefs={},
+            bucket_filenames=set(),
+            create_cogs=True,
+        ),
+    )
+    stats = {
+        "minimum": 1.0,
+        "maximum": 4095.0,
+        "mean": 2048.0,
+        "stddev": 1182.0,
+        "valid_percent": 99.9756,
+    }
+    # scl carries stats too, to prove the STATISTICS_ASSET_KEYS filter.
+    cogs = {
+        key: CogFile(tmp_path / ASSET_FILENAMES[key], 1, "c", stats)
+        for key in ("blue", "scl")
+    }
+    monkeypatch.setattr(
+        Sentinel2ToStac,
+        "cogify_source_images",
+        lambda self, metadata, image_hrefs: cogs,
+    )
+    monkeypatch.setattr(task_module, "make_thumbnail", lambda item: item)
+
+    task = Sentinel2ToStac(
+        {"id": "test-cog-stats", "safe_href": "/safe/root"},
+        workdir=tmp_path,
+        upload=False,
+    )
+    [out] = task.process()
+
+    assert out["assets"]["blue"]["statistics"] == stats
+    assert "statistics" not in out["assets"]["scl"]
 
 
 def test_logger_prefixes_payload_id(caplog: pytest.LogCaptureFixture) -> None:

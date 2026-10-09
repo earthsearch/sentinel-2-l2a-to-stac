@@ -60,6 +60,27 @@ Example:
 
 This task returns a single STAC **1.1.0** Item for the L2A scene.
 
+### Asset statistics
+
+The reflectance band assets (`coastal` … `swir22`) plus `aot` and `wvp` carry an
+asset-level `statistics` object (`minimum`, `maximum`, `mean`, `stddev`,
+`valid_percent`; moved into `raster:bands[0].statistics` for `v1_output`):
+
+- **Exact**, not approximate: COGs written by this task already store exact
+  `STATISTICS_*` tags, which are read from the COG header. A COG whose tags are
+  missing, incomplete (no `STATISTICS_VALID_PERCENT`, as GDAL < 3.2 wrote) or
+  approximate is instead computed exactly from a full-resolution read.
+- **Raw stored values**, before `raster:scale`/`raster:offset` are applied —
+  apply those to get reflectance / physical units.
+- **Nodata excluded**; values rounded to 4 decimal places.
+- An asset with no valid pixels gets no `statistics` (a warning is logged).
+- A statistics read that fails (e.g. a corrupt bucket COG, or a remote read
+  error after retries) fails the task with `InvalidInput` rather than silently
+  omitting `statistics`.
+
+Categorical (`scl`), probability (`cloud`, `snow`) and rendered RGB (`visual`,
+`preview`) assets are intentionally excluded.
+
 ## Usage
 
 To use this task in a Cirrus workflow reference the Docker location in the task configuration
@@ -85,7 +106,12 @@ A `metadata_href` granule prefix is always treated as already-cogified:
 
 - Every canonical COG, `metadata.xml`, and `product_metadata.xml` is required
   directly under the granule prefix; anything missing raises `InvalidInput`.
-- Geometry is measured as the union of the valid-data footprint of each COG.
+- Geometry is measured as the union of the valid-data footprint of each
+  reflectance COG. The reflectance COGs are downloaded one at a time (and
+  deleted after) to measure footprint, file info and statistics; `aot`/`wvp`
+  statistics are read in place from the bucket COG with no download: a header
+  read when the COG stores exact `STATISTICS_*` tags, otherwise a
+  full-resolution remote read of the band (budget Lambda time/memory for that).
 - `type`, `file:size` and `file:checksum` are reused from an existing
   `{item_id}.json` STAC doc where available; assets whose info is missing
   (including when there is no existing doc at all) are downloaded and

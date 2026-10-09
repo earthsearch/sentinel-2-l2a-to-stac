@@ -341,7 +341,14 @@
               "spatial_resolution": 60,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1015.0,
+                "maximum": 16133.0,
+                "mean": 1944.5841,
+                "stddev": 1209.5541,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -382,7 +389,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1032.0,
+                "maximum": 16049.0,
+                "mean": 1811.7906,
+                "stddev": 1178.31,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -423,7 +437,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1023.0,
+                "maximum": 15238.0,
+                "mean": 1617.5338,
+                "stddev": 1126.0165,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -464,7 +485,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 997.0,
+                "maximum": 14623.0,
+                "mean": 1511.0952,
+                "stddev": 1090.5596,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -505,7 +533,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 673.0,
+                "maximum": 15211.0,
+                "mean": 1558.1247,
+                "stddev": 1150.3203,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -546,7 +581,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 882.0,
+                "maximum": 14300.0,
+                "mean": 1590.224,
+                "stddev": 1175.582,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -587,7 +629,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 840.0,
+                "maximum": 14187.0,
+                "mean": 1632.2702,
+                "stddev": 1236.3552,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -628,7 +677,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 926.0,
+                "maximum": 13803.0,
+                "mean": 1583.2575,
+                "stddev": 1194.1679,
+                "valid_percent": 99.999
+              }
             }
           ]
         },
@@ -669,7 +725,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 823.0,
+                "maximum": 13852.0,
+                "mean": 1619.5757,
+                "stddev": 1254.9988,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -710,7 +773,14 @@
               "spatial_resolution": 60,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 561.0,
+                "maximum": 16358.0,
+                "mean": 1555.2141,
+                "stddev": 1446.5383,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -751,7 +821,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 932.0,
+                "maximum": 9891.0,
+                "mean": 1494.7337,
+                "stddev": 968.8614,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -792,7 +869,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 983.0,
+                "maximum": 16295.0,
+                "mean": 1419.5671,
+                "stddev": 848.1311,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -824,7 +908,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.001,
-              "offset": 0
+              "offset": 0,
+              "statistics": {
+                "minimum": 210.0,
+                "maximum": 288.0,
+                "mean": 251.8539,
+                "stddev": 3.6864,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -857,7 +948,14 @@
               "data_type": "uint16",
               "unit": "cm",
               "scale": 0.001,
-              "offset": 0
+              "offset": 0,
+              "statistics": {
+                "minimum": 1967.0,
+                "maximum": 7663.0,
+                "mean": 3684.1466,
+                "stddev": 55.9198,
+                "valid_percent": 100.0
+              }
             }
           ]
         },

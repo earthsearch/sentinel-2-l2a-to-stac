@@ -307,6 +307,13 @@
             -60.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1510.0,
+            "maximum": 14992.0,
+            "mean": 7642.1267,
+            "stddev": 1974.1791,
+            "valid_percent": 100.0
+          },
           "file:size": 6542429,
           "file:checksum": "12203c83313d0cda92049f862fa44c9351ba3720b250a1e5f63bde4e894bfa5f3666",
           "storage:refs": [
@@ -343,6 +350,13 @@
             -10.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1424.0,
+            "maximum": 14232.0,
+            "mean": 7033.9376,
+            "stddev": 1794.3376,
+            "valid_percent": 100.0
+          },
           "file:size": 183827933,
           "file:checksum": "1220cdad6d367990d0d3bc0654407a96b6b35be6acbf12fc71610b1c857e15a04f33",
           "storage:refs": [
@@ -379,6 +393,13 @@
             -10.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1294.0,
+            "maximum": 14008.0,
+            "mean": 6799.6159,
+            "stddev": 1753.3034,
+            "valid_percent": 100.0
+          },
           "file:size": 182399355,
           "file:checksum": "12207fd4e2c2057391a0ab6cdf476d87e7c7d99a4000d8fd04f14560b571c5bac004",
           "storage:refs": [
@@ -415,6 +436,13 @@
             -10.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1181.0,
+            "maximum": 13998.0,
+            "mean": 6732.5665,
+            "stddev": 1768.1711,
+            "valid_percent": 100.0
+          },
           "file:size": 182499504,
           "file:checksum": "1220065a40391c2d0a8b3ee8a4850a5abeb9f95ffe423e0d368c6e2f3be6c5b8ed19",
           "storage:refs": [
@@ -451,6 +479,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1077.0,
+            "maximum": 13520.0,
+            "mean": 6349.3592,
+            "stddev": 1656.0336,
+            "valid_percent": 100.0
+          },
           "file:size": 54318053,
           "file:checksum": "1220599ed15f7d664884c05bae6e86b48a83a1795a171dceeee05ab3b6ac76fffd59",
           "storage:refs": [
@@ -487,6 +522,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1068.0,
+            "maximum": 13712.0,
+            "mean": 6587.5769,
+            "stddev": 1741.0981,
+            "valid_percent": 100.0
+          },
           "file:size": 54406434,
           "file:checksum": "12205a8dc9c0d6b7d20c54a6cf091a6702d353664ee4c748be94d43c30f87ee5781f",
           "storage:refs": [
@@ -523,6 +565,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1079.0,
+            "maximum": 14062.0,
+            "mean": 6886.8124,
+            "stddev": 1850.4876,
+            "valid_percent": 100.0
+          },
           "file:size": 54411319,
           "file:checksum": "12200b455116b5b28cdd040d5ea1d05ecdf52fb9af9bb1d5d3996b9401edbe7aecca",
           "storage:refs": [
@@ -559,6 +608,13 @@
             -10.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1110.0,
+            "maximum": 14125.0,
+            "mean": 6731.8175,
+            "stddev": 1765.5365,
+            "valid_percent": 100.0
+          },
           "file:size": 184599988,
           "file:checksum": "122040cad586d0559536010592d5aa5c368ba97285ccfa7d0a25e07f6036f8a7b6be",
           "storage:refs": [
@@ -595,6 +651,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1070.0,
+            "maximum": 14117.0,
+            "mean": 7014.7729,
+            "stddev": 1902.6962,
+            "valid_percent": 100.0
+          },
           "file:size": 54938371,
           "file:checksum": "1220401fa8535167a8343f563771002abdbe601b98da38792192fa5a9ef352b5e9a1",
           "storage:refs": [
@@ -631,6 +694,13 @@
             -60.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 970.0,
+            "maximum": 6356.0,
+            "mean": 2699.9258,
+            "stddev": 866.534,
+            "valid_percent": 100.0
+          },
           "file:size": 5984175,
           "file:checksum": "1220fab2689b05d92eaaf7860fe7f070543ed3adcfae25f4446a2e67c462e6ec5a5c",
           "storage:refs": [
@@ -667,6 +737,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1031.0,
+            "maximum": 9956.0,
+            "mean": 4927.8849,
+            "stddev": 1295.8213,
+            "valid_percent": 100.0
+          },
           "file:size": 51533693,
           "file:checksum": "1220a2711e646940bee97ab54e42732af90e964420bd641b68d51c4264eadd67eff1",
           "storage:refs": [
@@ -703,6 +780,13 @@
             -20.0,
             4900020.0
           ],
+          "statistics": {
+            "minimum": 1009.0,
+            "maximum": 7452.0,
+            "mean": 3902.6762,
+            "stddev": 842.9616,
+            "valid_percent": 100.0
+          },
           "file:size": 50703350,
           "file:checksum": "1220bfab6825835cf9f1392bb90f3f59ccf32305e93ed44e2d0421ee4f62e80d5014",
           "storage:refs": [
@@ -735,6 +819,13 @@
           "data_type": "uint16",
           "raster:scale": 0.001,
           "raster:offset": 0,
+          "statistics": {
+            "minimum": 162.0,
+            "maximum": 186.0,
+            "mean": 177.2973,
+            "stddev": 5.5332,
+            "valid_percent": 100.0
+          },
           "file:size": 531157,
           "file:checksum": "122076c350102bacb333b77d8a81ab9b927049c9627fb53e90dbd2351227bb371ff9",
           "storage:refs": [

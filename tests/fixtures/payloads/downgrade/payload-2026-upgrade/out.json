@@ -316,7 +316,14 @@
               "spatial_resolution": 60,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1510.0,
+                "maximum": 14992.0,
+                "mean": 7642.1267,
+                "stddev": 1974.1791,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -357,7 +364,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1424.0,
+                "maximum": 14232.0,
+                "mean": 7033.9376,
+                "stddev": 1794.3376,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -398,7 +412,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1294.0,
+                "maximum": 14008.0,
+                "mean": 6799.6159,
+                "stddev": 1753.3034,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -439,7 +460,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1181.0,
+                "maximum": 13998.0,
+                "mean": 6732.5665,
+                "stddev": 1768.1711,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -480,7 +508,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1077.0,
+                "maximum": 13520.0,
+                "mean": 6349.3592,
+                "stddev": 1656.0336,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -521,7 +556,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1068.0,
+                "maximum": 13712.0,
+                "mean": 6587.5769,
+                "stddev": 1741.0981,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -562,7 +604,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1079.0,
+                "maximum": 14062.0,
+                "mean": 6886.8124,
+                "stddev": 1850.4876,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -603,7 +652,14 @@
               "spatial_resolution": 10,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1110.0,
+                "maximum": 14125.0,
+                "mean": 6731.8175,
+                "stddev": 1765.5365,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -644,7 +700,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1070.0,
+                "maximum": 14117.0,
+                "mean": 7014.7729,
+                "stddev": 1902.6962,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -685,7 +748,14 @@
               "spatial_resolution": 60,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 970.0,
+                "maximum": 6356.0,
+                "mean": 2699.9258,
+                "stddev": 866.534,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -726,7 +796,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1031.0,
+                "maximum": 9956.0,
+                "mean": 4927.8849,
+                "stddev": 1295.8213,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -767,7 +844,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.0001,
-              "offset": -0.1
+              "offset": -0.1,
+              "statistics": {
+                "minimum": 1009.0,
+                "maximum": 7452.0,
+                "mean": 3902.6762,
+                "stddev": 842.9616,
+                "valid_percent": 100.0
+              }
             }
           ]
         },
@@ -799,7 +883,14 @@
               "spatial_resolution": 20,
               "data_type": "uint16",
               "scale": 0.001,
-              "offset": 0
+              "offset": 0,
+              "statistics": {
+                "minimum": 162.0,
+                "maximum": 186.0,
+                "mean": 177.2973,
+                "stddev": 5.5332,
+                "valid_percent": 100.0
+              }
             }
           ]
         },

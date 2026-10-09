@@ -76,7 +76,11 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     when (as here) there's no prior STAC doc to reuse them from.
     """
     from sentinel_2_l2a_to_stac.cogify import FileInfo
-    from sentinel_2_l2a_to_stac.task import ASSET_FILENAMES, Sentinel2ToStac
+    from sentinel_2_l2a_to_stac.task import (
+        ASSET_FILENAMES,
+        RasterMeasurements,
+        Sentinel2ToStac,
+    )
 
     source = _FIXTURES / "source-metadata" / _BASELINE_TILE
     workdir = Path(tempfile.mkdtemp())
@@ -130,7 +134,10 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     fetch_patch.setattr(
         Sentinel2ToStac,
         "measure_reference_images",
-        lambda self, image_hrefs: (None, {}),
+        lambda self, image_hrefs: RasterMeasurements(),
+    )
+    fetch_patch.setattr(
+        Sentinel2ToStac, "measure_remote_statistics", lambda self, image_hrefs: {}
     )
     try:
         result = Sentinel2ToStac(payload, workdir=workdir, upload=False).process()

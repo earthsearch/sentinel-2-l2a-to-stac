@@ -18,11 +18,26 @@ from sentinel_2_l2a_to_stac.constants import (
     RASTER_OFFSET_KEY,
     RASTER_SCALE_KEY,
     RASTER_SPATIAL_RESOLUTION_KEY,
+    STATISTICS_ASSET_KEYS,
 )
 
 THUMBNAIL_ASSET_NAME = "thumbnail"
 THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 THUMBNAIL_TITLE = "Thumbnail of preview image"
+
+# Decimal places kept on `statistics` values
+STATISTICS_ROUNDING = 4
+
+# Band tags that together make a complete stored `statistics` object.
+STORED_STATISTICS_TAGS = frozenset(
+    {
+        "STATISTICS_MINIMUM",
+        "STATISTICS_MAXIMUM",
+        "STATISTICS_MEAN",
+        "STATISTICS_STDDEV",
+        "STATISTICS_VALID_PERCENT",
+    }
+)
 
 ASSET_TO_RESAMPLE_ALGORITHM: dict[str | None, str] = {
     None: "AVERAGE",  # default case
@@ -44,6 +59,8 @@ class CogFile:
     path: Path
     size: int
     checksum: str
+    # None for a non-statistics asset, or one with no valid pixels.
+    statistics: dict[str, float] | None
 
     @property
     def filename(self) -> str:
@@ -72,6 +89,60 @@ def stream_file_info(chunks: Iterable[bytes]) -> FileInfo:
         size += len(chunk)
         digest.update(chunk)
     return FileInfo(size, str(multihash.wrap(digest.digest(), "sha2-256").hex()))
+
+
+def read_statistics(path: str | Path) -> dict[str, float] | None:
+    """Exact band-1 statistics of a local or remote raster, in raw (unscaled) values.
+
+    COGs written by :func:`write_cog` (and the legacy task) already store
+    exact ``STATISTICS_*`` tags, which are used as-is (a header read). A file
+    whose tags are missing, partial (e.g. no ``STATISTICS_VALID_PERCENT``,
+    which GDAL < 3.2 never wrote) or approximate is instead computed exactly
+    from a full-resolution read. Returns None for a band with no valid pixels;
+    a failed read raises rasterio's own error rather than being guessed at.
+    """
+    with rasterio.open(path) as src:
+        tags = src.tags(1)
+        if tags.get("STATISTICS_APPROXIMATE", "").upper() != "YES":
+            # GDAL stores only VALID_PERCENT=0 for an all-nodata band.
+            if float(tags.get("STATISTICS_VALID_PERCENT", "nan")) == 0:
+                return None
+            if STORED_STATISTICS_TAGS <= tags.keys():
+                return _rounded_statistics(
+                    float(tags["STATISTICS_MINIMUM"]),
+                    float(tags["STATISTICS_MAXIMUM"]),
+                    float(tags["STATISTICS_MEAN"]),
+                    float(tags["STATISTICS_STDDEV"]),
+                    float(tags["STATISTICS_VALID_PERCENT"]),
+                )
+        return array_statistics(src.read(1, masked=True))
+
+
+def array_statistics(band: np.ma.MaskedArray) -> dict[str, float] | None:
+    """Exact `statistics` of one masked band; None when every pixel is masked."""
+    valid = int(band.count())
+    if valid == 0:
+        return None
+    return _rounded_statistics(
+        float(band.min()),
+        float(band.max()),
+        float(band.mean(dtype=np.float64)),
+        # Population stddev, as GDAL computes it.
+        float(band.std(dtype=np.float64)),
+        100.0 * valid / band.size,
+    )
+
+
+def _rounded_statistics(
+    minimum: float, maximum: float, mean: float, stddev: float, valid_percent: float
+) -> dict[str, float]:
+    return {
+        "minimum": round(minimum, STATISTICS_ROUNDING),
+        "maximum": round(maximum, STATISTICS_ROUNDING),
+        "mean": round(mean, STATISTICS_ROUNDING),
+        "stddev": round(stddev, STATISTICS_ROUNDING),
+        "valid_percent": round(valid_percent, STATISTICS_ROUNDING),
+    }
 
 
 def make_thumbnail(item: Item) -> Item:
@@ -113,6 +184,7 @@ def write_cog(
     offsets: Sequence[float | int] | None = None,
     colorinterp: Sequence[ColorInterp] | None = None,
 ) -> None:
+    """Write ``array`` as a COG with exact statistics stored for every band."""
     profile = {
         "driver": "COG",
         "dtype": array.dtype,
@@ -157,6 +229,8 @@ def write_cog(
             dst.update_tags(**tags)
             dst.write(array)
             dst.build_overviews(overviews, Resampling[overview_resampling.lower()])
+            # Stores STATISTICS_* tags; a failure here only means a COG
+            # without them, which read_statistics recomputes if it needs to.
             dst.stats()
 
 
@@ -231,10 +305,17 @@ def cogify(asset_name: str, asset: Asset) -> CogFile:
     )
     cogfile_tmp.rename(cogfile)
 
+    # Only statistics assets are measured, so a stats problem on e.g. SCL or
+    # the visual COG can never fail the task.
+    statistics = (
+        read_statistics(cogfile) if asset_name in STATISTICS_ASSET_KEYS else None
+    )
+
     return CogFile(
         path=cogfile,
         size=cogfile.stat().st_size,
         checksum=sha256sum_multihash(str(cogfile)),
+        statistics=statistics,
     )
 
 
