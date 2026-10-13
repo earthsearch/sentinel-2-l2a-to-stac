@@ -52,26 +52,32 @@ GSD_TO_BLOCKSIZE: dict[int | None, tuple[int, int]] = {
 }
 
 
-@dataclass(frozen=True)
-class CogFile:
-    """A COG written by :func:`cogify`, with its file info already computed."""
-
-    path: Path
-    size: int
-    checksum: str
-    # None for a non-statistics asset, or one with no valid pixels.
-    statistics: dict[str, float] | None
-
-    @property
-    def filename(self) -> str:
-        return self.path.name
-
-
 class FileInfo(NamedTuple):
     """The ``file:size``/``file:checksum`` pair for one object."""
 
     size: int
     checksum: str
+
+
+@dataclass(frozen=True)
+class AssetMeasurement:
+    """What was learned about one asset's file while it was readable."""
+
+    file_info: FileInfo | None = None
+    # None for a non-statistics asset, or one with no valid pixels.
+    statistics: dict[str, float] | None = None
+
+
+@dataclass(frozen=True)
+class CogFile:
+    """A COG written by :func:`cogify`, with its measurement already computed."""
+
+    path: Path
+    measurement: AssetMeasurement
+
+    @property
+    def filename(self) -> str:
+        return self.path.name
 
 
 def sha256sum_multihash(filename: str) -> str:
@@ -313,9 +319,12 @@ def cogify(asset_name: str, asset: Asset) -> CogFile:
 
     return CogFile(
         path=cogfile,
-        size=cogfile.stat().st_size,
-        checksum=sha256sum_multihash(str(cogfile)),
-        statistics=statistics,
+        measurement=AssetMeasurement(
+            file_info=FileInfo(
+                cogfile.stat().st_size, sha256sum_multihash(str(cogfile))
+            ),
+            statistics=statistics,
+        ),
     )
 
 

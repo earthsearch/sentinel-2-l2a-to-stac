@@ -37,6 +37,7 @@ from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
 from sentinel_2_l2a_to_stac.cogify import (
+    AssetMeasurement,
     CogFile,
     FileInfo,
     cogify,
@@ -126,7 +127,7 @@ def _fake_read_href_factory(calls: list[str]) -> Any:
 class _StubItem:
     """Minimal stand-in so process() can pass the is_newer and fileinfo stages.
 
-    An empty `assets` dict lets add_fileinfo_to_local_assets iterate to a no-op.
+    An empty `assets` dict lets apply_file_info iterate to a no-op.
     """
 
     id = "stub-item"
@@ -188,8 +189,8 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         Sentinel2ToStac,
-        "apply_reference_file_info",
-        lambda self, item, bucket_filenames, doc, measured: item,
+        "apply_file_info",
+        lambda self, item, doc, measured: item,
     )
     monkeypatch.setattr(
         Sentinel2ToStac,
@@ -373,7 +374,7 @@ def test_add_thumbnail_asset() -> None:
     assert thumb.title == "Thumbnail of preview image"
 
 
-def test_apply_reference_file_info_reuses_from_doc(
+def test_apply_file_info_reuses_from_doc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     item = _synthetic_item(["blue"])
@@ -390,14 +391,14 @@ def test_apply_reference_file_info_reuses_from_doc(
     )
 
     doc = {"assets": {"blue": {"file:size": 123, "file:checksum": "abc"}}}
-    result = task.apply_reference_file_info(item, {"B02.tif"}, doc, {})
+    result = task.apply_file_info(item, doc, {})
 
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 123
     assert fext.checksum == "abc"
 
 
-def test_apply_reference_file_info_reuses_measured_info(
+def test_apply_file_info_reuses_measured_info(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The footprint pass already hashed this raster; it must not be fetched again.
@@ -414,15 +415,15 @@ def test_apply_reference_file_info_reuses_measured_info(
         upload=False,
     )
 
-    measured = {"blue": FileInfo(size=42, checksum="measured")}
-    result = task.apply_reference_file_info(item, {"B02.tif"}, {"assets": {}}, measured)
+    measured = {"blue": AssetMeasurement(FileInfo(size=42, checksum="measured"))}
+    result = task.apply_file_info(item, {"assets": {}}, measured)
 
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 42
     assert fext.checksum == "measured"
 
 
-def test_apply_reference_file_info_downloads_when_missing_from_doc(
+def test_apply_file_info_downloads_when_missing_from_doc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     item = _synthetic_item(["blue"])
@@ -438,7 +439,7 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
         upload=False,
     )
 
-    result = task.apply_reference_file_info(item, {"B02.tif"}, {"assets": {}}, {})
+    result = task.apply_file_info(item, {"assets": {}}, {})
 
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 14
@@ -447,7 +448,7 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_apply_reference_file_info_preserves_cached_metadata_files(
+def test_apply_file_info_preserves_cached_metadata_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A metadata asset with no file info in the doc must not clobber or delete
@@ -467,13 +468,13 @@ def test_apply_reference_file_info_preserves_cached_metadata_files(
         upload=False,
     )
 
-    result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}}, {})
+    result = task.apply_file_info(item, {"assets": {}}, {})
 
     assert cached.read_bytes() == b"cached-original"
     assert FileExtension.ext(result.assets["granule_metadata"]).size == 7
 
 
-def test_apply_reference_file_info_ignores_extra_doc_asset(
+def test_apply_file_info_ignores_extra_doc_asset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     item = _synthetic_item(["blue"])
@@ -497,7 +498,7 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
             "red": {"file:size": 999, "file:checksum": "should-not-be-used"},
         }
     }
-    result = task.apply_reference_file_info(item, {"B02.tif"}, doc, {})
+    result = task.apply_file_info(item, doc, {})
 
     assert "red" not in result.assets
     fext = FileExtension.ext(result.assets["blue"])
@@ -505,13 +506,11 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
     assert fext.checksum == "x"
 
 
-def test_apply_reference_file_info_raises_when_missing_from_bucket() -> None:
+def test_check_assets_in_bucket_raises_when_missing() -> None:
     item = _synthetic_item(["blue"])
     item.assets["blue"].href = "s3://bucket/prefix/B02.tif"
     with pytest.raises(InvalidInput, match="not found in the bucket"):
-        _minimal_task("test-missing-from-bucket").apply_reference_file_info(
-            item, set(), {"assets": {}}, {}
-        )
+        _minimal_task("test-missing-from-bucket").check_assets_in_bucket(item, set())
 
 
 _FULL_ITEM_ID = "S2A_T19TDJ_20230419T153818_L2A"
@@ -1066,7 +1065,8 @@ def test_cogify_source_images_covers_the_canonical_set(
         task_module,
         "cogify",
         lambda asset_name, asset: CogFile(
-            Path(asset.href).with_suffix(".tif"), 1, "a", None
+            Path(asset.href).with_suffix(".tif"),
+            AssetMeasurement(FileInfo(1, "a")),
         ),
     )
 
@@ -1144,10 +1144,12 @@ def test_measure_reference_images_discards_each_raster(
         }
     )
 
-    assert set(measured.file_info) == {"blue"}
-    assert measured.file_info["blue"].size == (source / "B02.tif").stat().st_size
-    assert measured.file_info["blue"].checksum
-    assert set(measured.statistics) == {"blue"}
+    assert set(measured.assets) == {"blue"}
+    blue = measured.assets["blue"]
+    assert blue.file_info is not None
+    assert blue.file_info.size == (source / "B02.tif").stat().st_size
+    assert blue.file_info.checksum
+    assert blue.statistics is not None
     assert held == [1]
     assert list(workdir.iterdir()) == []
 
@@ -1185,7 +1187,7 @@ def test_measure_reference_images_fetches_and_footprints_only_reflectance(
 
     assert fetched == ["blue"]
     assert [n.split(".")[0] for n in footprinted] == ["B02"]
-    assert set(measured.statistics) == {"blue"}
+    assert set(measured.assets) == {"blue"}
 
 
 def test_measure_remote_statistics_reads_only_non_reflectance_stats_assets(
@@ -1206,6 +1208,7 @@ def test_measure_remote_statistics_reads_only_non_reflectance_stats_assets(
     )
 
     assert set(statistics) == {"aot", "wvp"}
+    assert all(m.file_info is None for m in statistics.values())
 
 
 def test_process_skips_remote_statistics_when_not_newer(
@@ -1268,11 +1271,12 @@ def test_cogify_produces_valid_cog(tmp_path: Path) -> None:
 
     assert cog.path.suffix == ".tif"
     assert cog.filename == "B01.tif"
-    assert cog.checksum
-    assert cog.size > 0
+    assert cog.measurement.file_info is not None
+    assert cog.measurement.file_info.checksum
+    assert cog.measurement.file_info.size > 0
     # arange data with no nodata: every pixel is valid.
     values = np.arange(64 * 64, dtype="float64")
-    assert cog.statistics == {
+    assert cog.measurement.statistics == {
         "minimum": 0.0,
         "maximum": float(values.max()),
         "mean": round(float(values.mean()), 4),
@@ -1294,7 +1298,7 @@ def test_cogify_skips_statistics_for_non_statistics_assets(tmp_path: Path) -> No
 
     cog = cogify("scl", Asset(href=str(src_path), media_type="image/jp2"))
 
-    assert cog.statistics is None
+    assert cog.measurement.statistics is None
 
 
 # ---------------------------------------------------------------------------
@@ -1423,7 +1427,11 @@ def test_apply_statistics_sets_asset_level_field() -> None:
     _minimal_task("test-apply-stats").apply_statistics(
         # scl is outside STATISTICS_ASSET_KEYS; green has no valid pixels.
         item,
-        {"blue": stats, "scl": stats, "green": None},
+        {
+            "blue": AssetMeasurement(statistics=stats),
+            "scl": AssetMeasurement(statistics=stats),
+            "green": AssetMeasurement(),
+        },
     )
 
     assert item.assets["blue"].extra_fields["statistics"] == stats
@@ -1468,7 +1476,9 @@ def test_process_cog_path_applies_statistics_to_statistics_assets(
     }
     # scl carries stats too, to prove the STATISTICS_ASSET_KEYS filter.
     cogs = {
-        key: CogFile(tmp_path / ASSET_FILENAMES[key], 1, "c", stats)
+        key: CogFile(
+            tmp_path / ASSET_FILENAMES[key], AssetMeasurement(FileInfo(1, "c"), stats)
+        )
         for key in ("blue", "scl")
     }
     monkeypatch.setattr(
@@ -1477,6 +1487,9 @@ def test_process_cog_path_applies_statistics_to_statistics_assets(
         lambda self, metadata, image_hrefs: cogs,
     )
     monkeypatch.setattr(task_module, "make_thumbnail", lambda item: item)
+    monkeypatch.setattr(
+        Sentinel2ToStac, "remote_file_info", lambda self, href: _STUB_FILE_INFO
+    )
 
     task = Sentinel2ToStac(
         {"id": "test-cog-stats", "safe_href": "/safe/root"},
@@ -1487,6 +1500,9 @@ def test_process_cog_path_applies_statistics_to_statistics_assets(
 
     assert out["assets"]["blue"]["statistics"] == stats
     assert "statistics" not in out["assets"]["scl"]
+    # COG file info comes from cogify; everything else is measured.
+    assert out["assets"]["blue"]["file:checksum"] == "c"
+    assert out["assets"]["aot"]["file:checksum"] == _STUB_FILE_INFO.checksum
 
 
 def test_logger_prefixes_payload_id(caplog: pytest.LogCaptureFixture) -> None:

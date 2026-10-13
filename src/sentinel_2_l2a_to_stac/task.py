@@ -24,6 +24,7 @@ from stactask.utils import stac_jsonpath_match
 
 from sentinel_2_l2a_to_stac.cogify import (
     THUMBNAIL_TITLE,
+    AssetMeasurement,
     CogFile,
     FileInfo,
     cogify,
@@ -266,13 +267,11 @@ class SourceProduct:
 
 @dataclass(frozen=True)
 class RasterMeasurements:
-    """What the reference path learns from each raster while it is on disk."""
+    """What each path learns from its rasters while they are on disk."""
 
     geometry: Optional[dict[str, Any]] = None
-    # Canonical asset key -> file info / `statistics` object (None when the
-    # raster has no valid pixels).
-    file_info: dict[str, FileInfo] = field(default_factory=dict)
-    statistics: dict[str, Optional[dict[str, float]]] = field(default_factory=dict)
+    # Canonical asset key -> its measurement.
+    assets: dict[str, AssetMeasurement] = field(default_factory=dict)
 
 
 def _validate_processing_baseline(processing_baseline: str) -> None:
@@ -429,31 +428,35 @@ class Sentinel2ToStac(Task):
         asset.set_owner(item)
         return item
 
-    def apply_reference_file_info(
-        self,
-        item: Item,
-        bucket_filenames: set[str],
-        existing_stac_doc: dict[str, Any],
-        measured: dict[str, FileInfo],
-    ) -> Item:
-        """Populate file:size/file:checksum for every reference-path asset.
-
-        Reuse them from the existing doc when it already carries both fields
-        for this asset, then from `measured` (the footprint pass already had
-        those rasters on disk), and only otherwise go back to the bucket --
-        streamed, so no asset is ever held in memory or written to the
-        workdir. An asset missing from the bucket is a hard input error. Any
-        doc asset that isn't one of `item`'s own keys is never consulted,
-        which is what makes an extra doc-only asset a no-op.
-        """
-        doc_assets = existing_stac_doc.get("assets", {})
-        for key, asset in item.assets.items():
+    def check_assets_in_bucket(self, item: Item, bucket_filenames: set[str]) -> None:
+        """Reference path only: every asset must already exist in the bucket."""
+        for key in item.assets:
             filename = ASSET_FILENAMES[key]
             if filename not in bucket_filenames:
                 raise InvalidInput(
                     f"Expected asset '{key}' ({filename}) not found in the bucket"
                 )
 
+    def apply_file_info(
+        self,
+        item: Item,
+        existing_stac_doc: dict[str, Any],
+        measured: dict[str, AssetMeasurement],
+    ) -> Item:
+        """Populate file:size/file:checksum for every asset.
+
+        Reuse them from the existing doc when it already carries both fields
+        for this asset, then from `measured` (rasters already hashed while on
+        disk), and only otherwise measure the asset's href -- hashed in place
+        when local, streamed when remote, so nothing is held in memory or
+        written to the workdir. Any doc asset that isn't one of `item`'s own
+        keys is never consulted, which is what makes an extra doc-only asset a
+        no-op.
+        """
+        # pystac 2.0: re-parent first. Idempotent.
+        _set_asset_owners(item)
+        doc_assets = existing_stac_doc.get("assets", {})
+        for key, asset in item.assets.items():
             fext = FileExtension.ext(asset, add_if_missing=True)
             doc_asset = doc_assets.get(key, {})
             if doc_type := doc_asset.get("type"):
@@ -465,7 +468,9 @@ class Sentinel2ToStac(Task):
                 fext.checksum = checksum
                 continue
 
-            info = measured.get(key) or self.remote_file_info(asset.href)
+            info = measured.get(key, AssetMeasurement()).file_info
+            if info is None:
+                info = self.remote_file_info(asset.href)
             fext.size = info.size
             fext.checksum = info.checksum
 
@@ -482,22 +487,21 @@ class Sentinel2ToStac(Task):
         other statistics assets (AOT/WVP) are read in place, after the
         freshness gate, by `measure_remote_statistics`, and every
         non-reflectance asset's file info is measured off the bucket by
-        `apply_reference_file_info`.
+        `apply_file_info`.
         """
         hrefs = {k: h for k, h in image_hrefs.items() if k in SENTINEL_BANDS}
         self.logger.info(f"Computing the data footprint from {len(hrefs)} rasters")
-        file_info: dict[str, FileInfo] = {}
-        statistics: dict[str, Optional[dict[str, float]]] = {}
+        assets: dict[str, AssetMeasurement] = {}
 
         def staged() -> Iterator[str]:
             for key, href in hrefs.items():
                 local = self._workdir / CANONICAL_IMAGE_FILENAMES[key]
                 self.fetch_source_images({key: href})
                 try:
-                    file_info[key] = FileInfo(
-                        local.stat().st_size, sha256sum_multihash(str(local))
+                    assets[key] = AssetMeasurement(
+                        FileInfo(local.stat().st_size, sha256sum_multihash(str(local))),
+                        self.asset_statistics(local),
                     )
-                    statistics[key] = self.asset_statistics(local)
                     # data_footprint is done with each href before it asks for
                     # the next one, so the file can go as soon as it resumes.
                     yield str(local)
@@ -505,11 +509,11 @@ class Sentinel2ToStac(Task):
                     local.unlink(missing_ok=True)
 
         geometry = data_footprint(staged())
-        return RasterMeasurements(geometry, file_info, statistics)
+        return RasterMeasurements(geometry, assets)
 
     def measure_remote_statistics(
         self, image_hrefs: dict[str, str]
-    ) -> dict[str, Optional[dict[str, float]]]:
+    ) -> dict[str, AssetMeasurement]:
         """Statistics for the non-reflectance statistics assets (AOT/WVP).
 
         These are never fetched; each is read in place off the bucket, which
@@ -526,7 +530,7 @@ class Sentinel2ToStac(Task):
             GDAL_HTTP_RETRY_DELAY=GDAL_HTTP_RETRY_DELAY,
         ):
             return {
-                key: self.asset_statistics(href)
+                key: AssetMeasurement(statistics=self.asset_statistics(href))
                 for key, href in image_hrefs.items()
                 if key in STATISTICS_ASSET_KEYS and key not in SENTINEL_BANDS
             }
@@ -545,7 +549,7 @@ class Sentinel2ToStac(Task):
             raise InvalidInput(f"Cannot read statistics from '{href}': {e}") from e
 
     def apply_statistics(
-        self, item: Item, statistics: dict[str, Optional[dict[str, float]]]
+        self, item: Item, measured: dict[str, AssetMeasurement]
     ) -> Item:
         """Set asset-level `statistics` on each statistics asset; every one is
         single-band, so per STAC 1.1 the band fields live on the asset itself.
@@ -553,10 +557,10 @@ class Sentinel2ToStac(Task):
         Keys outside STATISTICS_ASSET_KEYS are ignored, and an asset with no
         valid pixels (None) is logged and left without `statistics`.
         """
-        for key, stats in statistics.items():
+        for key, measurement in measured.items():
             if key not in STATISTICS_ASSET_KEYS:
                 continue
-            if stats is None:
+            if (stats := measurement.statistics) is None:
                 self.logger.warning(
                     f"No valid pixels in '{key}'; omitting its statistics"
                 )
@@ -694,25 +698,6 @@ class Sentinel2ToStac(Task):
             _add(EARTHSEARCH_SCHEME_KEY, es_bucket, earthsearch_keys)
         if local_keys:
             _add(LOCAL_SCHEME_KEY, LOCAL_BUCKET, local_keys)
-
-        return item
-
-    def add_fileinfo_to_local_assets(self, item: Item) -> Item:
-        # pystac 2.0: re-parent first. Idempotent.
-        _set_asset_owners(item)
-        for asset in item.assets.values():
-            if not self.is_local_asset(asset):
-                continue
-            fext = FileExtension.ext(
-                asset,
-                add_if_missing=True,
-            )
-
-            if fext.checksum is None:
-                fext.checksum = sha256sum_multihash(asset.href)
-
-            if fext.size is None:
-                fext.size = os.path.getsize(asset.href)
 
         return item
 
@@ -883,16 +868,14 @@ class Sentinel2ToStac(Task):
         # to COGify, so it measures and discards one raster at a time instead
         # of holding all of them. The only remote GDAL reads are the AOT/WVP
         # statistics.
-        measured = RasterMeasurements()
         if source.create_cogs:
             self.fetch_source_images(source.image_hrefs)
-            geometry = self.data_geometry(source)
+            measured = RasterMeasurements(geometry=self.data_geometry(source))
         else:
             measured = self.measure_reference_images(source.image_hrefs)
-            geometry = measured.geometry
 
-        if geometry is not None:
-            metadata = replace(metadata, geometry=geometry)
+        if measured.geometry is not None:
+            metadata = replace(metadata, geometry=measured.geometry)
 
         # Build the Item up front to run the two cheap gates: the collection
         # lookup needs a whole Item dict, and COGifying is far too expensive to
@@ -934,11 +917,9 @@ class Sentinel2ToStac(Task):
                     image_media_type=MediaType.COG,
                 )
             )
-            for key, cog in cogs.items():
-                FileExtension.ext(item.assets[key], add_if_missing=True).apply(
-                    checksum=cog.checksum, size=cog.size
-                )
-            statistics = {key: cog.statistics for key, cog in cogs.items()}
+            measured = replace(
+                measured, assets={key: cog.measurement for key, cog in cogs.items()}
+            )
 
             self.logger.info("Making preview thumbnail")
             try:
@@ -952,19 +933,16 @@ class Sentinel2ToStac(Task):
             self.logger.info("Applying earthsearch hrefs")
             item = self.apply_earthsearch_hrefs(item, source.prefix)
             item = self.add_thumbnail_asset(item, source.prefix)
-
-            self.logger.info("Reusing/downloading asset file info")
-            item = self.apply_reference_file_info(
-                item, source.bucket_filenames, existing_stac_doc, measured.file_info
-            )
-            statistics = measured.statistics | self.measure_remote_statistics(
-                source.image_hrefs
+            self.check_assets_in_bucket(item, source.bucket_filenames)
+            measured = replace(
+                measured,
+                assets=measured.assets
+                | self.measure_remote_statistics(source.image_hrefs),
             )
 
-        item = self.apply_statistics(item, statistics)
-
-        self.logger.info("Adding fileinfo to assets")
-        item = self.add_fileinfo_to_local_assets(item)
+        self.logger.info("Reusing/measuring asset file info")
+        item = self.apply_file_info(item, existing_stac_doc, measured.assets)
+        item = self.apply_statistics(item, measured.assets)
 
         self.logger.info("Uploading assets")
         item = self.upload_item_assets_to_s3(item, self.get_local_asset_keys(item))
