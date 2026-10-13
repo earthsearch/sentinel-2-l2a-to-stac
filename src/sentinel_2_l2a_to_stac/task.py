@@ -938,9 +938,7 @@ class Sentinel2ToStac(Task):
                 FileExtension.ext(item.assets[key], add_if_missing=True).apply(
                     checksum=cog.checksum, size=cog.size
                 )
-            item = self.apply_statistics(
-                item, {key: cog.statistics for key, cog in cogs.items()}
-            )
+            statistics = {key: cog.statistics for key, cog in cogs.items()}
 
             self.logger.info("Making preview thumbnail")
             try:
@@ -959,11 +957,11 @@ class Sentinel2ToStac(Task):
             item = self.apply_reference_file_info(
                 item, source.bucket_filenames, existing_stac_doc, measured.file_info
             )
-            item = self.apply_statistics(
-                item,
-                measured.statistics
-                | self.measure_remote_statistics(source.image_hrefs),
+            statistics = measured.statistics | self.measure_remote_statistics(
+                source.image_hrefs
             )
+
+        item = self.apply_statistics(item, statistics)
 
         self.logger.info("Adding fileinfo to assets")
         item = self.add_fileinfo_to_local_assets(item)
