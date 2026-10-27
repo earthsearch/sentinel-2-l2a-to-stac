@@ -31,6 +31,9 @@ used by this project.
   next, and measures the remaining assets by streaming them from the bucket
   instead of buffering them.
 - Update collection bounds to match S2 orbit
+- Band `eo:center_wavelength` / `eo:full_width_half_max` now come from the
+  per-satellite (S2A, S2B, S2C) spectral tables on SentiWiki instead of one
+  shared set of values.
 
 ## [v2026.09.30]
 
