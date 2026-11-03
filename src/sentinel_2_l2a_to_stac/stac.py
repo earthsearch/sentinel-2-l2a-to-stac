@@ -69,6 +69,7 @@ from sentinel_2_l2a_to_stac.constants import (
     RASTER_BAND_RENAME,
     RASTER_EXT_V2,
     SENTINEL2_EXTENSION_SCHEMA,
+    SENTINEL_BAND_WAVELENGTHS_NM,
     SENTINEL_BANDS,
     SENTINEL_CONSTELLATION,
     SENTINEL_INSTRUMENTS,
@@ -160,11 +161,24 @@ _IS_TCI_PATTERN: Final[Pattern[str]] = re.compile(r"[_/]TCI")
 _IS_PVI_PATTERN: Final[Pattern[str]] = re.compile(r"[_/]PVI")
 _BAND_ID_PATTERN: Final[Pattern[str]] = re.compile(r"[_/](B\d[A\d])")
 
-_RGB_BANDS: Final[list[EOBand]] = [
-    SENTINEL_BANDS["red"],
-    SENTINEL_BANDS["green"],
-    SENTINEL_BANDS["blue"],
-]
+
+def _band(key: str, platform: str) -> EOBand:
+    """The EO band `key` with the wavelengths of the satellite unit `platform`."""
+    try:
+        center_nm, fwhm_nm = SENTINEL_BAND_WAVELENGTHS_NM[platform][key]
+    except KeyError:
+        raise ValueError(f"No spectral information for platform {platform!r}")
+    band = SENTINEL_BANDS[key]
+    return EOBand.create(
+        name=band.name,
+        common_name=band.common_name,
+        center_wavelength=round(center_nm / 1000, 4),
+        full_width_half_max=round(fwhm_nm / 1000, 4),
+    )
+
+
+def _rgb_bands(platform: str) -> list[EOBand]:
+    return [_band(key, platform) for key in ("red", "green", "blue")]
 
 
 def _offset_for_pb(processing_baseline: str) -> float:
@@ -195,8 +209,8 @@ def _highest_asset_res(band_id: str) -> int:
     return UNSUFFIXED_BAND_RESOLUTION[BANDS_TO_ASSET_NAME[band_id]]
 
 
-def _band_from_band_id(band_id: str) -> EOBand:
-    return SENTINEL_BANDS[BANDS_TO_ASSET_NAME[band_id]]
+def _band_from_band_id(band_id: str, platform: str) -> EOBand:
+    return _band(BANDS_TO_ASSET_NAME[band_id], platform)
 
 
 def _mk_asset_id(maybe_res: Optional[int], name: str) -> str:
@@ -230,6 +244,7 @@ def _image_asset_from_href(
     proj_bbox: list[float],
     media_type: Optional[str],
     processing_baseline: str,
+    platform: str,
     boa_add_offsets: Optional[dict[str, int]] = None,
 ) -> tuple[str, pystac.Asset]:
     logger.debug(f"Creating asset for image {asset_href}")
@@ -280,7 +295,9 @@ def _image_asset_from_href(
             roles=["overview"],
         )
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        _apply_bands(asset, [_native_band(b.to_dict(), None) for b in _RGB_BANDS])
+        _apply_bands(
+            asset, [_native_band(b.to_dict(), None) for b in _rgb_bands(platform)]
+        )
         return "preview", asset
 
     band_id_search = _BAND_ID_PATTERN.search(asset_href)
@@ -309,7 +326,7 @@ def _image_asset_from_href(
             asset,
             [
                 _native_band(
-                    _band_from_band_id(band_id).to_dict(),
+                    _band_from_band_id(band_id, platform).to_dict(),
                     _raster_band_fields(
                         boa_add_offsets, processing_baseline, band_id, resolution
                     ),
@@ -326,7 +343,8 @@ def _image_asset_from_href(
             roles=["visual"],
         )
         _apply_bands(
-            asset, [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS]
+            asset,
+            [_native_band(b.to_dict(), _raster_uint8) for b in _rgb_bands(platform)],
         )
         asset_id = f"visual_{maybe_res}m" if maybe_res and maybe_res != 10 else "visual"
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
@@ -453,6 +471,7 @@ def create_image_assets(
             proj_bbox=metadata.proj_bbox,
             media_type=metadata.image_media_type,
             processing_baseline=metadata.processing_baseline,
+            platform=metadata.platform,
             boa_add_offsets=metadata.boa_add_offsets,
         )
         for image_path in image_paths
