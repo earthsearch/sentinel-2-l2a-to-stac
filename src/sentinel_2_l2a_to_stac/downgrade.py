@@ -2,7 +2,6 @@
 
 Deliberately NOT restored (output still differs from v1 here):
   - `via` link: removed upstream on purpose.
-  - `s2:dark_features_percentage`: absent from the source data, not a code change.
   - Workflow/task identity (`processing:software` key, `earthsearch:payload_id`,
     hrefs): these follow the task rename, not the STAC format.
   - Key order within dicts: JSON-irrelevant.
@@ -15,7 +14,12 @@ re-serialization stamps `stac_version: 1.1.0` back on.
 import copy
 from typing import Any
 
-from sentinel_2_l2a_to_stac.constants import EO_BAND_RENAME, RASTER_BAND_RENAME
+from sentinel_2_l2a_to_stac.constants import (
+    EO_BAND_RENAME,
+    PROCESSING_EXT_STACTASK,
+    PROCESSING_EXT_V1_3,
+    RASTER_BAND_RENAME,
+)
 
 Json = dict[str, Any]
 
@@ -29,6 +33,7 @@ EXTENSION_DOWNGRADE: dict[str, str] = {
     f"{EXT}/projection/v2.0.0/schema.json": f"{EXT}/projection/v1.1.0/schema.json",
     f"{EXT}/raster/v2.0.0/schema.json": f"{EXT}/raster/v1.1.0/schema.json",
     f"{EXT}/storage/v2.0.0/schema.json": f"{EXT}/storage/v1.0.0/schema.json",
+    PROCESSING_EXT_V1_3: PROCESSING_EXT_STACTASK,
 }
 
 
@@ -132,6 +137,29 @@ def downgrade_bands(item: Json) -> None:
         _downgrade_asset_bands(asset)
 
 
+# ── Step 5: renamed / nested properties -> v1 `s2:*` keys ───────────────────
+
+# `statistics` keys whose v1 name differs. ESA renamed DARK_FEATURES to
+# CAST_SHADOW at baseline 05.11; v1 keeps the old name for backwards
+# compatibility.
+V1_STATISTICS_RENAME: dict[str, str] = {"cast_shadow": "dark_features"}
+
+
+def downgrade_renamed_properties(item: Json) -> None:
+    props = item["properties"]
+
+    statistics: Json = props.pop("statistics", None) or {}
+    for name, value in statistics.items():
+        v1_name = V1_STATISTICS_RENAME.get(name, name)
+        props.setdefault(f"s2:{v1_name}_percentage", value)
+
+    if "processing:datetime" in props:
+        props["s2:generation_time"] = props.pop("processing:datetime")
+
+    if "eo:snow_cover" in props:
+        props["s2:snow_ice_percentage"] = props.pop("eo:snow_cover")
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 
@@ -142,4 +170,5 @@ def downgrade_item(item: Json) -> Json:
     downgrade_projection(out)
     downgrade_storage(out)
     downgrade_bands(out)
+    downgrade_renamed_properties(out)
     return out

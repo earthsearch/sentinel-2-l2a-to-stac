@@ -31,6 +31,26 @@ used by this project.
   next, and measures the remaining assets by streaming them from the bucket
   instead of buffering them.
 - Update collection bounds to match S2 orbit
+- STAC 1.1 Items use standard fields in place of several `s2:` properties:
+  - `s2:generation_time` → `processing:datetime`. The processing extension
+    is now declared at v1.3.0 (the first version defining that field)
+    instead of the v1.1.0 that stactask adds.
+  - `s2:snow_ice_percentage` → `eo:snow_cover`.
+  - The 11 scene-classification `s2:*_percentage` fields → a `statistics`
+    object keyed by class name (e.g. `s2:water_percentage` →
+    `statistics.water`).
+
+  `v1_output: true` Items are unaffected: the downgrade maps these back to
+  their `s2:*` names and the processing extension back to v1.1.0.
+- The "newer than existing" check compares `processing:datetime`, falling
+  back to `s2:generation_time` for Items written before this release. A
+  missing, null, or non-string value is treated as oldest.
+
+- Restored the dark-features/cast-shadow class percentage, which v2026.09.30
+  read only from `DARK_FEATURES_PERCENTAGE` and so dropped on baseline 05.11+
+  (where ESA renamed it `CAST_SHADOW_PERCENTAGE`). STAC 1.1 Items carry
+  `statistics.dark_features` (baseline ≤ 05.10) or `statistics.cast_shadow`
+  (≥ 05.11); `v1_output` Items carry both as `s2:dark_features_percentage`.
 
 ## [v2026.09.30]
 

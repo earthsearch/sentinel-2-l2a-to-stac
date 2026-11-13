@@ -246,6 +246,14 @@ EO_EXT_V2: Final[str] = "https://stac-extensions.github.io/eo/v2.0.0/schema.json
 RASTER_EXT_V2: Final[str] = (
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
 )
+# Processing extension: stactask's Task.add_software_version_to_item hard-codes
+# v1.1.0, which has no processing:datetime. Items are re-pinned to v1.3.0.
+PROCESSING_EXT_STACTASK: Final[str] = (
+    "https://stac-extensions.github.io/processing/v1.1.0/schema.json"
+)
+PROCESSING_EXT_V1_3: Final[str] = (
+    "https://stac-extensions.github.io/processing/v1.3.0/schema.json"
+)
 
 # Asset hrefs are published as public https URLs; the s3:// URL is kept as an
 # alternate. Storage refs stay on the asset only.

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -38,6 +39,8 @@ from sentinel_2_l2a_to_stac.constants import (
     ALTERNATE_S3_KEY,
     ALTERNATE_S3_NAME,
     CANONICAL_L2A_IMAGE_PATHS,
+    PROCESSING_EXT_STACTASK,
+    PROCESSING_EXT_V1_3,
     SENTINEL_BANDS,
 )
 from sentinel_2_l2a_to_stac.downgrade import downgrade_item
@@ -301,6 +304,29 @@ class SourceProduct:
     create_cogs: bool
 
 
+def _generation_time(properties: Mapping[str, Any]) -> str:
+    """Return an Item's generation time.
+
+    Items written before the rename carry `s2:generation_time`; new Items carry
+    `processing:datetime`. Fall back so existing Items still compare correctly.
+    """
+    for key in ("processing:datetime", "s2:generation_time"):
+        value = properties.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def _pin_processing_extension(item: dict[str, Any]) -> None:
+    """Swap the processing extension stactask adds for the version that defines
+    `processing:datetime`."""
+    extensions = [
+        PROCESSING_EXT_V1_3 if ext == PROCESSING_EXT_STACTASK else ext
+        for ext in item.get("stac_extensions", [])
+    ]
+    item["stac_extensions"] = list(dict.fromkeys(extensions))
+
+
 def _validate_processing_baseline(processing_baseline: str) -> None:
     if (
         processing_baseline < "05.00"
@@ -400,14 +426,14 @@ class Sentinel2ToStac(Task):
             return Success(True)
         elif existing_item_r.status_code == 200:
             if (
-                existing_item_pg := existing_item_r.json()
-                .get("properties", {})
-                .get("s2:generation_time", "")
-            ) <= (created_item_pg := item.properties.get("s2:generation_time", "")):
+                existing_item_pg := _generation_time(
+                    existing_item_r.json().get("properties", {})
+                )
+            ) <= (created_item_pg := _generation_time(item.properties)):
                 return Success(True)
             else:
                 self.logger.info(
-                    f"Item {item.id} exists with s2:generation_time "
+                    f"Item {item.id} exists with processing:datetime "
                     f"'{existing_item_pg}', ignoring ingest with '{created_item_pg}'"
                 )
                 return Success(False)
@@ -997,6 +1023,7 @@ class Sentinel2ToStac(Task):
         item = self.add_storage_and_alternates(item)
 
         out = self.add_software_version_to_item(item.to_dict())
+        _pin_processing_extension(out)
         return [downgrade_item(out) if v1_output else out]
 
 

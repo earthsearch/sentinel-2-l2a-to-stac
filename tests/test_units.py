@@ -776,6 +776,7 @@ def _check_is_newer(
         (404, None, Success(True)),
         (500, None, "Failure"),
         (200, {}, Success(True)),
+        # Legacy key (`s2:generation_time`) on the existing Item.
         (
             200,
             {"properties": {"s2:generation_time": "2020-03-27T06:15:34Z"}},
@@ -791,8 +792,46 @@ def _check_is_newer(
             {"properties": {"s2:generation_time": "2026-03-27T06:15:34Z"}},
             Success(False),
         ),
+        # Renamed key (`processing:datetime`) on the existing Item.
+        (
+            200,
+            {"properties": {"processing:datetime": "2020-03-27T06:15:34Z"}},
+            Success(True),
+        ),
+        (
+            200,
+            {"properties": {"processing:datetime": _BASELINE_GEN_TIME}},
+            Success(True),
+        ),
+        (
+            200,
+            {"properties": {"processing:datetime": "2026-03-27T06:15:34Z"}},
+            Success(False),
+        ),
+        # Both present: the renamed key wins, so the legacy value is ignored.
+        (
+            200,
+            {
+                "properties": {
+                    "processing:datetime": "2020-03-27T06:15:34Z",
+                    "s2:generation_time": "2026-03-27T06:15:34Z",
+                }
+            },
+            Success(True),
+        ),
     ],
-    ids=["not-found", "server-error", "empty-body", "older", "same", "newer"],
+    ids=[
+        "not-found",
+        "server-error",
+        "empty-body",
+        "legacy-older",
+        "legacy-same",
+        "legacy-newer",
+        "renamed-older",
+        "renamed-same",
+        "renamed-newer",
+        "both-keys-renamed-wins",
+    ],
 )
 def test_is_newer_than_existing(
     baseline_item_dict: dict[str, Any],
@@ -874,12 +913,6 @@ def test_add_storage_schemes_classification() -> None:
 
     assert any("storage" in ext for ext in result_dict["stac_extensions"])
 
-
-def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
-    item = baseline_item_dict
-    assert "classification:classes" not in item["assets"]["scl"]
-    assert "eo:snow_cover" not in item["properties"]
-    assert not any("classification" in ext for ext in item["stac_extensions"])
 
 
 _BASELINE_HTTPS = f"https://{_BASELINE_BUCKET}.s3.us-west-2.amazonaws.com/prefix"
@@ -1487,3 +1520,18 @@ def test_logger_prefixes_payload_id(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO):
         task.logger.info("processing tile")
     assert "[test-payload-123] processing tile" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("properties", "expected"),
+    [
+        ({"processing:datetime": "2026-01-02T00:00:00Z"}, "2026-01-02T00:00:00Z"),
+        ({"s2:generation_time": "2025-01-02T00:00:00Z"}, "2025-01-02T00:00:00Z"),
+        ({"processing:datetime": None}, ""),
+        ({"processing:datetime": None, "s2:generation_time": "2025"}, "2025"),
+        ({"processing:datetime": 1.5}, ""),
+        ({}, ""),
+    ],
+)
+def test_generation_time(properties: dict[str, Any], expected: str) -> None:
+    assert task_module._generation_time(properties) == expected
