@@ -292,6 +292,7 @@
         "s2:water_percentage": 84.169912,
         "s2:vegetation_percentage": 4.650233,
         "s2:thin_cirrus_percentage": 1.77738,
+        "s2:dark_features_percentage": 0.016921,
         "s2:cloud_shadow_percentage": 0.039456,
         "s2:nodata_pixel_percentage": 0.0,
         "s2:unclassified_percentage": 0.063265,

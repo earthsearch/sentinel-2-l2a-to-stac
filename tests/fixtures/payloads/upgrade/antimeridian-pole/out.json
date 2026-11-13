@@ -768,6 +768,7 @@
           "vegetation": 0.0,
           "thin_cirrus": 1.403447,
           "cloud_shadow": 0.0,
+          "dark_features": 0.0,
           "nodata_pixel": 47.850874,
           "unclassified": 0.0,
           "not_vegetated": 0.020251,

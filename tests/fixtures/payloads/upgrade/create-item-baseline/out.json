@@ -253,6 +253,7 @@
           "water": 1.395032,
           "vegetation": 0.0,
           "thin_cirrus": 0.422606,
+          "cast_shadow": 0.0,
           "cloud_shadow": 0.002113,
           "nodata_pixel": 0.0,
           "unclassified": 0.0,

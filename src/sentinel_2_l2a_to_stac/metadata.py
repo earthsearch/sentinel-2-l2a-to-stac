@@ -70,11 +70,17 @@ _BASELINE_PROCESSING: Final[Pattern[str]] = re.compile(r"_N(\d\d\.\d\d)")
 # `statistics` key -> Image_Content_QI tag. The single source of truth for which
 # class percentages are emitted; the v1 downgrade maps each key back to
 # `s2:{key}_percentage`.
+#
+# DARK_FEATURES_PERCENTAGE (baseline <= 05.10) was renamed CAST_SHADOW_PERCENTAGE
+# (>= 05.11); a granule carries exactly one, and each keeps its own name here.
+# v1 output maps both to `s2:dark_features_percentage` (see downgrade.py).
 _STATISTICS_TAGS: Final[Mapping[str, str]] = {
     "water": "WATER_PERCENTAGE",
     "vegetation": "VEGETATION_PERCENTAGE",
     "thin_cirrus": "THIN_CIRRUS_PERCENTAGE",
+    "cast_shadow": "CAST_SHADOW_PERCENTAGE",
     "cloud_shadow": "CLOUD_SHADOW_PERCENTAGE",
+    "dark_features": "DARK_FEATURES_PERCENTAGE",
     "nodata_pixel": "NODATA_PIXEL_PERCENTAGE",
     "unclassified": "UNCLASSIFIED_PERCENTAGE",
     "not_vegetated": "NOT_VEGETATED_PERCENTAGE",

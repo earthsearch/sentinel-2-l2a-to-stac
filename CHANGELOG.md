@@ -46,6 +46,12 @@ used by this project.
   back to `s2:generation_time` for Items written before this release. A
   missing, null, or non-string value is treated as oldest.
 
+- Restored the dark-features/cast-shadow class percentage, which v2026.09.30
+  read only from `DARK_FEATURES_PERCENTAGE` and so dropped on baseline 05.11+
+  (where ESA renamed it `CAST_SHADOW_PERCENTAGE`). STAC 1.1 Items carry
+  `statistics.dark_features` (baseline ≤ 05.10) or `statistics.cast_shadow`
+  (≥ 05.11); `v1_output` Items carry both as `s2:dark_features_percentage`.
+
 ## [v2026.09.30]
 
 First release of the rewritten task: the legacy Sentinel-2 C1 L2A→STAC Cirrus

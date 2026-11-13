@@ -2,7 +2,6 @@
 
 Deliberately NOT restored (output still differs from v1 here):
   - `via` link: removed upstream on purpose.
-  - `s2:dark_features_percentage`: absent from the source data, not a code change.
   - Workflow/task identity (`processing:software` key, `earthsearch:payload_id`,
     hrefs): these follow the task rename, not the STAC format.
   - Key order within dicts: JSON-irrelevant.
@@ -140,12 +139,19 @@ def downgrade_bands(item: Json) -> None:
 
 # ── Step 5: renamed / nested properties -> v1 `s2:*` keys ───────────────────
 
+# `statistics` keys whose v1 name differs. ESA renamed DARK_FEATURES to
+# CAST_SHADOW at baseline 05.11; v1 keeps the old name for backwards
+# compatibility.
+V1_STATISTICS_RENAME: dict[str, str] = {"cast_shadow": "dark_features"}
+
+
 def downgrade_renamed_properties(item: Json) -> None:
     props = item["properties"]
 
     statistics: Json = props.pop("statistics", None) or {}
     for name, value in statistics.items():
-        props[f"s2:{name}_percentage"] = value
+        v1_name = V1_STATISTICS_RENAME.get(name, name)
+        props.setdefault(f"s2:{v1_name}_percentage", value)
 
     if "processing:datetime" in props:
         props["s2:generation_time"] = props.pop("processing:datetime")
