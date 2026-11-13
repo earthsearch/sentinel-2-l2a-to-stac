@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from re import Pattern
@@ -65,6 +66,23 @@ def _fix_z_values(coord_values: list[str]) -> list[float]:
 
 
 _BASELINE_PROCESSING: Final[Pattern[str]] = re.compile(r"_N(\d\d\.\d\d)")
+
+# `statistics` key -> Image_Content_QI tag. The single source of truth for which
+# class percentages are emitted; the v1 downgrade maps each key back to
+# `s2:{key}_percentage`.
+_STATISTICS_TAGS: Final[Mapping[str, str]] = {
+    "water": "WATER_PERCENTAGE",
+    "vegetation": "VEGETATION_PERCENTAGE",
+    "thin_cirrus": "THIN_CIRRUS_PERCENTAGE",
+    "cloud_shadow": "CLOUD_SHADOW_PERCENTAGE",
+    "nodata_pixel": "NODATA_PIXEL_PERCENTAGE",
+    "unclassified": "UNCLASSIFIED_PERCENTAGE",
+    "not_vegetated": "NOT_VEGETATED_PERCENTAGE",
+    "degraded_msi_data": "DEGRADED_MSI_DATA_PERCENTAGE",
+    "high_proba_clouds": "HIGH_PROBA_CLOUDS_PERCENTAGE",
+    "medium_proba_clouds": "MEDIUM_PROBA_CLOUDS_PERCENTAGE",
+    "saturated_defective_pixel": "SATURATED_DEFECTIVE_PIXEL_PERCENTAGE",
+}
 
 
 class GranuleMetadataError(Exception):
@@ -193,67 +211,15 @@ class GranuleMetadata:
         icn = self._image_content_node
         properties: dict[str, Any] = {
             f"{s2_prefix}:tile_id": self.tile_id,
-            f"{s2_prefix}:product_type": map_opt(float, icn.find_text("PRODUCT_TYPE")),
-            f"{s2_prefix}:orbit_state": map_opt(
-                float, icn.find_text("SENSING_ORBIT_DIRECTION")
-            ),
-            f"{s2_prefix}:datatake_type": map_opt(
-                float, icn.find_text("DATATAKE_TYPE")
-            ),
-            f"{s2_prefix}:generation_time": map_opt(
-                float, icn.find_text("GENERATION_TIME")
-            ),
-            f"{s2_prefix}:relative_orbit": map_opt(
-                float, icn.find_text("SENSING_ORBIT_NUMBER")
-            ),
-            f"{s2_prefix}:reflectance_conversion_factor": map_opt(
-                float,
-                icn.find_text("BOA_ADD_OFFSET_VALUES_LIST/Reflectance_Conversion/U"),
-            ),
-            f"{s2_prefix}:degraded_msi_data_percentage": map_opt(
-                float,
-                icn.find_text("DEGRADED_MSI_DATA_PERCENTAGE"),
-            ),
-            f"{s2_prefix}:nodata_pixel_percentage": map_opt(
-                float, icn.find_text("NODATA_PIXEL_PERCENTAGE")
-            ),
-            f"{s2_prefix}:saturated_defective_pixel_percentage": map_opt(
-                float,
-                icn.find_text("SATURATED_DEFECTIVE_PIXEL_PERCENTAGE"),
-            ),
-            f"{s2_prefix}:dark_features_percentage": map_opt(
-                float, icn.find_text("DARK_FEATURES_PERCENTAGE")
-            ),
-            f"{s2_prefix}:cloud_shadow_percentage": map_opt(
-                float, icn.find_text("CLOUD_SHADOW_PERCENTAGE")
-            ),
-            f"{s2_prefix}:vegetation_percentage": map_opt(
-                float, icn.find_text("VEGETATION_PERCENTAGE")
-            ),
-            f"{s2_prefix}:not_vegetated_percentage": map_opt(
-                float, icn.find_text("NOT_VEGETATED_PERCENTAGE")
-            ),
-            f"{s2_prefix}:water_percentage": map_opt(
-                float, icn.find_text("WATER_PERCENTAGE")
-            ),
-            f"{s2_prefix}:unclassified_percentage": map_opt(
-                float, icn.find_text("UNCLASSIFIED_PERCENTAGE")
-            ),
-            f"{s2_prefix}:medium_proba_clouds_percentage": map_opt(
-                float,
-                icn.find_text("MEDIUM_PROBA_CLOUDS_PERCENTAGE"),
-            ),
-            f"{s2_prefix}:high_proba_clouds_percentage": map_opt(
-                float,
-                icn.find_text("HIGH_PROBA_CLOUDS_PERCENTAGE"),
-            ),
-            f"{s2_prefix}:thin_cirrus_percentage": map_opt(
-                float, icn.find_text("THIN_CIRRUS_PERCENTAGE")
-            ),
-            f"{s2_prefix}:snow_ice_percentage": map_opt(
-                float, icn.find_text("SNOW_ICE_PERCENTAGE")
-            ),
+            "eo:snow_cover": map_opt(float, icn.find_text("SNOW_ICE_PERCENTAGE")),
         }
+        statistics = {
+            name: value
+            for name, tag in _STATISTICS_TAGS.items()
+            if (value := map_opt(float, icn.find_text(tag))) is not None
+        }
+        if statistics:
+            properties["statistics"] = statistics
         return {k: v for k, v in properties.items() if v is not None}
 
     @property
@@ -444,7 +410,7 @@ class ProductMetadata:
     def metadata_dict(self) -> dict[str, Any]:
         result = {
             f"{s2_prefix}:product_uri": self.product_id,
-            f"{s2_prefix}:generation_time": self.product_info_node.find_text(
+            "processing:datetime": self.product_info_node.find_text(
                 "GENERATION_TIME"
             ),
             f"{s2_prefix}:processing_baseline": self.product_info_node.find_text(
