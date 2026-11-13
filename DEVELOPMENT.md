@@ -53,7 +53,6 @@ STAC 1.1.0. Each carries an inline `SHIM` comment or docstring at its definition
 
 | Shim | Why it exists | Remove when |
 | ---- | ------------- | ----------- |
-| `Asset.media_type` read alias (`task.py`, guarded on `hasattr`) | `stac-asset` reads `asset.media_type`; pystac 2.0 renamed it to `Asset.type`. | `stac-asset` migrates to `Asset.type` (the guard then self-disables it). |
 | `_patched_get_template_value` (`task.py`) | pystac 2.0's `LayoutTemplate._get_template_value` raises `TypeError` when a template variable matches an attribute of the Item itself (e.g. `id`). | Fixed upstream in pystac. |
 | `_set_asset_owners` (`task.py`, called in `add_fileinfo_to_local_assets`) | `Extension.ext(asset, add_if_missing=True)` needs `asset.owner` to register the extension URI on the Item, and pystac 2.0 doesn't always set it. | pystac re-parents assets on these paths. |
 | Raster band fields read via `band.extra_fields` (`cogify.py`) | pystac 2.0-dev `Band` has no typed raster accessors yet. | pystac stabilises the `Band` field API. |

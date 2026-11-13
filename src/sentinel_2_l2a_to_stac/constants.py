@@ -34,9 +34,7 @@ from __future__ import annotations
 
 from typing import Final
 
-import pystac
 from pystac.extensions.eo import Band as EOBand
-from pystac.provider import ProviderRole
 
 # ---------------------------------------------------------------------------
 # Constants (from stactools-sentinel2 constants.py, L2A subset)
@@ -52,16 +50,9 @@ SENTINEL2_EXTENSION_SCHEMA: Final[str] = (
 SENTINEL_INSTRUMENTS: Final[list[str]] = ["msi"]
 SENTINEL_CONSTELLATION: Final[str] = "sentinel-2"
 
-SENTINEL_PROVIDER: Final[pystac.Provider] = pystac.Provider(
-    name="ESA",
-    roles=[ProviderRole.PRODUCER, ProviderRole.PROCESSOR, ProviderRole.LICENSOR],
-    url="https://earth.esa.int/web/guest/home",
-)
-
 PRODUCT_METADATA_ASSET_KEY: Final[str] = "product_metadata"
 GRANULE_METADATA_ASSET_KEY: Final[str] = "granule_metadata"
 
-DEFAULT_TOLERANCE: Final[float] = 0.01
 COORD_ROUNDING: Final[int] = 6
 
 SENTINEL_BANDS: Final[dict[str, EOBand]] = {

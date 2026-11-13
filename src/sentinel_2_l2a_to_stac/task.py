@@ -24,6 +24,7 @@ from stactask.exceptions import InvalidInput
 from stactask.utils import stac_jsonpath_match
 
 from sentinel_2_l2a_to_stac.cogify import (
+    THUMBNAIL_ASSET_NAME,
     THUMBNAIL_TITLE,
     CogFile,
     FileInfo,
@@ -44,12 +45,6 @@ from sentinel_2_l2a_to_stac.downgrade import downgrade_item
 from sentinel_2_l2a_to_stac.footprint import data_footprint
 from sentinel_2_l2a_to_stac.metadata import Metadata, parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
-
-# SHIM(pystac-2.0): stac-asset reads asset.media_type when downloading but pystac
-# 2.0 renamed the field to Asset.type. Remove once stac-asset is updated.
-if not hasattr(Asset, "media_type"):
-    Asset.media_type = property(lambda self: self.type)  # type: ignore[attr-defined]
-
 from sentinel_2_l2a_to_stac.stac import create_image_assets, create_item
 
 
@@ -197,9 +192,6 @@ LOCAL_SCHEME_KEY = "local"
 LOCAL_BUCKET = "local"
 STORAGE_PLATFORM = "https://{bucket}.s3.{region}.amazonaws.com"
 STORAGE_REGION = "us-west-2"
-
-THUMBNAIL_ASSET_NAME = "thumbnail"
-THUMBNAIL_SOURCE_ASSET_NAME = "preview"
 
 EXPECTED_COGIFIED_COUNT = 19
 

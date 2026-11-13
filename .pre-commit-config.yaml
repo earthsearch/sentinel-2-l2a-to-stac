@@ -21,7 +21,7 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
-        args: [src, tests, scripts]
+        args: [src, tests]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.5
     hooks:
