@@ -24,8 +24,8 @@ ENV UV_NO_INSTALLER_METADATA=1
 ENV UV_LINK_MODE=copy
 
 # Install directly from uv.lock into the Lambda task root. uv export --frozen reads
-# exact versions from uv.lock without regenerating it; dev dependencies are excluded
-# because they are not part of [project.dependencies]. The Docker layer cache is only
+# exact versions from uv.lock without regenerating it; --no-dev excludes the dev
+# dependency group. The Docker layer cache is only
 # invalidated when pyproject.toml or uv.lock change; source changes land via the
 # COPY at the bottom of the final stage without re-installing dependencies.
 RUN --mount=from=uv,source=/uv,target=/bin/uv \

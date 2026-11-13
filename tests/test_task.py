@@ -1,19 +1,18 @@
-"""Full-pipeline parity tests against the legacy Sentinel-2 C1 L2A task.
+"""Fixture-driven full-pipeline tests.
 
 These walk the payload fixtures under
 ``tests/fixtures/payloads/{upgrade,downgrade,failure}``
-and run the *entire* ``process()`` pipeline — download, ``create_item``,
-``update_item``, the ``is_newer_than_existing`` gate, COG generation, thumbnail,
-and checksums — comparing the output against a checked-in ``out.json`` with tolerant
-comparators (geometry symmetric-difference ratio, centroid threshold,
-thumbnail size/checksum wobble).
+and run the *entire* ``process()`` pipeline, comparing the output against a
+checked-in ``out.json`` with tolerant comparators (geometry
+symmetric-difference ratio, centroid threshold, thumbnail size/checksum
+wobble), or, for failure fixtures, checking the ``InvalidInput`` message
+against ``exception.txt``.
 
 Network policy
 --------------
 Unlike the rest of the suite, these tests **hit the real network**: they
 download genuine files from the public RODA/Earthsearch bucket
-so the COG/thumbnail pipeline runs end-to-end for a
-true behavioral comparison with legacy. They are therefore **opt-in**.
+so the pipeline runs end-to-end. They are therefore **opt-in**.
 Run them explicitly with::
 
     uv run pytest -m <system | upgrade | downgrade>
@@ -206,7 +205,7 @@ def _run(payload: dict[str, Any]) -> dict[str, Any]:
 # Full system parity tests.
 # They are opt-in with `-m system` and never write to S3 (`upload=False`).
 @pytest.mark.system
-@pytest.mark.parametrize("fixture_dir", failure_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(failure_cases()), ids=lambda x: x.name)
 def test_failing_files(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
     exception_msg = (fixture_dir / "exception.txt").read_text().strip()
@@ -220,7 +219,7 @@ def test_failing_files(fixture_dir: Path) -> None:
 # Update-first parity tests.
 # They are opt-in with `-m upgrade` and never write to S3 (`upload=False`).
 @pytest.mark.upgrade
-@pytest.mark.parametrize("fixture_dir", upgrade_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(upgrade_cases()), ids=lambda x: x.name)
 def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 
@@ -237,7 +236,7 @@ def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
 # Downgrade parity tests
 # They are opt-in with `-m downgrade` and never write to S3 (`upload=False`).
 @pytest.mark.downgrade
-@pytest.mark.parametrize("fixture_dir", downgrade_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(downgrade_cases()), ids=lambda x: x.name)
 def test_downgrade_payload_to_v1_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 

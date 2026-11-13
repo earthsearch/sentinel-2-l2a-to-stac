@@ -2027,6 +2027,7 @@ source = { editable = "." }
 dependencies = [
     { name = "antimeridian" },
     { name = "boto3" },
+    { name = "boto3-utils" },
     { name = "lxml" },
     { name = "multiformats" },
     { name = "numpy" },
@@ -2058,6 +2059,7 @@ dev = [
 requires-dist = [
     { name = "antimeridian", specifier = ">=0.4.8" },
     { name = "boto3", specifier = ">=1.43.56" },
+    { name = "boto3-utils", specifier = ">=0.4.2" },
     { name = "lxml", specifier = ">=6.0" },
     { name = "multiformats", specifier = "~=0.3.1" },
     { name = "numpy", specifier = ">=2.4.6" },
