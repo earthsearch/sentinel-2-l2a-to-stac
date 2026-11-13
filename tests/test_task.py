@@ -205,7 +205,7 @@ def _run(payload: dict[str, Any]) -> dict[str, Any]:
 # Full system parity tests.
 # They are opt-in with `-m system` and never write to S3 (`upload=False`).
 @pytest.mark.system
-@pytest.mark.parametrize("fixture_dir", failure_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(failure_cases()), ids=lambda x: x.name)
 def test_failing_files(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
     exception_msg = (fixture_dir / "exception.txt").read_text().strip()
@@ -219,7 +219,7 @@ def test_failing_files(fixture_dir: Path) -> None:
 # Update-first parity tests.
 # They are opt-in with `-m upgrade` and never write to S3 (`upload=False`).
 @pytest.mark.upgrade
-@pytest.mark.parametrize("fixture_dir", upgrade_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(upgrade_cases()), ids=lambda x: x.name)
 def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 
@@ -236,7 +236,7 @@ def test_upgrade_payload_to_input_item(fixture_dir: Path) -> None:
 # Downgrade parity tests
 # They are opt-in with `-m downgrade` and never write to S3 (`upload=False`).
 @pytest.mark.downgrade
-@pytest.mark.parametrize("fixture_dir", downgrade_cases(), ids=lambda x: x.name)
+@pytest.mark.parametrize("fixture_dir", list(downgrade_cases()), ids=lambda x: x.name)
 def test_downgrade_payload_to_v1_item(fixture_dir: Path) -> None:
     payload = json.loads((fixture_dir / "in.json").read_text())
 

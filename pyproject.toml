@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "antimeridian>=0.4.8",
     "boto3>=1.43.56",
+    "boto3-utils>=0.4.2",
     "lxml>=6.0",
     "multiformats~=0.3.1",
     "numpy>=2.4.6",
@@ -70,8 +71,11 @@ markers = [
     "downgrade: network-hitting parity tests for the v1_output downgrade path (opt in with -m downgrade)",
 ]
 filterwarnings = [
-    # Silence DeprecationWarnings from third-party libraries (already present).
-    "ignore::DeprecationWarning",
+    # pystac 2.0-dev deprecates some of its own internal modules on import.
+    "ignore::DeprecationWarning:pystac.*",
+    # Payloads still use the legacy `upload_options.collections` mapping rather
+    # than stactask's `collection_matchers`.
+    "ignore:'upload_options.collections' is deprecated:DeprecationWarning",
     # Rasterio internally uses the `*` operator for Affine matrix multiplication;
     # suppress the PendingDeprecationWarning it emits until rasterio fixes this.
     "ignore::PendingDeprecationWarning:rasterio.*",

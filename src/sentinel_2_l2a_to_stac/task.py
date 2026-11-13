@@ -322,7 +322,7 @@ class Sentinel2ToStac(Task):
     version = "v2026.09.30"  # keep in sync with pyproject.toml and CHANGELOG.md
 
     def validate(self) -> bool:
-        if "metadata_href" not in self._payload and "safe_href" not in self._payload:
+        if "metadata_href" not in self.payload and "safe_href" not in self.payload:
             raise InvalidInput("metadata_href or safe_href required")
         # Asset hrefs are published as https with the s3:// URL as an
         # alternate, so an upload returning s3:// hrefs is unsupported.
@@ -349,7 +349,9 @@ class Sentinel2ToStac(Task):
             collection := next(
                 (
                     c
-                    for c, expr in self.upload_options.get("collections", {}).items()
+                    for c, expr in self.payload.upload_options.get(
+                        "collections", {}
+                    ).items()
                     if stac_jsonpath_match(item_dict, expr)
                 ),
                 None,
@@ -360,7 +362,7 @@ class Sentinel2ToStac(Task):
         # pystac 2.0 made Item.collection_id read-only; set via set_collection()
         item.set_collection(collection)
 
-        item.properties["earthsearch:payload_id"] = self._payload["id"]
+        item.properties["earthsearch:payload_id"] = self.payload["id"]
 
         if item.datetime is None:
             raise ValueError("Item datetime property cannot be None")
@@ -773,9 +775,9 @@ class Sentinel2ToStac(Task):
         return [str(p) for p in Path(prefix).rglob("*") if p.is_file()]
 
     def resolve_source(self) -> SourceProduct:
-        if safe_href := self._payload.get("safe_href"):
+        if safe_href := self.payload.get("safe_href"):
             return self.resolve_safe_source(safe_href)
-        return self.resolve_granule_source(self._payload["metadata_href"])
+        return self.resolve_granule_source(self.payload["metadata_href"])
 
     def resolve_granule_source(self, metadata_href: str) -> SourceProduct:
         """Resolve an already-cogified Earth Search granule prefix.
@@ -880,7 +882,7 @@ class Sentinel2ToStac(Task):
             raise Exception(f"Unable to update item: {ex}")
 
     def process(self, **kwargs: Any) -> list[dict[str, Any]]:
-        v1_output = self._payload.get("v1_output", False)
+        v1_output = self.payload.get("v1_output", False)
         source = self.resolve_source()
 
         with _item_errors(self.logger):
