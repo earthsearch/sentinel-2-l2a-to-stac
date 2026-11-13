@@ -8,11 +8,13 @@ needed.
 
 import json
 import logging
+import os
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, ClassVar
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -697,9 +699,11 @@ def test_process_safe_input_always_creates_cogs(
 # is_newer_than_existing
 # ---------------------------------------------------------------------------
 
+# Pinned in _check_is_newer so a STAC_API_URL set in the environment can't
+# bypass the mock below.
+_STAC_API_URL = "https://stac.example.com/v2"
 _ITEM_URL = (
-    "https://earth-search.aws.element84.com/v2"
-    "/collections/sentinel-2-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
+    f"{_STAC_API_URL}/collections/sentinel-2-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
 )
 _BASELINE_GEN_TIME = "2023-04-19T22:08:59.000000Z"
 
@@ -710,7 +714,10 @@ def _check_is_newer(
     status_code: int = 200,
     body: dict[str, Any] | None = None,
 ) -> Any:
-    with requests_mock_module.Mocker() as m:
+    with (
+        mock.patch.dict(os.environ, {"STAC_API_URL": _STAC_API_URL}),
+        requests_mock_module.Mocker() as m,
+    ):
         m.get(_ITEM_URL, status_code=status_code, text=json.dumps(body))
         return _minimal_task("regression-is-newer").is_newer_than_existing(item)
 
