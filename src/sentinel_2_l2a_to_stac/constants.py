@@ -21,10 +21,11 @@
 #   Apache License, Version 2.0
 #
 # Significantly modified from the originals:
-# - Granule/S3 path only; SAFE archive path removed entirely
+# - stactools' SAFE-archive reader removed; SAFE inputs are located by safe.py
+#   and flattened into the workdir before parsing
 # - stactools.core I/O (StacIO, ReadHrefModifier) replaced with direct local
 #   file reads; all hrefs in this task are local workdir paths
-# - L1C image paths removed; L2A-only constants kept
+# - L2A-focused; L1C_IMAGE_PATHS kept only for parse_metadata's non-L2A fallback
 # - stactools.core.projection.transform_from_bbox inlined as a few lines
 # - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
 #   per-asset eo:bands / raster:bands arrays eliminated
@@ -194,12 +195,9 @@ ASSET_TO_TITLE: Final[dict[str, str]] = {
     "swir22": "SWIR 2.2μm",
 }
 
-# L2A image path list (granule-relative, Sinergise S3 layout)
-# The canonical, native-resolution L2A images: asset key -> granule-relative
-# source path. These are the only images that get built into assets, COGified
-# and published; ESA's other resolution variants are never considered. The
-# basename of each path is also the filename used in the (flat) workdir and
-# output prefix.
+# Canonical native-res L2A image set: asset key -> granule-relative path. Only
+# these become assets/COGs; each basename is the flat workdir/output filename
+# (see task.CANONICAL_IMAGE_FILENAMES).
 CANONICAL_L2A_IMAGE_PATHS: Final[dict[str, str]] = {
     "coastal": "R60m/B01.jp2",
     "blue": "R10m/B02.jp2",
@@ -241,7 +239,6 @@ L1C_IMAGE_PATHS: Final[list[str]] = [
 
 DEFAULT_SCALE: Final[float] = 0.0001
 
-# EO and raster extension URIs bumped to v2.0.0 to match STAC 1.1.0 `bands` shape.
 EO_EXT_V2: Final[str] = "https://stac-extensions.github.io/eo/v2.0.0/schema.json"
 RASTER_EXT_V2: Final[str] = (
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
@@ -253,13 +250,12 @@ ALTERNATE_ASSETS_EXT: Final[str] = (
     "https://stac-extensions.github.io/alternate-assets/v1.2.0/schema.json"
 )
 ALTERNATE_S3_KEY: Final[str] = "s3"
-# alternate:name labels the access method on both the asset and its alternate.
 ALTERNATE_HTTPS_NAME: Final[str] = "HTTPS"
 ALTERNATE_S3_NAME: Final[str] = "S3"
 
-# Rename maps: old eo/raster band dict keys → STAC 1.1.0 merged `bands` keys.
-# EOBand.to_dict() uses the old unprefixed names; pystac.Band.from_dict() expects
-# the 1.1 `eo:`/`raster:` prefixed names.
+# Rename maps: v1 eo/raster band keys -> STAC 1.1 `bands` keys. Core fields
+# (name, nodata, data_type, unit, statistics) stay unprefixed; the rest gain
+# eo:/raster:. downgrade.py inverts these for v1_output.
 EO_BAND_RENAME: Final[dict[str, str]] = {
     "name": "name",
     "common_name": "eo:common_name",
@@ -267,10 +263,7 @@ EO_BAND_RENAME: Final[dict[str, str]] = {
     "full_width_half_max": "eo:full_width_half_max",
     "solar_illumination": "eo:solar_illumination",
 }
-# Keys `bands[*]` are addressed by once merged onto a `pystac.Band` (via
-# RASTER_BAND_RENAME below). task.py reads these back out of
-# Band.extra_fields, so they're named here rather than duplicated as string
-# literals in both files.
+
 RASTER_NODATA_KEY: Final[str] = "nodata"
 RASTER_SCALE_KEY: Final[str] = "raster:scale"
 RASTER_OFFSET_KEY: Final[str] = "raster:offset"

@@ -1,12 +1,5 @@
 """Downgrade a v2 (STAC 1.1) Sentinel-2 L2A item dict to the v1 (STAC 1.0) shape.
 
-Deliberately NOT restored (output still differs from v1 here):
-  - `via` link: removed upstream on purpose.
-  - `s2:dark_features_percentage`: absent from the source data, not a code change.
-  - Workflow/task identity (`processing:software` key, `earthsearch:payload_id`,
-    hrefs): these follow the task rename, not the STAC format.
-  - Key order within dicts: JSON-irrelevant.
-
 Interface is dict -> dict. For a pystac Item, the wrapper is one line:
 `downgrade_item(item.to_dict())`. Keep the result as a dict, because pystac
 re-serialization stamps `stac_version: 1.1.0` back on.

@@ -1,15 +1,5 @@
 """Unit tests for individual task components.
 
-Sections
---------
-download        read_href + the metadata download block in resolve_source()
-bucket/doc      bucket listing, existing-doc discovery, metadata resolution
-reference path  create_cogs=False reference/update path
-is_newer        is_newer_than_existing STAC-API gate
-update_item     Earth Search override assertions (update_item)
-safe            SAFE archive layout resolution
-cogify          up-front COG creation + the cogify/write_cog pipeline
-
 All tests are local-only: no network, no live S3.  The session-wide
 ``_stub_stac_api`` fixture in conftest.py intercepts every STAC-API request;
 ``read_href`` and the module-level boto3 S3 clients are monkeypatched where
@@ -155,7 +145,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     add_storage_and_alternates so download tests stay focused.
 
     The canned bytes above are not real Sentinel-2 metadata; those stages are
-    covered by the update_item / storage tests below against genuine local metadata.
+    covered by the item output / storage tests below against genuine local metadata.
     """
     monkeypatch.setattr(task_module, "parse_metadata", lambda *a, **k: _StubMetadata())
     monkeypatch.setattr(
@@ -810,7 +800,7 @@ def test_is_newer_than_existing(
 
 
 # ---------------------------------------------------------------------------
-# update_item
+# item output / storage & alternates / URL helpers
 # ---------------------------------------------------------------------------
 
 
@@ -1331,7 +1321,7 @@ def test_resolve_safe_layout_raises_on_missing_file() -> None:
 
 
 # ---------------------------------------------------------------------------
-# cogify_source_images / cogify
+# processing baseline / cogify_source_images / cogify
 # ---------------------------------------------------------------------------
 
 

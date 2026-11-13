@@ -145,20 +145,15 @@ def _patched_get_template_value(
 
 LayoutTemplate._get_template_value = _patched_get_template_value  # type: ignore[method-assign]
 
-# stactask 0.7.0 already prefixes lines with payload id, so the legacy
-# logging change was deliberately left off.
 logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
 for _noisy_logger in ("botocore", "rasterio"):
     logging.getLogger(_noisy_logger).propagate = False
 
-# Every source read (listing, get_object, download_file) goes through this
-# client with RequestPayer="requester", since some source buckets (e.g. the
-# AWS Open Data Sentinel-2 archive) are requester-pays. Uploads (writes) are
-# handled separately by stactask's own authenticated client.
+# All source reads use this client with RequestPayer="requester", since some
+# source buckets are requester-pays. Uploads go through stactask's own client.
 _s3_client = boto3.client("s3")
 S3_REQUEST_PAYER = "requester"
 
-# Read size for streamed S3 bodies, which are measured rather than buffered.
 S3_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
 
 
@@ -194,11 +189,9 @@ def _list_s3_keys(client: Any, bucket: str, prefix: str) -> Iterator[str]:
             yield obj["Key"]
 
 
-# Storage extension (schemes/refs model, from the pinned pystac 2.0-dev build;
-# see [tool.uv.sources] in pyproject.toml). One aws-s3 scheme,
-# "earthsearch", for assets uploaded to the Earth Search output bucket or
-# already living there. A "local" placeholder scheme is used in --local/test
-# runs where no upload occurs.
+# Storage extension: one aws-s3 scheme, "earthsearch", for assets uploaded to
+# or already in the Earth Search bucket; a "local" placeholder scheme in
+# --local/test runs where nothing is uploaded.
 EARTHSEARCH_SCHEME_KEY = "earthsearch"
 LOCAL_SCHEME_KEY = "local"
 LOCAL_BUCKET = "local"
@@ -216,7 +209,6 @@ CANONICAL_IMAGE_FILENAMES: dict[str, str] = {
 }
 
 # Filename <-> asset key map for the earthsearch flat product-prefix layout.
-# Every entry is verified against create_item's actual output keys.
 ASSET_FILENAMES: dict[str, str] = {
     "aot": "AOT.tif",
     "coastal": "B01.tif",
@@ -338,8 +330,6 @@ class Sentinel2ToStac(Task):
     version = "v2026.09.30"  # keep in sync with pyproject.toml and CHANGELOG.md
 
     def validate(self) -> bool:
-        # Rewritten for stactask 0.6.1 (requires self._payload instead of
-        # payload arg)
         if "metadata_href" not in self._payload and "safe_href" not in self._payload:
             raise InvalidInput("metadata_href or safe_href required")
         # Asset hrefs are published as https with the s3:// URL as an
@@ -728,7 +718,6 @@ class Sentinel2ToStac(Task):
         return item
 
     def add_fileinfo_to_local_assets(self, item: Item) -> Item:
-        # pystac 2.0: re-parent first. Idempotent.
         _set_asset_owners(item)
         for asset in item.assets.values():
             if not self.is_local_asset(asset):
