@@ -24,9 +24,9 @@ from typing import Any
 import pytest
 import requests_mock as requests_mock_module
 
-# Set before any test module is collected/imported, because the import-time S3
-# client construction described above happens during collection. Module-level
-# code in a conftest runs before the test modules in its directory are imported.
+# Set before test modules import: task.py builds a boto3 S3 client at import
+# time, which needs a region. Module-level code in a conftest runs before the
+# test modules in its directory are imported.
 _HERMETIC_AWS_ENV = {
     "AWS_DEFAULT_REGION": "us-west-2",
     # Belt-and-suspenders: never let a stray call fall back to the EC2/ECS
@@ -98,9 +98,6 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
         ],
     }
 
-    # pytest's `monkeypatch` fixture is function-scoped and can't be depended
-    # on here; this fixture is session-scoped, so it patches directly and
-    # leaves the patch in place for the rest of the run.
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         Sentinel2ToStac,
@@ -120,9 +117,7 @@ def baseline_item_dict(_stub_stac_api: Any) -> dict[str, Any]:
     # process() now measures the source images up front (for the footprint
     # reads) regardless of source kind; nothing here needs the actual rasters.
     # Scoped to just this call (unlike the patches above) so it doesn't leak
-    # into later tests -- e.g.
-    # test_fetch_source_images_renames_to_canonical_filenames exercises the
-    # real implementation.
+    # into later tests.
     fetch_patch = pytest.MonkeyPatch()
     fetch_patch.setattr(
         Sentinel2ToStac, "fetch_source_images", lambda self, image_hrefs: None

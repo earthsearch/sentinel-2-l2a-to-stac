@@ -21,10 +21,11 @@
 #   Apache License, Version 2.0
 #
 # Significantly modified from the originals:
-# - Granule/S3 path only; SAFE archive path removed entirely
+# - stactools' SAFE-archive reader removed; SAFE inputs are located by safe.py
+#   and flattened into the workdir before parsing
 # - stactools.core I/O (StacIO, ReadHrefModifier) replaced with direct local
 #   file reads; all hrefs in this task are local workdir paths
-# - L1C image paths removed; L2A-only constants kept
+# - L2A-focused; L1C_IMAGE_PATHS kept only for parse_metadata's non-L2A fallback
 # - stactools.core.projection.transform_from_bbox inlined as a few lines
 # - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
 #   per-asset eo:bands / raster:bands arrays eliminated

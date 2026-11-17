@@ -11,7 +11,7 @@ and generates a thumbnail, then returns the Item(s).**
 
 ## Development
 
-- Make a Python 3.12 enviornment
+- Make a Python 3.12 environment
 
 ```bash
 uv venv --python 3.12
@@ -113,7 +113,7 @@ and every asset is uploaded to the output prefix.
 | --------------------- | ------------------------------------------------ | ----------- |
 | `STAC_API_URL`        | `https://earth-search.aws.element84.com/v2`      | STAC API queried by the `is_newer_than_existing` gate. |
 | `AWS_DEFAULT_REGION`  | (none — required)                                | AWS region for the S3 reads/writes. Required for any run that touches S3. |
-| `CIRRUS_LOG_LEVEL`    | `WARN`                                            | Root log level. `stactools`/`botocore`/`rasterio` loggers are quieted regardless. |
+| `CIRRUS_LOG_LEVEL`    | `WARN`                                            | Root log level. `botocore`/`rasterio` loggers are quieted regardless. |
 | `BIGTIFF`             | `IF_SAFER`                                         | Passed through to the GDAL COG driver during COG creation. |
 | `GDAL_TIFF_INTERNAL_MASK` | `True`                                        | Passed through to the GDAL COG driver during COG creation. |
 
@@ -121,7 +121,7 @@ and every asset is uploaded to the output prefix.
 
 This repository uses [uv](https://docs.astral.sh/uv/getting-started/installation/) and uses [pytest](https://docs.pytest.org/en/stable/) for testing.
 
-The `tests/test_task.py` file contains test code to iterate through the input payloads in `fixtures`, which contains a series of input and payload files, each pair in it's own folder. For expected errors in tests an `exception.txt` file is provided intead of an output payload.
+The `tests/test_task.py` file contains test code to iterate through the input payloads in `fixtures`, which contains a series of input and payload files, each pair in its own folder. For expected errors in tests an `exception.txt` file is provided instead of an output payload.
 
 To run the fast, offline test suite:
 
@@ -129,16 +129,15 @@ To run the fast, offline test suite:
 uv run pytest
 ```
 
-### Network parity tests (`-m system`)
+### Failure tests (`-m system`)
 
-`tests/test_task.py` also contains full-pipeline parity tests, marked
-`@pytest.mark.system`, that would compare the task's output against the legacy
-Sentinel-2 C1 L2A task by hitting the real network. There are currently no
-fixtures under this marker (the prior ones tested the now-unsupported behavior
-of COGifying directly from a granule prefix that lacked existing COGs); add
-fixtures under `tests/fixtures/payloads/failure/` (each its own directory with
-an `in.json` and an `exception.txt`) to restore coverage. Run the marker
-explicitly with:
+`tests/test_task.py` also contains `@pytest.mark.system` tests that run the full
+pipeline over each fixture under `tests/fixtures/payloads/failure/` and assert it
+raises `InvalidInput` with the message in that fixture's `exception.txt`. They
+would hit the network, but there are currently no fixtures for them: the only
+failure fixture, `missing-metadata-href`, fails offline in `validate()` and runs
+in the default suite instead. Add a fixture directory (an `in.json` and an
+`exception.txt`) to restore coverage. Run the marker explicitly with:
 
 ```
 uv run pytest -m system
@@ -187,7 +186,7 @@ options:
   --local            Run local mode (save-workdir = True, upload = False, workdir = 'local-output', output = 'local-output/output-payload.json') (default: False)
 ```
 
-When runing locally use the `--local` option which will store all output in a local folder called `local-output` and will
+When running locally use the `--local` option which will store all output in a local folder called `local-output` and will
 not try to upload the data files to s3.
 
 ```

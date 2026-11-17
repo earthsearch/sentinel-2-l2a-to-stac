@@ -77,11 +77,10 @@ def stream_file_info(chunks: Iterable[bytes]) -> FileInfo:
 def make_thumbnail(item: Item) -> Item:
     asset = item.assets[THUMBNAIL_SOURCE_ASSET_NAME]
 
-    # remove existing thumbnail asset linking to preview.jpg/jp2
+    # Defensive: replace any existing thumbnail asset.
     if THUMBNAIL_ASSET_NAME in item.assets:
         del item.assets[THUMBNAIL_ASSET_NAME]
 
-    # pystac 2.0 renamed `media_type` kwarg to `type`
     tn_asset = Asset(
         href=os.path.splitext(asset.href)[0] + ".jpg",
         type=MediaType.JPEG,
@@ -285,8 +284,7 @@ def get_band_scales_offsets_nodatas_resolutions(
         return scales, offsets, nodatas, resolutions
 
     # Single-band: fields are merged directly onto asset.extra_fields.
-    # Assets with no band info at all (metadata XML, thumbnail) won't have
-    # any of these keys, so we return None in that case.
+    # Assets with no band info at all return None.
     ef = asset.extra_fields
     if RASTER_SPATIAL_RESOLUTION_KEY not in ef and RASTER_SCALE_KEY not in ef:
         return None, None, None, None

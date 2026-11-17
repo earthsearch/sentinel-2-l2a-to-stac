@@ -8,8 +8,7 @@ authors = [
 ]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
-# pystac 2.0-dev requires Python >= 3.12, so 3.11 support is dropped as part of
-# adopting the 2.0 baseline (see MIGRATION_PLAN.md PR 9 / pystac-2.0 adoption).
+# pystac 2.0-dev requires Python >= 3.12.
 requires-python = ">=3.12"
 keywords = ["stac", "workflow", "cirrus"]
 license = { text = "Apache-2.0" }
@@ -21,6 +20,7 @@ classifiers = [
 dependencies = [
     "antimeridian>=0.4.8",
     "boto3>=1.43.56",
+    "boto3-utils>=0.4.2",
     "lxml>=6.0",
     "multiformats~=0.3.1",
     "numpy>=2.4.6",
@@ -37,7 +37,7 @@ dependencies = [
 
 [tool.uv.sources]
 # pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
-# per CLAUDE.md — never a floating @main. This is the dev build that carries
+# — never a floating @main. This is the dev build that carries
 # the native core `bands` API (Asset.bands / Band). Bump the SHA deliberately
 # and re-verify.
 pystac = { git = "https://github.com/stac-utils/pystac.git", rev = "4f346f2e1a1db00d526ef052800f24e19c72476c" }
@@ -59,13 +59,11 @@ module = ["botocore.*", "deepdiff.*", "lxml.*", "multiformats.*", "numpy.*", "ra
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-# The `system` marker flags the network-hitting parity tests in
-# tests/test_task.py (they download real Sentinel-2 imagery from a public
-# bucket and run the full COG/thumbnail pipeline). They are OPT-IN:
-# `addopts` deselects them by default so `uv run pytest` stays fast and
-# offline. To run them, override the marker expression on the CLI:
+# The `system`, `upgrade` and `downgrade` markers flag the network-hitting tests
+# in tests/test_task.py. They are OPT-IN: `addopts` deselects them so
+# `uv run pytest` stays fast and offline. Run one by overriding the marker
+# expression on the CLI (the trailing `-m` wins over addopts):
 #     uv run pytest -m system
-# The trailing CLI `-m` wins over the `-m "not system"` in addopts.
 addopts = ["-m", "not system and not upgrade and not downgrade"]
 markers = [
     "system: network-hitting parity tests against real imagery (opt in with -m system)",
@@ -73,8 +71,11 @@ markers = [
     "downgrade: network-hitting parity tests for the v1_output downgrade path (opt in with -m downgrade)",
 ]
 filterwarnings = [
-    # Silence DeprecationWarnings from third-party libraries (already present).
-    "ignore::DeprecationWarning",
+    # pystac 2.0-dev deprecates some of its own internal modules on import.
+    "ignore::DeprecationWarning:pystac.*",
+    # Payloads still use the legacy `upload_options.collections` mapping rather
+    # than stactask's `collection_matchers`.
+    "ignore:'upload_options.collections' is deprecated:DeprecationWarning",
     # Rasterio internally uses the `*` operator for Affine matrix multiplication;
     # suppress the PendingDeprecationWarning it emits until rasterio fixes this.
     "ignore::PendingDeprecationWarning:rasterio.*",

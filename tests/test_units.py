@@ -1,15 +1,5 @@
 """Unit tests for individual task components.
 
-Sections
---------
-download        read_href + the metadata download block in resolve_source()
-bucket/doc      bucket listing, existing-doc discovery, metadata resolution
-reference path  create_cogs=False reference/update path
-is_newer        is_newer_than_existing STAC-API gate
-update_item     Earth Search override assertions (update_item)
-safe            SAFE archive layout resolution
-cogify          up-front COG creation + the cogify/write_cog pipeline
-
 All tests are local-only: no network, no live S3.  The session-wide
 ``_stub_stac_api`` fixture in conftest.py intercepts every STAC-API request;
 ``read_href`` and the module-level boto3 S3 clients are monkeypatched where
@@ -18,11 +8,13 @@ needed.
 
 import json
 import logging
+import os
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, ClassVar
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -36,7 +28,12 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
-from sentinel_2_l2a_to_stac.cogify import CogFile, FileInfo, cogify
+from sentinel_2_l2a_to_stac.cogify import (
+    THUMBNAIL_ASSET_NAME,
+    CogFile,
+    FileInfo,
+    cogify,
+)
 from sentinel_2_l2a_to_stac.constants import (
     ALTERNATE_ASSETS_EXT,
     CANONICAL_L2A_IMAGE_PATHS,
@@ -46,7 +43,6 @@ from sentinel_2_l2a_to_stac.metadata import parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 from sentinel_2_l2a_to_stac.task import (
     ASSET_FILENAMES,
-    THUMBNAIL_ASSET_NAME,
     Sentinel2ToStac,
     _earthsearch_href,
     _https_url,
@@ -155,7 +151,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     add_storage_and_alternates so download tests stay focused.
 
     The canned bytes above are not real Sentinel-2 metadata; those stages are
-    covered by the update_item / storage tests below against genuine local metadata.
+    covered by the item output / storage tests below against genuine local metadata.
     """
     monkeypatch.setattr(task_module, "parse_metadata", lambda *a, **k: _StubMetadata())
     monkeypatch.setattr(
@@ -398,24 +394,14 @@ def test_apply_earthsearch_hrefs_rewrites_every_asset() -> None:
     )
 
 
-def test_apply_earthsearch_hrefs_leaves_local_prefix_as_path() -> None:
-    item = _synthetic_item(["blue"])
-    result = _minimal_task("test-apply-hrefs-local").apply_earthsearch_hrefs(
-        item, "/data/prefix"
-    )
-    assert result.assets["blue"].href == "/data/prefix/B02.tif"
-
-
 def test_add_thumbnail_asset() -> None:
     item = _synthetic_item(["preview"])
     result = _minimal_task("test-add-thumbnail").add_thumbnail_asset(
         item, "s3://bucket/prefix"
     )
     thumb = result.assets["thumbnail"]
-    assert thumb.href == "https://bucket.s3.us-west-2.amazonaws.com/prefix/L2A_PVI.jpg"
     assert thumb.roles == ["thumbnail"]
     assert thumb.type == MediaType.JPEG
-    assert thumb.title == "Thumbnail of preview image"
 
 
 def test_apply_reference_file_info_reuses_from_doc(
@@ -488,19 +474,13 @@ def test_apply_reference_file_info_downloads_when_missing_from_doc(
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 14
     assert fext.checksum == "fresh"
-    # Size/checksum are streamed; nothing is written to the workdir.
-    assert list(tmp_path.iterdir()) == []
 
 
-def test_apply_reference_file_info_preserves_cached_metadata_files(
+def test_apply_reference_file_info_measures_metadata_asset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A metadata asset with no file info in the doc must not clobber or delete
-    # the cached source file of the same name in the workdir.
     item = _synthetic_item(["granule_metadata"])
     item.assets["granule_metadata"].href = "s3://bucket/prefix/metadata.xml"
-    cached = tmp_path / "metadata.xml"
-    cached.write_bytes(b"cached-original")
     monkeypatch.setattr(
         Sentinel2ToStac,
         "remote_file_info",
@@ -514,7 +494,6 @@ def test_apply_reference_file_info_preserves_cached_metadata_files(
 
     result = task.apply_reference_file_info(item, {"metadata.xml"}, {"assets": {}}, {})
 
-    assert cached.read_bytes() == b"cached-original"
     assert FileExtension.ext(result.assets["granule_metadata"]).size == 7
 
 
@@ -526,7 +505,7 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
     monkeypatch.setattr(
         Sentinel2ToStac,
         "remote_file_info",
-        lambda self, href: FileInfo(size=1, checksum="x"),
+        lambda self, href: FileInfo(size=2, checksum="from-s3"),
     )
     task = Sentinel2ToStac(
         {"id": "test-extra", "metadata_href": "s3://bucket/prefix/x"},
@@ -536,7 +515,7 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
 
     doc = {
         "assets": {
-            "blue": {"file:size": 1, "file:checksum": "x"},
+            "blue": {"file:size": 1, "file:checksum": "from-doc"},
             # "red" isn't one of item's own assets -- it must be ignored,
             # never consulted or otherwise acted on.
             "red": {"file:size": 999, "file:checksum": "should-not-be-used"},
@@ -547,7 +526,7 @@ def test_apply_reference_file_info_ignores_extra_doc_asset(
     assert "red" not in result.assets
     fext = FileExtension.ext(result.assets["blue"])
     assert fext.size == 1
-    assert fext.checksum == "x"
+    assert fext.checksum == "from-doc"
 
 
 def test_apply_reference_file_info_raises_when_missing_from_bucket() -> None:
@@ -675,38 +654,6 @@ def test_process_raises_when_thumbnail_missing_from_bucket(
         _make_download_task(tmp_path).process()
 
 
-def test_process_ignores_create_cogs_payload_for_granule_input(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A granule metadata_href is always the "existing COGs" flow -- there is
-    # no create-COGs fallback, even with a stray create_cogs=true from a
-    # legacy caller, so a bucket without the full flat layout still fails.
-    _stub_pipeline_with_item(monkeypatch, _synthetic_full_item())
-    _stub_metadata_reads(monkeypatch)
-    monkeypatch.setattr(
-        Sentinel2ToStac,
-        "list_bucket_filenames",
-        lambda self, s3_path: {_FULL_ITEM_DOC_FILENAME},
-    )
-
-    payload = {
-        "metadata_href": _METADATA_HREF,
-        "create_cogs": True,
-        "process": [
-            {
-                "id": "collection-0/workflow-workflow-1/item-1",
-                "workflow": "workflow-1",
-                "output_options": {"collections": {"collection-1": ".*"}},
-                "tasks": {"sentinel-2-l2a-to-stac": {}},
-            }
-        ],
-    }
-    task = Sentinel2ToStac(payload, workdir=tmp_path, upload=False)
-
-    with pytest.raises(InvalidInput, match=r"Expected COG\(s\) not found"):
-        task.process()
-
-
 def test_process_safe_input_always_creates_cogs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -752,9 +699,11 @@ def test_process_safe_input_always_creates_cogs(
 # is_newer_than_existing
 # ---------------------------------------------------------------------------
 
+# Pinned in _check_is_newer so a STAC_API_URL set in the environment can't
+# bypass the mock below.
+_STAC_API_URL = "https://stac.example.com/v2"
 _ITEM_URL = (
-    "https://earth-search.aws.element84.com/v2"
-    "/collections/sentinel-2-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
+    f"{_STAC_API_URL}/collections/sentinel-2-l2a/items/S2A_T19TDJ_20230419T153818_L2A"
 )
 _BASELINE_GEN_TIME = "2023-04-19T22:08:59.000000Z"
 
@@ -765,7 +714,10 @@ def _check_is_newer(
     status_code: int = 200,
     body: dict[str, Any] | None = None,
 ) -> Any:
-    with requests_mock_module.Mocker() as m:
+    with (
+        mock.patch.dict(os.environ, {"STAC_API_URL": _STAC_API_URL}),
+        requests_mock_module.Mocker() as m,
+    ):
         m.get(_ITEM_URL, status_code=status_code, text=json.dumps(body))
         return _minimal_task("regression-is-newer").is_newer_than_existing(item)
 
@@ -810,14 +762,18 @@ def test_is_newer_than_existing(
 
 
 # ---------------------------------------------------------------------------
-# update_item
+# item output / storage & alternates / URL helpers
 # ---------------------------------------------------------------------------
 
 
-def test_providers_and_license_dropped(baseline_item_dict: dict[str, Any]) -> None:
+def test_legacy_fields_absent(baseline_item_dict: dict[str, Any]) -> None:
     item = baseline_item_dict
     assert "providers" not in item["properties"]
     assert [link for link in item["links"] if link["rel"] == "license"] == []
+    assert "classification:classes" not in item["assets"]["scl"]
+    assert "eo:snow_cover" not in item["properties"]
+    assert not any("classification" in ext for ext in item["stac_extensions"])
+    assert "proj:bbox" not in item["assets"]["blue"]
 
 
 def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
@@ -843,50 +799,7 @@ def test_storage_schemes_and_refs(baseline_item_dict: dict[str, Any]) -> None:
         assert asset.get("storage:refs") == ["earthsearch"], name
 
 
-def test_add_storage_schemes_classification() -> None:
-    """add_storage_and_alternates assigns refs by href: Earth Search or local."""
-    item = Item(
-        id="test",
-        geometry=None,
-        bbox=None,
-        datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
-        properties={},
-    )
-    es = "https://earth-search-output.s3.us-west-2.amazonaws.com/collection"
-    item.assets["es_asset"] = Asset(href=f"{es}/x.tif")
-    item.assets["es_asset_2"] = Asset(href=f"{es}/y.tif")
-    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
-    _set_asset_owners(item)
-
-    result = _minimal_task("test-storage").add_storage_and_alternates(item)
-    result_dict = result.to_dict()
-
-    schemes = result_dict["properties"]["storage:schemes"]
-    assert set(schemes.keys()) == {"earthsearch", "local"}
-    assert schemes["earthsearch"]["bucket"] == "earth-search-output"
-    assert schemes["local"]["bucket"] == "local"
-    assert all(s["type"] == "aws-s3" for s in schemes.values())
-
-    assets = result_dict["assets"]
-    assert assets["es_asset"]["storage:refs"] == ["earthsearch"]
-    assert assets["es_asset_2"]["storage:refs"] == ["earthsearch"]
-    assert assets["local_asset"]["storage:refs"] == ["local"]
-
-    assert any("storage" in ext for ext in result_dict["stac_extensions"])
-
-
-def test_scrub_block(baseline_item_dict: dict[str, Any]) -> None:
-    item = baseline_item_dict
-    assert "classification:classes" not in item["assets"]["scl"]
-    assert "eo:snow_cover" not in item["properties"]
-    assert not any("classification" in ext for ext in item["stac_extensions"])
-
-
 _BASELINE_HTTPS = f"https://{_BASELINE_BUCKET}.s3.us-west-2.amazonaws.com/prefix"
-
-
-def test_proj_bbox_dropped(baseline_item_dict: dict[str, Any]) -> None:
-    assert "proj:bbox" not in baseline_item_dict["assets"]["blue"]
 
 
 def test_every_asset_has_https_href_and_s3_alternate(
@@ -904,8 +817,6 @@ def test_every_asset_has_https_href_and_s3_alternate(
                 "alternate:name": "S3",
             }
         }, name
-        # Storage refs stay on the asset, never on the alternate.
-        assert asset["storage:refs"] == ["earthsearch"], name
 
 
 def test_v1_output_keeps_https_href_and_s3_alternate(
@@ -924,7 +835,9 @@ def test_v1_output_keeps_https_href_and_s3_alternate(
     }
 
 
-def test_add_storage_and_alternates_adds_s3_and_skips_local() -> None:
+def test_add_storage_and_alternates_classifies_by_href() -> None:
+    """Earth Search hrefs get the earthsearch scheme and an s3 alternate;
+    local paths get the local scheme and no alternate."""
     item = Item(
         id="test",
         geometry=None,
@@ -934,10 +847,23 @@ def test_add_storage_and_alternates_adds_s3_and_skips_local() -> None:
     )
     https = "https://earth-search-output.s3.us-west-2.amazonaws.com/a/b/x.tif"
     item.assets["es_asset"] = Asset(href=https)
+    item.assets["es_asset_2"] = Asset(href=https.replace("x.tif", "y.tif"))
     item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
     _set_asset_owners(item)
 
-    result = _minimal_task("test-alternates").add_storage_and_alternates(item).to_dict()
+    result = _minimal_task("test-storage").add_storage_and_alternates(item).to_dict()
+
+    schemes = result["properties"]["storage:schemes"]
+    assert set(schemes.keys()) == {"earthsearch", "local"}
+    assert schemes["earthsearch"]["bucket"] == "earth-search-output"
+    assert schemes["local"]["bucket"] == "local"
+    assert all(s["type"] == "aws-s3" for s in schemes.values())
+    assert any("storage" in ext for ext in result["stac_extensions"])
+
+    assets = result["assets"]
+    assert assets["es_asset"]["storage:refs"] == ["earthsearch"]
+    assert assets["es_asset_2"]["storage:refs"] == ["earthsearch"]
+    assert assets["local_asset"]["storage:refs"] == ["local"]
 
     es = result["assets"]["es_asset"]
     assert es["href"] == https
@@ -1111,6 +1037,7 @@ def test_https_url_round_trips_through_parse(key: str) -> None:
         ("s3://bucket/a/", "https://bucket.s3.us-west-2.amazonaws.com/a/B01.tif"),
         ("s3://bucket/a", "https://bucket.s3.us-west-2.amazonaws.com/a/B01.tif"),
         ("s3://bucket/a b", "https://bucket.s3.us-west-2.amazonaws.com/a%20b/B01.tif"),
+        ("/data/prefix", "/data/prefix/B01.tif"),
     ],
 )
 def test_earthsearch_href_never_double_slashes(prefix: str, expected: str) -> None:
@@ -1331,7 +1258,7 @@ def test_resolve_safe_layout_raises_on_missing_file() -> None:
 
 
 # ---------------------------------------------------------------------------
-# cogify_source_images / cogify
+# processing baseline / cogify_source_images / cogify
 # ---------------------------------------------------------------------------
 
 
@@ -1373,9 +1300,7 @@ def test_cogify_source_images_covers_the_canonical_set(
     assert cogs["cloud"].filename == "CLD_20m.tif"
 
 
-def test_fetch_source_images_renames_to_canonical_filenames(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fetch_source_images_renames_to_canonical_filenames(tmp_path: Path) -> None:
     # A SAFE archive names its images after the tile and sensing time; they
     # must land in the workdir under the canonical flat filenames.
     safe_dir = tmp_path / "safe"

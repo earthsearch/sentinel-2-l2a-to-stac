@@ -44,7 +44,7 @@ run_fixture() {
 echo "=== success fixtures ==="
 while IFS= read -r -d '' payload; do
     run_fixture "$payload" "false"
-done < <(find "${FIXTURES_DIR}/success" -name "in.json" -print0 | sort -z)
+done < <(find "${FIXTURES_DIR}/upgrade" "${FIXTURES_DIR}/downgrade" -name "in.json" -print0 | sort -z)
 
 echo ""
 echo "=== failure fixtures ==="
