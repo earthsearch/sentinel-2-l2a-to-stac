@@ -40,6 +40,7 @@ from sentinel_2_l2a_to_stac.cogify import (
     CogFile,
     FileInfo,
     cogify,
+    make_thumbnail,
 )
 from sentinel_2_l2a_to_stac.constants import (
     ALTERNATE_ASSETS_EXT,
@@ -54,7 +55,6 @@ from sentinel_2_l2a_to_stac.task import (
     _earthsearch_href,
     _https_url,
     _parse_bucket_url,
-    _set_asset_owners,
     _validate_processing_baseline,
     find_existing_stac_doc_filename,
 )
@@ -377,8 +377,7 @@ def _synthetic_item(keys: list[str]) -> Item:
         properties={},
     )
     for key in keys:
-        item.assets[key] = Asset(href=f"placeholder-{key}", media_type="image/tiff")
-    _set_asset_owners(item)
+        item.add_asset(key, Asset(href=f"placeholder-{key}", media_type="image/tiff"))
     return item
 
 
@@ -409,6 +408,29 @@ def test_add_thumbnail_asset() -> None:
     thumb = result.assets["thumbnail"]
     assert thumb.roles == ["thumbnail"]
     assert thumb.media_type == MediaType.JPEG
+    assert thumb.owner is result
+
+
+def test_make_thumbnail_sets_asset_owner(tmp_path: Path) -> None:
+    # Extension.ext(asset, add_if_missing=True) only registers the extension
+    # URI on the Item when the asset has an owner, and add_fileinfo_to_local_assets
+    # relies on that for the thumbnail.
+    from PIL import Image
+
+    preview = tmp_path / "L2A_PVI.tif"
+    Image.new("RGB", (4, 4)).save(preview, "TIFF")
+    item = Item(
+        id="i",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.add_asset("preview", Asset(href=str(preview)))
+
+    result = make_thumbnail(item)
+
+    assert result.assets["thumbnail"].owner is result
 
 
 def test_apply_reference_file_info_reuses_from_doc(
@@ -565,8 +587,7 @@ def _synthetic_full_item() -> Item:
     for key, filename in ASSET_FILENAMES.items():
         if key == THUMBNAIL_ASSET_NAME:
             continue
-        item.assets[key] = Asset(href=f"local-{filename}", media_type="image/tiff")
-    _set_asset_owners(item)
+        item.add_asset(key, Asset(href=f"local-{filename}", media_type="image/tiff"))
     return item
 
 
@@ -853,10 +874,9 @@ def test_add_storage_and_alternates_classifies_by_href() -> None:
         properties={},
     )
     https = "https://earth-search-output.s3.us-west-2.amazonaws.com/a/b/x.tif"
-    item.assets["es_asset"] = Asset(href=https)
-    item.assets["es_asset_2"] = Asset(href=https.replace("x.tif", "y.tif"))
-    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
-    _set_asset_owners(item)
+    item.add_asset("es_asset", Asset(href=https))
+    item.add_asset("es_asset_2", Asset(href=https.replace("x.tif", "y.tif")))
+    item.add_asset("local_asset", Asset(href="/tmp/workdir/metadata.xml"))
 
     result = _minimal_task("test-storage").add_storage_and_alternates(item).to_dict()
 
@@ -893,8 +913,7 @@ def test_add_storage_and_alternates_omits_extension_when_nothing_remote() -> Non
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["local_asset"] = Asset(href="/tmp/workdir/metadata.xml")
-    _set_asset_owners(item)
+    item.add_asset("local_asset", Asset(href="/tmp/workdir/metadata.xml"))
 
     result = (
         _minimal_task("test-alternates-local")
@@ -914,8 +933,7 @@ def test_add_storage_and_alternates_rejects_s3_href() -> None:
         datetime=datetime(2023, 1, 1, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["es_asset"] = Asset(href="s3://earth-search-output/a/x.tif")
-    _set_asset_owners(item)
+    item.add_asset("es_asset", Asset(href="s3://earth-search-output/a/x.tif"))
 
     with pytest.raises(Exception, match="was not published as https"):
         _minimal_task("test-alternates-s3").add_storage_and_alternates(item)
@@ -930,8 +948,7 @@ def _remote_item(hrefs: dict[str, str]) -> Item:
         properties={},
     )
     for key, href in hrefs.items():
-        item.assets[key] = Asset(href=href)
-    _set_asset_owners(item)
+        item.add_asset(key, Asset(href=href))
     return item
 
 
@@ -1185,10 +1202,10 @@ def test_get_local_asset_keys_selects_only_workdir_hrefs(tmp_path: Path) -> None
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={},
     )
-    item.assets["local_meta"] = Asset(href=str(tmp_path / "metadata.xml"))
-    item.assets["local_cog"] = Asset(href=str(tmp_path / "R10m" / "B02.tif"))
-    item.assets["remote"] = Asset(href="s3://example-bucket/prefix/B02.tif")
-    item.assets["outside"] = Asset(href="/some/other/dir/B01.tif")
+    item.add_asset("local_meta", Asset(href=str(tmp_path / "metadata.xml")))
+    item.add_asset("local_cog", Asset(href=str(tmp_path / "R10m" / "B02.tif")))
+    item.add_asset("remote", Asset(href="s3://example-bucket/prefix/B02.tif"))
+    item.add_asset("outside", Asset(href="/some/other/dir/B01.tif"))
 
     assert task.get_local_asset_keys(item) == ["local_meta", "local_cog"]
 

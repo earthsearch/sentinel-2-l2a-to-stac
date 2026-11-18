@@ -351,8 +351,7 @@ class Sentinel2ToStac(Task):
             roles=["thumbnail"],
             title=THUMBNAIL_TITLE,
         )
-        item.assets[THUMBNAIL_ASSET_NAME] = asset
-        asset.set_owner(item)
+        item.add_asset(THUMBNAIL_ASSET_NAME, asset)
         return item
 
     def apply_reference_file_info(
@@ -619,7 +618,6 @@ class Sentinel2ToStac(Task):
         return item
 
     def add_fileinfo_to_local_assets(self, item: Item) -> Item:
-        _set_asset_owners(item)
         for asset in item.assets.values():
             if not self.is_local_asset(asset):
                 continue
@@ -894,11 +892,6 @@ def lambda_handler(
     event: dict[str, Any], context: dict[str, Any] = {}
 ) -> dict[str, Any]:
     return Sentinel2ToStac.handler(payload=event)
-
-
-def _set_asset_owners(item: Item) -> None:
-    for asset in item.assets.values():
-        asset.set_owner(item)
 
 
 if __name__ == "__main__":

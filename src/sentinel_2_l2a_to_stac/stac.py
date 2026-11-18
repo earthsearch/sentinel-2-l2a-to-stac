@@ -51,7 +51,6 @@ from pystac.extensions.mgrs import MgrsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from pystac.extensions.sat import OrbitState, SatExtension
-from pystac.extensions.view import SCHEMA_URI as VIEW_EXT_URI
 from pystac.extensions.view import ViewExtension
 from pystac.utils import now_to_rfc3339_str
 from shapely import remove_repeated_points
@@ -178,7 +177,7 @@ def _set_asset_properties(
     gsd: Optional[int] = None,
 ) -> pystac.Asset:
     if gsd:
-        pystac.CommonMetadata(asset).gsd = gsd
+        asset.common_metadata.gsd = gsd
     asset_projection = ProjectionExtension.ext(asset)
     asset_projection.shape = list(shape)
     bbox = [
@@ -460,9 +459,9 @@ def create_item(
         properties={"created": now_to_rfc3339_str()},
     )
 
-    item.properties["platform"] = metadata.platform.lower()
-    item.properties["constellation"] = SENTINEL_CONSTELLATION
-    item.properties["instruments"] = SENTINEL_INSTRUMENTS
+    item.common_metadata.platform = metadata.platform.lower()
+    item.common_metadata.constellation = SENTINEL_CONSTELLATION
+    item.common_metadata.instruments = SENTINEL_INSTRUMENTS
 
     eo = EOExtension.ext(item, add_if_missing=True)
     eo.cloud_cover = metadata.cloudiness_percentage
@@ -527,8 +526,7 @@ def create_item(
             view.sun_elevation,
         ]
     ):
-        if item.stac_extensions is not None:
-            item.stac_extensions.remove(VIEW_EXT_URI)
+        ViewExtension.remove_from(item)
 
     if item.stac_extensions is not None:
         item.stac_extensions.append(SENTINEL2_EXTENSION_SCHEMA)
@@ -542,8 +540,7 @@ def create_item(
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):
         assert key not in item.assets
-        item.assets[key] = asset
-        asset.set_owner(item)
+        item.add_asset(key, asset)
 
     ensure_band_extension_versions(item)
 

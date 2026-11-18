@@ -88,7 +88,7 @@ def make_thumbnail(item: Item) -> Item:
         roles=["thumbnail"],
         title=THUMBNAIL_TITLE,
     )
-    item.assets[THUMBNAIL_ASSET_NAME] = tn_asset
+    item.add_asset(THUMBNAIL_ASSET_NAME, tn_asset)
 
     if not Path(tn_asset.href).exists():
         with Image.open(asset.href) as im:

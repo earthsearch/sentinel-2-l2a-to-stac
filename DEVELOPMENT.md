@@ -54,7 +54,6 @@ Each carries an inline `SHIM` comment or docstring at its definition.
 | Shim | Why it exists | Remove when |
 | ---- | ------------- | ----------- |
 | `bands.py` (`SHIM(pystac-bands)`) | pystac 1.16 has no native `Asset.bands`, so STAC 1.1 `bands` are stored as raw dicts and the eo/raster extension URIs are bumped to v2.0.0 by hand. | pystac releases native bands. See [Removing the bands shim](#removing-the-bands-shim). |
-| `_set_asset_owners` (`task.py`, called in `add_fileinfo_to_local_assets`) | `Extension.ext(asset, add_if_missing=True)` needs `asset.owner` to register the extension URI on the Item, and pystac doesn't always set it (observed on the 2.0 dev build; not yet re-checked on 1.16). | pystac re-parents assets on these paths. |
 | `filterwarnings`: `ignore::PendingDeprecationWarning:rasterio.*` (`pyproject.toml`) | `rasterio.transform.from_bounds` multiplies `Affine` transforms with `*`; `affine` nudges callers toward `@`. None of our code multiplies `Affine`. | rasterio switches `*` → `@`. |
 | `filterwarnings`: `ignore:The exterior ring::antimeridian.*` (`pyproject.toml`) | `antimeridian.FixWindingWarning` fires when it's handed a clockwise exterior ring; it auto-corrects the winding, so the warning is noise. | The warning stops being emitted. |
 
