@@ -7,10 +7,7 @@ FROM public.ecr.aws/lambda/python:3.12 AS builder
 # Linux 2023 (glibc 2.34), which satisfies manylinux_2_28, so the wheels install
 # and run as-is (except libexpat, see final stage below). `task.py` uses rasterio
 # only (no osgeo bindings), so there is nothing that needs a system libgdal.
-# `git` is required because pystac is a git dependency (see [tool.uv.sources] in
-# pyproject.toml).
 RUN dnf update -y && \
-  dnf install -y git && \
   dnf clean all && \
   rm -rf /var/cache/dnf
 

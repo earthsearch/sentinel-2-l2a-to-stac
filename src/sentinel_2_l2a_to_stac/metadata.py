@@ -27,7 +27,7 @@
 #   file reads; all hrefs in this task are local workdir paths
 # - L2A-focused; L1C_IMAGE_PATHS kept only for parse_metadata's non-L2A fallback
 # - stactools.core.projection.transform_from_bbox inlined as a few lines
-# - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
+# - STAC 1.1 `bands` written via sentinel_2_l2a_to_stac.bands (see SHIM there);
 #   per-asset eo:bands / raster:bands arrays eliminated
 
 from __future__ import annotations
@@ -287,7 +287,7 @@ class GranuleMetadata:
 
     def create_asset(self) -> tuple[str, pystac.Asset]:
         asset = pystac.Asset(
-            href=self.href, type=pystac.MediaType.XML, roles=["metadata"]
+            href=self.href, media_type=pystac.MediaType.XML, roles=["metadata"]
         )
         return GRANULE_METADATA_ASSET_KEY, asset
 
@@ -495,7 +495,7 @@ class ProductMetadata:
 
     def create_asset(self) -> tuple[str, pystac.Asset]:
         asset = pystac.Asset(
-            href=self.href, type=pystac.MediaType.XML, roles=["metadata"]
+            href=self.href, media_type=pystac.MediaType.XML, roles=["metadata"]
         )
         return PRODUCT_METADATA_ASSET_KEY, asset
 

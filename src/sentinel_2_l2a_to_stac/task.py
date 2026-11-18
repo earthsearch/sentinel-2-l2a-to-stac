@@ -12,8 +12,7 @@ import boto3  # type: ignore[import-untyped]
 import requests
 from boto3utils import s3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError
-from pystac import Asset, Item, MediaType, STACObject
-from pystac.errors import TemplateError
+from pystac import Asset, Item, MediaType
 from pystac.extensions.file import FileExtension
 from pystac.extensions.storage import StorageExtension, StorageScheme
 from pystac.layout import LayoutTemplate
@@ -46,99 +45,6 @@ from sentinel_2_l2a_to_stac.footprint import data_footprint
 from sentinel_2_l2a_to_stac.metadata import Metadata, parse_metadata
 from sentinel_2_l2a_to_stac.safe import resolve_safe_layout
 from sentinel_2_l2a_to_stac.stac import create_image_assets, create_item
-
-
-def _patched_get_template_value(
-    self: "LayoutTemplate", stac_object: "STACObject", template_var: str
-) -> Any:
-    """Fixed copy of ``LayoutTemplate._get_template_value``.
-
-    SHIM(pystac-2.0): upstream does ``if prop in v`` without guarding against
-    ``v`` being a plain object (e.g. the Item itself, reached whenever
-    template_var matches one of the object's own attribute names, such as
-    ``id``). That raises ``TypeError: argument of type 'Item' is not
-    iterable`` instead of falling through to the ``hasattr``/``getattr``
-    branch. Remove once fixed upstream.
-    """
-    if template_var in self.ITEM_TEMPLATE_VARS:
-        if isinstance(stac_object, Item):
-            dt = stac_object.datetime
-            if dt is None:
-                dt = stac_object.common_metadata.start_datetime
-            if dt is None:
-                raise TemplateError(
-                    f"Item {stac_object} does not have a datetime or "
-                    f"datetime range set; cannot template {template_var} "
-                    f"in {self.template}"
-                )
-
-            if template_var == "year":
-                return dt.year
-            if template_var == "month":
-                return dt.month
-            if template_var == "day":
-                return dt.day
-            if template_var == "date":
-                return dt.date().isoformat()
-
-            if template_var == "collection":
-                if stac_object.collection_id is not None:
-                    return stac_object.collection_id
-                raise TemplateError(
-                    f"Item {stac_object} does not have a collection ID set; "
-                    f"cannot template {template_var} in {self.template}"
-                )
-        else:
-            raise TemplateError(
-                f'"{template_var}" cannot be used to template non-Item '
-                f"{stac_object} in {self.template}"
-            )
-
-    props = template_var.split(".")
-    prop_source: STACObject | dict[str, Any] | None = None
-    error = TemplateError(
-        f"Cannot find property {template_var} on {stac_object} for template "
-        f"{self.template}"
-    )
-
-    try:
-        if hasattr(stac_object, props[0]):
-            prop_source = stac_object
-
-        if prop_source is None and hasattr(stac_object, "properties"):
-            obj_props: dict[str, Any] | None = stac_object.properties
-            if obj_props is not None and props[0] in obj_props:
-                prop_source = obj_props
-
-        if prop_source is None and hasattr(stac_object, "extra_fields"):
-            extra_fields: dict[str, Any] | None = stac_object.extra_fields
-            if extra_fields is not None and props[0] in extra_fields:
-                prop_source = extra_fields
-
-        if prop_source is None:
-            raise error
-
-        v: Any = prop_source
-        for prop in template_var.split("."):
-            try:
-                is_member = prop in v
-            except TypeError:
-                is_member = False
-            if is_member:
-                v = v[prop]
-            elif hasattr(v, prop):
-                v = getattr(v, prop)
-            else:
-                raise error
-    except TemplateError as e:
-        if template_var in self.defaults:
-            return self.defaults[template_var]
-        raise e
-
-    return v
-
-
-LayoutTemplate._get_template_value = _patched_get_template_value  # type: ignore[method-assign]
 
 logging.getLogger().setLevel(os.getenv("CIRRUS_LOG_LEVEL", "WARN"))
 for _noisy_logger in ("botocore", "rasterio"):
@@ -359,8 +265,9 @@ class Sentinel2ToStac(Task):
         ):
             raise Exception("No collection defined for item")
 
-        # pystac 2.0 made Item.collection_id read-only; set via set_collection()
-        item.set_collection(collection)
+        # set_collection() expects a Collection object (it also adds links);
+        # we only have the id here.
+        item.collection_id = collection
 
         item.properties["earthsearch:payload_id"] = self.payload["id"]
 
@@ -440,7 +347,7 @@ class Sentinel2ToStac(Task):
         """
         asset = Asset(
             href=_earthsearch_href(s3_path, ASSET_FILENAMES[THUMBNAIL_ASSET_NAME]),
-            type=MediaType.JPEG,
+            media_type=MediaType.JPEG,
             roles=["thumbnail"],
             title=THUMBNAIL_TITLE,
         )
@@ -476,7 +383,7 @@ class Sentinel2ToStac(Task):
             fext = FileExtension.ext(asset, add_if_missing=True)
             doc_asset = doc_assets.get(key, {})
             if doc_type := doc_asset.get("type"):
-                asset.type = doc_type
+                asset.media_type = doc_type
             size = doc_asset.get("file:size")
             checksum = doc_asset.get("file:checksum")
             if size is not None and checksum is not None:

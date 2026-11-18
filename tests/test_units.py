@@ -28,6 +28,13 @@ from returns.result import Failure, Success
 from stactask.exceptions import InvalidInput
 
 import sentinel_2_l2a_to_stac.task as task_module
+from sentinel_2_l2a_to_stac.bands import (
+    apply_asset_bands,
+    ensure_band_extension_versions,
+    get_asset_bands,
+    resolve_asset_band_fields,
+    set_asset_bands,
+)
 from sentinel_2_l2a_to_stac.cogify import (
     THUMBNAIL_ASSET_NAME,
     CogFile,
@@ -370,7 +377,7 @@ def _synthetic_item(keys: list[str]) -> Item:
         properties={},
     )
     for key in keys:
-        item.assets[key] = Asset(href=f"placeholder-{key}", type="image/tiff")
+        item.assets[key] = Asset(href=f"placeholder-{key}", media_type="image/tiff")
     _set_asset_owners(item)
     return item
 
@@ -401,7 +408,7 @@ def test_add_thumbnail_asset() -> None:
     )
     thumb = result.assets["thumbnail"]
     assert thumb.roles == ["thumbnail"]
-    assert thumb.type == MediaType.JPEG
+    assert thumb.media_type == MediaType.JPEG
 
 
 def test_apply_reference_file_info_reuses_from_doc(
@@ -552,13 +559,13 @@ def _synthetic_full_item() -> Item:
         datetime=datetime(2023, 4, 19, tzinfo=timezone.utc),
         properties={"s2:generation_time": "2023-04-19T22:08:59.000000Z"},
     )
-    item.set_collection("sentinel-2-l2a")
+    item.collection_id = "sentinel-2-l2a"
     # create_item never produces a "thumbnail" asset -- only the reference
     # path (via add_thumbnail_asset) or the cog path (via make_thumbnail) do.
     for key, filename in ASSET_FILENAMES.items():
         if key == THUMBNAIL_ASSET_NAME:
             continue
-        item.assets[key] = Asset(href=f"local-{filename}", type="image/tiff")
+        item.assets[key] = Asset(href=f"local-{filename}", media_type="image/tiff")
     _set_asset_owners(item)
     return item
 
@@ -1113,7 +1120,7 @@ def _upload_task(
     local_file = tmp_path / "B01.tif"
     local_file.write_bytes(b"fake")
     item = _remote_item({"blue": str(local_file)})
-    item.set_collection("sentinel-2-l2a")
+    item.collection_id = "sentinel-2-l2a"
     task = Sentinel2ToStac(_upload_payload(), workdir=tmp_path, upload=True)
     return task, item, uploaded
 
@@ -1412,3 +1419,127 @@ def test_logger_prefixes_payload_id(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO):
         task.logger.info("processing tile")
     assert "[test-payload-123] processing tile" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# bands.py shim contract: must hold before and after adopting pystac's native
+# bands API (see DEVELOPMENT.md, "Removing the bands shim").
+# ---------------------------------------------------------------------------
+
+
+def test_bands_shim_still_needed() -> None:
+    """Tripwire: fails when a pystac bump brings native bands or eo/raster 2.0.
+
+    That's the cue to follow DEVELOPMENT.md, "Removing the bands shim", and
+    then delete this test.
+    """
+    import pystac
+    from pystac.extensions import eo, raster
+
+    hint = 'see DEVELOPMENT.md, "Removing the bands shim"'
+    assert not hasattr(pystac, "Band"), f"pystac now ships Band; {hint}"
+    assert not hasattr(pystac.Asset, "bands"), f"pystac now has Asset.bands; {hint}"
+    assert eo.SCHEMA_URI.endswith("/eo/v1.1.0/schema.json"), (
+        f"pystac-ext-eo now targets {eo.SCHEMA_URI}; {hint}"
+    )
+    assert raster.SCHEMA_URI.endswith("/raster/v1.1.0/schema.json"), (
+        f"pystac-ext-raster now targets {raster.SCHEMA_URI}; {hint}"
+    )
+
+
+def test_asset_bands_round_trip_serializes_as_stac_1_1_bands() -> None:
+    bands = [
+        {"name": "B04", "eo:common_name": "red", "raster:scale": 0.0001},
+        {"name": "B03", "eo:common_name": "green", "nodata": 0},
+    ]
+    asset = Asset(href="x.tif")
+    set_asset_bands(asset, bands)
+
+    assert get_asset_bands(asset) == bands
+    assert asset.to_dict()["bands"] == bands
+
+
+def test_asset_bands_absent_and_removed() -> None:
+    asset = Asset(href="x.tif")
+    assert get_asset_bands(asset) is None
+
+    set_asset_bands(asset, [{"name": "B04"}])
+    set_asset_bands(asset, None)
+    assert get_asset_bands(asset) is None
+    assert "bands" not in asset.to_dict()
+
+
+def test_asset_bands_not_inherited_from_owning_item() -> None:
+    # resolve_asset_band_fields uses get_asset_bands to tell single- from
+    # multi-band assets, so it
+    # must return only the asset's own bands, even if the Item has some.
+    item = Item(
+        id="i",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        properties={"bands": [{"name": "item-level"}]},
+    )
+    asset = Asset(href="x.tif")
+    item.add_asset("a", asset)
+
+    assert get_asset_bands(asset) is None
+
+
+def test_ensure_band_extension_versions_bumps_only_eo_and_raster() -> None:
+    item = Item(
+        id="i",
+        geometry=None,
+        bbox=None,
+        datetime=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        properties={},
+    )
+    item.stac_extensions = [
+        "https://stac-extensions.github.io/eo/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/raster/v1.1.0/schema.json",
+        "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+        "https://example.com/raster/tiles/v1.0.0/schema.json",
+    ]
+    ensure_band_extension_versions(item)
+    assert item.stac_extensions == [
+        "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+        "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+        "https://example.com/raster/tiles/v1.0.0/schema.json",
+    ]
+
+
+def test_apply_asset_bands_single_band_flattens_onto_asset() -> None:
+    asset = Asset(href="x.tif")
+    apply_asset_bands(asset, [{"nodata": 0, "raster:scale": 0.001}])
+
+    assert get_asset_bands(asset) is None
+    assert asset.to_dict()["raster:scale"] == 0.001
+    assert resolve_asset_band_fields(asset, ["raster:scale", "raster:offset"]) == [
+        {"raster:scale": 0.001, "raster:offset": None}
+    ]
+
+
+def test_apply_asset_bands_multi_band_moves_shared_fields_up() -> None:
+    asset = Asset(href="x.tif")
+    apply_asset_bands(
+        asset,
+        [
+            {"name": "B04", "nodata": 0, "raster:scale": 0.0001},
+            {"name": "B03", "nodata": 0, "raster:scale": 0.0002},
+        ],
+    )
+
+    assert asset.extra_fields["nodata"] == 0
+    assert get_asset_bands(asset) == [
+        {"name": "B04", "raster:scale": 0.0001},
+        {"name": "B03", "raster:scale": 0.0002},
+    ]
+    assert resolve_asset_band_fields(asset, ["nodata", "raster:scale"]) == [
+        {"nodata": 0, "raster:scale": 0.0001},
+        {"nodata": 0, "raster:scale": 0.0002},
+    ]
+
+
+def test_resolve_asset_band_fields_none_without_band_info() -> None:
+    assert resolve_asset_band_fields(Asset(href="x.tif"), ["raster:scale"]) is None

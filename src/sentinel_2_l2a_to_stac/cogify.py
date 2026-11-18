@@ -13,6 +13,7 @@ from rasterio.enums import ColorInterp, Resampling
 from rasterio.rio.overview import get_maximum_overview_level
 from stactask.exceptions import InvalidInput
 
+from sentinel_2_l2a_to_stac.bands import resolve_asset_band_fields
 from sentinel_2_l2a_to_stac.constants import (
     RASTER_NODATA_KEY,
     RASTER_OFFSET_KEY,
@@ -83,7 +84,7 @@ def make_thumbnail(item: Item) -> Item:
 
     tn_asset = Asset(
         href=os.path.splitext(asset.href)[0] + ".jpg",
-        type=MediaType.JPEG,
+        media_type=MediaType.JPEG,
         roles=["thumbnail"],
         title=THUMBNAIL_TITLE,
     )
@@ -245,57 +246,29 @@ def get_band_scales_offsets_nodatas_resolutions(
     list[float | None] | None,
     list[int | float | None] | None,
 ]:
-    # SHIM(pystac-2.0): reads raster fields via band.extra_fields because pystac
-    # 2.0-dev Band has no typed raster accessors yet. Replace with proper
-    # attribute access once pystac stabilises the Band field API.
-    bands = asset.bands
-    if bands:
-        # Multi-band: fields live in each Band's extra_fields, or hoisted to
-        # asset.extra_fields when identical across all bands.
-        asset_fields = asset.extra_fields
-        scales, offsets, nodatas, resolutions = [], [], [], []
-        for band in bands:
-            bf = band.extra_fields
-            af = asset_fields
-            scale = (
-                bf[RASTER_SCALE_KEY]
-                if RASTER_SCALE_KEY in bf
-                else af.get(RASTER_SCALE_KEY)
-            )
-            offset = (
-                bf[RASTER_OFFSET_KEY]
-                if RASTER_OFFSET_KEY in bf
-                else af.get(RASTER_OFFSET_KEY)
-            )
-            nodata_raw = (
-                bf[RASTER_NODATA_KEY]
-                if RASTER_NODATA_KEY in bf
-                else af.get(RASTER_NODATA_KEY)
-            )
-            resolution = (
-                bf[RASTER_SPATIAL_RESOLUTION_KEY]
-                if RASTER_SPATIAL_RESOLUTION_KEY in bf
-                else af.get(RASTER_SPATIAL_RESOLUTION_KEY)
-            )
-            scales.append(scale or 1)
-            offsets.append(offset or 0)
-            nodatas.append(float(nodata_raw) if nodata_raw is not None else None)
-            resolutions.append(resolution)
-        return scales, offsets, nodatas, resolutions
-
-    # Single-band: fields are merged directly onto asset.extra_fields.
-    # Assets with no band info at all return None.
-    ef = asset.extra_fields
-    if RASTER_SPATIAL_RESOLUTION_KEY not in ef and RASTER_SCALE_KEY not in ef:
+    bands = resolve_asset_band_fields(
+        asset,
+        (
+            RASTER_SCALE_KEY,
+            RASTER_OFFSET_KEY,
+            RASTER_NODATA_KEY,
+            RASTER_SPATIAL_RESOLUTION_KEY,
+        ),
+    )
+    if bands is None:
         return None, None, None, None
 
-    nodata = ef.get(RASTER_NODATA_KEY)
-    return (
-        [ef.get(RASTER_SCALE_KEY) or 1],
-        [ef.get(RASTER_OFFSET_KEY) or 0],
-        [float(nodata) if nodata is not None else None],
-        [ef.get(RASTER_SPATIAL_RESOLUTION_KEY)],
-    )
+    scales: list[int | float] = []
+    offsets: list[int | float] = []
+    nodatas: list[float | None] = []
+    resolutions: list[int | float | None] = []
+    for band in bands:
+        nodata = band[RASTER_NODATA_KEY]
+        scales.append(band[RASTER_SCALE_KEY] or 1)
+        offsets.append(band[RASTER_OFFSET_KEY] or 0)
+        nodatas.append(float(nodata) if nodata is not None else None)
+        resolutions.append(band[RASTER_SPATIAL_RESOLUTION_KEY])
+    return scales, offsets, nodatas, resolutions
 
 
 def asset_name_to_resample_algorithm(asset_name: str) -> str:
