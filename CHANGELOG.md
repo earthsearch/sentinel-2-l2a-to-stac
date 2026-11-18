@@ -31,6 +31,16 @@ used by this project.
   next, and measures the remaining assets by streaming them from the bucket
   instead of buffering them.
 - Update collection bounds to match S2 orbit
+- Depend on released pystac 1.16.0, with core and extension packages pinned
+  exactly, instead of a git-pinned pystac 2.0 dev commit. STAC 1.1 `bands`
+  handling is isolated in `bands.py` until pystac ships native bands. Output
+  is unchanged.
+
+### Removed
+
+- `git` from the Docker build image (no longer needed without a git
+  dependency).
+- The `LayoutTemplate` and asset-owner workarounds for pystac 2.0 dev bugs.
 
 ## [v2026.09.30]
 
