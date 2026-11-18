@@ -14,6 +14,8 @@
 
 Run directly: ./scripts/collection_thumbnail.py [--output PATH]
 Or with uv: uv run --script scripts/collection_thumbnail.py [--output PATH]
+
+The collection thumbnail will need to be reuploaded by hand if regenerated.
 """
 
 import argparse

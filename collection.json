@@ -5,8 +5,10 @@
   "description": "Global Sentinel-2 data from the Multispectral Instrument (MSI) onboard Sentinel-2, processed to Level-2A (Bottom-of-Atmosphere) and reorganized as Cloud-Optimized GeoTIFFs.",
   "title": "Sentinel-2 Level-2A",
   "stac_extensions": [
+    "https://stac-extensions.github.io/alternate-assets/v1.2.0/schema.json",
     "https://stac-extensions.github.io/classification/v2.0.0/schema.json",
     "https://stac-extensions.github.io/eo/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/file/v2.1.0/schema.json",
     "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
     "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
     "https://stac-extensions.github.io/render/v2.0.0/schema.json",
@@ -133,6 +135,26 @@
       { "name": "swir16", "eo:common_name": "swir16", "eo:center_wavelength": 1.61, "eo:full_width_half_max": 0.143 },
       { "name": "swir22", "eo:common_name": "swir22", "eo:center_wavelength": 2.19, "eo:full_width_half_max": 0.242 }
     ]
+  },
+  "assets": {
+    "thumbnail": {
+      "href": "https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/thumbnail.jpg",
+      "title": "Thumbnail of collection",
+      "type": "image/jpeg",
+      "roles": ["thumbnail"],
+      "file:size": 478706,
+      "file:checksum": "1220e47b1be373b2ea1e33712105f66f604d893a313c4319594478aef1bffacb9001",
+      "storage:refs": [
+        "earthsearch"
+      ],
+      "alternate:name": "HTTPS",
+      "alternate": {
+        "s3": {
+          "href": "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/thumbnail.jpg",
+          "alternate:name": "S3"
+        }
+      }
+    }
   },
   "item_assets": {
     "coastal": {
