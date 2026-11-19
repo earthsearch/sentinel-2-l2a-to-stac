@@ -139,7 +139,6 @@
   "assets": {
     "thumbnail": {
       "href": "https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/thumbnail.jpg",
-      "title": "Thumbnail of collection",
       "type": "image/jpeg",
       "roles": ["thumbnail"],
       "file:size": 478706,
