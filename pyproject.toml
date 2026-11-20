@@ -8,7 +8,6 @@ authors = [
 ]
 description = "Sentinel-2 L2A to STAC Cirrus task"
 readme = "README.md"
-# pystac 2.0-dev requires Python >= 3.12.
 requires-python = ">=3.12"
 keywords = ["stac", "workflow", "cirrus"]
 license = { text = "Apache-2.0" }
@@ -26,7 +25,22 @@ dependencies = [
     "numpy>=2.4.6",
     "pillow~=12.0",
     "pyproj>=3.7",
-    "pystac",
+    # pystac 1.16 is a metapackage whose core/extension deps float. Pin core and
+    # every extension we import so a resolve can't silently move them to a new
+    # major (e.g. eo/raster 2.0, which change band handling). The metapackage's
+    # other pystac-ext-* deps (mlm, datacube, ...) stay unpinned; we don't use them.
+    # Bump all of these together; see DEVELOPMENT.md "pystac version pin".
+    "pystac==1.16.0",
+    "pystac-core==1.16.0",
+    "pystac-ext-eo==1.1.2",
+    "pystac-ext-file==2.1.2",
+    "pystac-ext-grid==1.1.2",
+    "pystac-ext-mgrs==1.0.2",
+    "pystac-ext-projection==2.0.2",
+    "pystac-ext-raster==1.1.2",
+    "pystac-ext-sat==1.0.2",
+    "pystac-ext-storage==2.0.2",
+    "pystac-ext-view==1.0.2",
     "raster-footprint>=0.3.0",
     "rasterio~=1.5",
     "requests>=2.34.2",
@@ -34,13 +48,6 @@ dependencies = [
     "shapely>=2.0",
     "stactask>=0.7.0",
 ]
-
-[tool.uv.sources]
-# pystac 2.0 (unreleased) pinned to a specific commit SHA for reproducibility
-# — never a floating @main. This is the dev build that carries
-# the native core `bands` API (Asset.bands / Band). Bump the SHA deliberately
-# and re-verify.
-pystac = { git = "https://github.com/stac-utils/pystac.git", rev = "4f346f2e1a1db00d526ef052800f24e19c72476c" }
 
 [project.scripts]
 sentinel-2-l2a-to-stac = "sentinel_2_l2a_to_stac.task:Sentinel2ToStac.cli"
@@ -71,8 +78,6 @@ markers = [
     "downgrade: network-hitting parity tests for the v1_output downgrade path (opt in with -m downgrade)",
 ]
 filterwarnings = [
-    # pystac 2.0-dev deprecates some of its own internal modules on import.
-    "ignore::DeprecationWarning:pystac.*",
     # Payloads still use the legacy `upload_options.collections` mapping rather
     # than stactask's `collection_matchers`.
     "ignore:'upload_options.collections' is deprecated:DeprecationWarning",

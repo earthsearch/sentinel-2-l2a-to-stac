@@ -27,7 +27,7 @@
 #   file reads; all hrefs in this task are local workdir paths
 # - L2A-focused; L1C_IMAGE_PATHS kept only for parse_metadata's non-L2A fallback
 # - stactools.core.projection.transform_from_bbox inlined as a few lines
-# - pystac 2.0 native `bands` used (asset.bands = [pystac.Band.from_dict(...)]);
+# - STAC 1.1 `bands` written via sentinel_2_l2a_to_stac.bands (see SHIM there);
 #   per-asset eo:bands / raster:bands arrays eliminated
 
 from __future__ import annotations
@@ -51,7 +51,6 @@ from pystac.extensions.mgrs import MgrsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from pystac.extensions.sat import OrbitState, SatExtension
-from pystac.extensions.view import SCHEMA_URI as VIEW_EXT_URI
 from pystac.extensions.view import ViewExtension
 from pystac.utils import now_to_rfc3339_str
 from shapely import remove_repeated_points
@@ -60,15 +59,17 @@ from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry import shape as shapely_shape
 from shapely.validation import make_valid
 
+from sentinel_2_l2a_to_stac.bands import (
+    apply_asset_bands,
+    ensure_band_extension_versions,
+)
 from sentinel_2_l2a_to_stac.constants import (
     ASSET_TO_TITLE,
     BANDS_TO_ASSET_NAME,
     COORD_ROUNDING,
     DEFAULT_SCALE,
     EO_BAND_RENAME,
-    EO_EXT_V2,
     RASTER_BAND_RENAME,
-    RASTER_EXT_V2,
     SENTINEL2_EXTENSION_SCHEMA,
     SENTINEL_BANDS,
     SENTINEL_CONSTELLATION,
@@ -99,50 +100,14 @@ def _extract_gsd(image_path: str) -> Optional[int]:
 def _native_band(
     eo: dict[str, Any] | None,
     raster: dict[str, Any] | None,
-) -> pystac.Band:
-    """Merge an EOBand dict + raster-fields dict into a STAC 1.1 pystac.Band."""
+) -> dict[str, Any]:
+    """Merge an EOBand dict + raster-fields dict into a STAC 1.1 band dict."""
     merged: dict[str, Any] = {}
     for src, rename in ((eo, EO_BAND_RENAME), (raster, RASTER_BAND_RENAME)):
         if src:
             for k, v in src.items():
                 merged[rename.get(k, k)] = v
-    return pystac.Band.from_dict(merged)
-
-
-def _apply_bands(asset: pystac.Asset, bands: list[pystac.Band]) -> None:
-    """Apply band metadata to an asset.
-
-    Single-band assets get fields merged directly into extra_fields (STAC 1.1.0
-    canonical form for single-band). Multi-band assets hoist fields that are
-    identical across every band to extra_fields; only band-specific fields remain
-    in asset.bands.
-    """
-    if len(bands) == 1:
-        asset.extra_fields.update(bands[0].to_dict())
-    else:
-        band_dicts = [band.to_dict() for band in bands]
-        first = band_dicts[0]
-        common = {
-            field: value
-            for field, value in first.items()
-            if all(other.get(field) == value for other in band_dicts[1:])
-        }
-        if common:
-            asset.extra_fields.update(common)
-            band_dicts = [
-                {field: value for field, value in bd.items() if field not in common}
-                for bd in band_dicts
-            ]
-        asset.bands = [pystac.Band.from_dict(bd) for bd in band_dicts]
-
-
-def _bump_band_extension_versions(item: pystac.Item) -> None:
-    """Replace eo/raster extension URIs with the v2.0.0 schemas that define the
-    STAC 1.1.0 `bands` field shape."""
-    item.stac_extensions = [
-        EO_EXT_V2 if "/eo/" in ext else RASTER_EXT_V2 if "/raster/" in ext else ext
-        for ext in (item.stac_extensions or [])
-    ]
+    return merged
 
 
 _MGRS_PATTERN: Final[Pattern[str]] = re.compile(
@@ -212,7 +177,7 @@ def _set_asset_properties(
     gsd: Optional[int] = None,
 ) -> pystac.Asset:
     if gsd:
-        pystac.CommonMetadata(asset).gsd = gsd
+        asset.common_metadata.gsd = gsd
     asset_projection = ProjectionExtension.ext(asset)
     asset_projection.shape = list(shape)
     bbox = [
@@ -276,12 +241,12 @@ def _image_asset_from_href(
     if "_PVI" in asset_href:
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="True color preview",
             roles=["overview"],
         )
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        _apply_bands(asset, [_native_band(b.to_dict(), None) for b in _RGB_BANDS])
+        apply_asset_bands(asset, [_native_band(b.to_dict(), None) for b in _RGB_BANDS])
         return "preview", asset
 
     band_id_search = _BAND_ID_PATTERN.search(asset_href)
@@ -302,11 +267,11 @@ def _image_asset_from_href(
 
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title=f"{ASSET_TO_TITLE[asset_id.split('_')[0]]} - {asset_res}m",
             roles=["data", "reflectance"],
         )
-        _apply_bands(
+        apply_asset_bands(
             asset,
             [
                 _native_band(
@@ -322,11 +287,11 @@ def _image_asset_from_href(
     elif _TCI_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="True color image",
             roles=["visual"],
         )
-        _apply_bands(
+        apply_asset_bands(
             asset, [_native_band(b.to_dict(), _raster_uint8) for b in _RGB_BANDS]
         )
         asset_id = f"visual_{maybe_res}m" if maybe_res and maybe_res != 10 else "visual"
@@ -335,13 +300,13 @@ def _image_asset_from_href(
     elif _AOT_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="Aerosol optical thickness (AOT)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "aot")
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        _apply_bands(
+        apply_asset_bands(
             asset,
             [
                 _native_band(
@@ -360,13 +325,13 @@ def _image_asset_from_href(
     elif _WVP_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="Water Vapour (WVP)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "wvp")
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        _apply_bands(
+        apply_asset_bands(
             asset,
             [
                 _native_band(
@@ -386,35 +351,35 @@ def _image_asset_from_href(
     elif _SCL_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="Scene classification map (SCL)",
             roles=["data"],
         )
         asset_id = _mk_asset_id(maybe_res, "scl")
         _set_asset_properties(asset, resolution, shape, proj_bbox, resolution)
-        _apply_bands(asset, [_native_band(None, _raster_uint8)])
+        apply_asset_bands(asset, [_native_band(None, _raster_uint8)])
 
     elif _CLD_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="Cloud Probabilities",
             roles=["data", "cloud"],
         )
         asset_id = _mk_asset_id(maybe_res, "cloud")
         _set_asset_properties(asset, resolution, shape, proj_bbox, maybe_res)
-        _apply_bands(asset, [_native_band(None, _raster_uint8)])
+        apply_asset_bands(asset, [_native_band(None, _raster_uint8)])
 
     elif _SNW_PATTERN.search(asset_href):
         asset = pystac.Asset(
             href=asset_href,
-            type=asset_media_type,
+            media_type=asset_media_type,
             title="Snow Probabilities",
             roles=["data", "snow-ice"],
         )
         asset_id = _mk_asset_id(maybe_res, "snow")
         _set_asset_properties(asset, resolution, shape, proj_bbox)
-        _apply_bands(asset, [_native_band(None, _raster_uint8)])
+        apply_asset_bands(asset, [_native_band(None, _raster_uint8)])
 
     else:
         raise ValueError(f"Unexpected asset: {asset_href}")
@@ -494,9 +459,9 @@ def create_item(
         properties={"created": now_to_rfc3339_str()},
     )
 
-    item.properties["platform"] = metadata.platform.lower()
-    item.properties["constellation"] = SENTINEL_CONSTELLATION
-    item.properties["instruments"] = SENTINEL_INSTRUMENTS
+    item.common_metadata.platform = metadata.platform.lower()
+    item.common_metadata.constellation = SENTINEL_CONSTELLATION
+    item.common_metadata.instruments = SENTINEL_INSTRUMENTS
 
     eo = EOExtension.ext(item, add_if_missing=True)
     eo.cloud_cover = metadata.cloudiness_percentage
@@ -561,8 +526,7 @@ def create_item(
             view.sun_elevation,
         ]
     ):
-        if item.stac_extensions is not None:
-            item.stac_extensions.remove(VIEW_EXT_URI)
+        ViewExtension.remove_from(item)
 
     if item.stac_extensions is not None:
         item.stac_extensions.append(SENTINEL2_EXTENSION_SCHEMA)
@@ -576,9 +540,8 @@ def create_item(
 
     for key, asset in chain(image_assets.items(), metadata.extra_assets.items()):
         assert key not in item.assets
-        item.assets[key] = asset
-        asset.set_owner(item)
+        item.add_asset(key, asset)
 
-    _bump_band_extension_versions(item)
+    ensure_band_extension_versions(item)
 
     return item

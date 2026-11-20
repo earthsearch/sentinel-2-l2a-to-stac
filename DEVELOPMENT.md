@@ -48,13 +48,39 @@ excluding `05.09`**, with no carve-out.
 
 ### Temporary shims: remove once upstream catches up
 
-These exist only because upstream libraries haven't caught up to pystac 2.0 /
-STAC 1.1.0. Each carries an inline `SHIM` comment or docstring at its definition.
+These exist only because upstream libraries haven't caught up to STAC 1.1.0.
+Each carries an inline `SHIM` comment or docstring at its definition.
 
 | Shim | Why it exists | Remove when |
 | ---- | ------------- | ----------- |
-| `_patched_get_template_value` (`task.py`) | pystac 2.0's `LayoutTemplate._get_template_value` raises `TypeError` when a template variable matches an attribute of the Item itself (e.g. `id`). | Fixed upstream in pystac. |
-| `_set_asset_owners` (`task.py`, called in `add_fileinfo_to_local_assets`) | `Extension.ext(asset, add_if_missing=True)` needs `asset.owner` to register the extension URI on the Item, and pystac 2.0 doesn't always set it. | pystac re-parents assets on these paths. |
-| Raster band fields read via `band.extra_fields` (`cogify.py`) | pystac 2.0-dev `Band` has no typed raster accessors yet. | pystac stabilises the `Band` field API. |
+| `bands.py` (`SHIM(pystac-bands)`) | pystac 1.16 has no native `Asset.bands`, so STAC 1.1 `bands` are stored as raw dicts and the eo/raster extension URIs are bumped to v2.0.0 by hand. | pystac releases native bands. See [Removing the bands shim](#removing-the-bands-shim). |
 | `filterwarnings`: `ignore::PendingDeprecationWarning:rasterio.*` (`pyproject.toml`) | `rasterio.transform.from_bounds` multiplies `Affine` transforms with `*`; `affine` nudges callers toward `@`. None of our code multiplies `Affine`. | rasterio switches `*` → `@`. |
 | `filterwarnings`: `ignore:The exterior ring::antimeridian.*` (`pyproject.toml`) | `antimeridian.FixWindingWarning` fires when it's handed a clockwise exterior ring; it auto-corrects the winding, so the warning is noise. | The warning stops being emitted. |
+
+### pystac version pin
+
+pystac is pinned exactly (`pystac==1.16.0`, plus `pystac-core` and every
+`pystac-ext-*` package we import) in `pyproject.toml`. pystac 1.16 is a
+metapackage whose core and extension dependencies float, and new extension
+majors (e.g. `pystac-ext-eo` / `pystac-ext-raster` 2.0) change how bands and
+extension URIs are written. Bump the whole set together, and re-run the opt-in
+`upgrade` / `downgrade` suites when you do.
+
+### Removing the bands shim
+
+pystac's native bands API (`pystac.Band`, `Asset.bands`, `band.ext.eo` /
+`band.ext.raster`) is being developed. `tests/test_units.py::test_bands_shim_still_needed`
+fails once the pinned pystac ships it. When it does:
+
+1. Bump the pystac pin set above to the release that includes native bands.
+2. Rewrite the internals of `src/sentinel_2_l2a_to_stac/bands.py` onto the
+   native API.
+3. If the eo/raster extensions now write their v2.0.0 schema URIs themselves,
+   delete `ensure_band_extension_versions` and its call in `stac.py`.
+4. Delete `test_bands_shim_still_needed`. The other `bands.py` contract tests
+   should pass unchanged.
+5. Fixture outputs must not change: run `uv run pytest` plus
+   `-m upgrade` / `-m downgrade` and check `git diff tests/fixtures` is empty.
+6. Optional, separately: move `cogify.py`'s raster-field lookups and the
+   `EO_BAND_RENAME` / `RASTER_BAND_RENAME` merge onto the typed
+   `band.ext.raster.*` / `band.ext.eo.*` accessors.
