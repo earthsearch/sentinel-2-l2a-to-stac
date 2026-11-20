@@ -13,6 +13,8 @@ used by this project.
 
 - Classification extension (v2.0.0) on the collection-level `scl` item asset
   in, with `classification:classes` for SCL values.
+- Collection-level `thumbnail` asset, and `scripts/collection_thumbnail.py`
+  to regenerate `assets/thumbnail.jpg` from Earth Search.
 
 ### Changed
 
